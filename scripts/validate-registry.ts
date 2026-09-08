@@ -14,7 +14,7 @@
 import { readdirSync, readFileSync } from "node:fs"
 import { basename, join } from "node:path"
 import { registryEntrySchema } from "../src/lib/registry-schema.ts"
-import { GitHubNotFoundError, fetchRawJson, listDir } from "./github.ts"
+import { fetchRawJson, GitHubNotFoundError, listDir } from "./github.ts"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
 const REGISTRY_DIR = join(process.cwd(), "registry")

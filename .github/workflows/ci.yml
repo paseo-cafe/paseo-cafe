@@ -37,15 +37,16 @@ jobs:
             app:
               - "src/**"
               - "scripts/**"
+              - "registry/**"
               - "data/**"
               - "public/**"
               - "package.json"
               - "bun.lock"
+              - "biome.json"
+              - ".cta.json"
               - "tsconfig.json"
               - "vite.config.ts"
               - "vitest.config.ts"
-              - "eslint.config.js"
-              - ".prettier*"
               - "zerops.yaml"
               - ".github/workflows/ci.yml"
               - ".github/workflows/enrich-and-deploy.yml"
@@ -53,8 +54,7 @@ jobs:
               - "plugin/**"
               - "package.json"
               - "bun.lock"
-              - "eslint.config.js"
-              - ".prettier*"
+              - "biome.json"
               - ".github/workflows/ci.yml"
 
   app:
@@ -82,11 +82,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Check formatting
+      - name: Check with Biome
         run: bun run check:app
-
-      - name: Lint
-        run: bun run lint:app
 
       - name: Typecheck
         run: bun run typecheck
@@ -121,18 +118,15 @@ jobs:
           cache: npm
           cache-dependency-path: plugin/package-lock.json
 
-      - name: Install lint dependencies
+      - name: Install root dependencies
         run: bun install --frozen-lockfile
 
       - name: Install plugin dependencies
         working-directory: plugin
         run: npm ci
 
-      - name: Check formatting
+      - name: Check with Biome
         run: bun run check:plugin
-
-      - name: Lint
-        run: bun run lint:plugin
 
       - name: Typecheck
         working-directory: plugin

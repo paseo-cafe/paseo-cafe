@@ -11,8 +11,8 @@
  */
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import satori from "satori"
 import { Resvg } from "@resvg/resvg-js"
+import satori from "satori"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
 const ASSETS_DIR = join(process.cwd(), "scripts", "assets")

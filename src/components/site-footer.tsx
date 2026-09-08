@@ -2,8 +2,8 @@ import { SITE_NAME } from "@/lib/site"
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border/60">
-      <div className="mx-auto max-w-5xl space-y-3 px-6 py-8 text-xs text-foreground/50">
+    <footer className="border-border/60 border-t">
+      <div className="mx-auto max-w-5xl space-y-3 px-6 py-8 text-foreground/50 text-xs">
         <p>
           <strong className="text-foreground/70">{SITE_NAME}</strong> is an
           independent, community-run directory. It is not affiliated with,

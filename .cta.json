@@ -12,5 +12,5 @@
   "routerOnly": false,
   "version": 1,
   "framework": "react",
-  "chosenAddOns": ["eslint"]
+  "chosenAddOns": ["biome"]
 }

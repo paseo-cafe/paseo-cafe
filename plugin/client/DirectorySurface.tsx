@@ -9,12 +9,12 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Pressable, Text, View } from "react-native"
+import type { DirectoryEntry } from "../shared/directory"
 import {
   directoryInstallRpc,
   directoryListRpc,
   directorySettings,
 } from "../shared/directory"
-import type { DirectoryEntry } from "../shared/directory"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
 import { PluginRow } from "./PluginRow"

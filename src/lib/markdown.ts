@@ -1,9 +1,9 @@
-import { unified } from "unified"
-import remarkParse from "remark-parse"
-import remarkGfm from "remark-gfm"
-import remarkRehype from "remark-rehype"
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize"
 import rehypeStringify from "rehype-stringify"
+import remarkGfm from "remark-gfm"
+import remarkParse from "remark-parse"
+import remarkRehype from "remark-rehype"
+import { unified } from "unified"
 
 /**
  * Renders an excerpt of a plugin author's README to sanitized HTML — run

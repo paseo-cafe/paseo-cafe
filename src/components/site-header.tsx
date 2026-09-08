@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router"
 import { IconBrandGithub, IconPuzzle } from "@tabler/icons-react"
+import { Link } from "@tanstack/react-router"
 import { ModeToggle } from "@/components/mode-toggle"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { SITE_NAME, SITE_REPO } from "@/lib/site"
@@ -8,7 +8,7 @@ export function SiteHeader() {
   const isMobile = useIsMobile()
 
   return (
-    <header className="sticky top-0 z-10 border-b border-border/60 bg-background/80 backdrop-blur">
+    <header className="sticky top-0 z-10 border-border/60 border-b bg-background/80 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-4">
         <Link to="/" className="flex flex-col justify-center">
           <span className="flex items-center gap-2 font-medium">
@@ -16,7 +16,7 @@ export function SiteHeader() {
             {!isMobile ? SITE_NAME : null}
           </span>
         </Link>
-        <nav className="flex items-center gap-4 text-sm text-foreground/70">
+        <nav className="flex items-center gap-4 text-foreground/70 text-sm">
           <Link
             to="/"
             className="hover:text-foreground"

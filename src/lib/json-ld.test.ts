@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { pluginJsonLd } from "./json-ld"
+import { pluginJsonLd, serializePluginJsonLd } from "./json-ld"
 import type { PluginRecord } from "./plugin-schema"
 
 const basePlugin: PluginRecord = {
@@ -80,5 +80,15 @@ describe("pluginJsonLd", () => {
     const json = JSON.parse(JSON.stringify(ld))
     expect(json).not.toHaveProperty("license")
     expect(json).not.toHaveProperty("author")
+  })
+})
+
+describe("serializePluginJsonLd", () => {
+  it("escapes script-closing markup without changing the JSON value", () => {
+    const description = "</script><script>alert('xss')</script>"
+    const serialized = serializePluginJsonLd({ ...basePlugin, description })
+
+    expect(serialized).not.toContain("<")
+    expect(JSON.parse(serialized).description).toBe(description)
   })
 })

@@ -7,7 +7,7 @@ export function CopyCommand({ command }: { command: string }) {
 
   return (
     <div className="flex items-center justify-between gap-3 border border-border bg-muted px-4 py-3">
-      <code className="overflow-x-auto text-sm whitespace-pre">{command}</code>
+      <code className="overflow-x-auto whitespace-pre text-sm">{command}</code>
       <Button
         variant="outline"
         size="icon-sm"

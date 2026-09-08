@@ -4,5 +4,7 @@
   "path": "launchd-jobs",
   "categories": ["automation"],
   "platforms": ["macos"],
-  "caveats": ["Requires an active login session — won't run from a headless SSH-only daemon"]
+  "caveats": [
+    "Requires an active login session — won't run from a headless SSH-only daemon"
+  ]
 }

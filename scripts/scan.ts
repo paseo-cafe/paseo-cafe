@@ -21,34 +21,34 @@ import {
 } from "node:fs"
 import { join } from "node:path"
 import {
-  PLATFORM_LABELS,
-  registryEntrySchema,
-} from "../src/lib/registry-schema.ts"
-import { pluginRecordSchema } from "../src/lib/plugin-schema.ts"
+  extractReadmeImages,
+  MAX_README_IMAGES,
+  resolveGitHubAssetImages,
+} from "../src/lib/images.ts"
+import { renderMarkdownToHtml } from "../src/lib/markdown.ts"
 import type { PluginRecord } from "../src/lib/plugin-schema.ts"
+import { pluginRecordSchema } from "../src/lib/plugin-schema.ts"
 import {
   extractInstallSection,
   extractLimitationsSection,
   firstParagraph,
 } from "../src/lib/readme.ts"
-import { renderMarkdownToHtml } from "../src/lib/markdown.ts"
+import {
+  PLATFORM_LABELS,
+  registryEntrySchema,
+} from "../src/lib/registry-schema.ts"
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../src/lib/site.ts"
 import { extractVideos, resolveGitHubAssetVideos } from "../src/lib/videos.ts"
 import {
-  MAX_README_IMAGES,
-  extractReadmeImages,
-  resolveGitHubAssetImages,
-} from "../src/lib/images.ts"
-import {
-  GitHubNotFoundError,
   fetchRawJson,
   fetchRawText,
   fetchRepoMeta,
+  GitHubNotFoundError,
   listDir,
   rawUrl,
   resolveGitHubAssetContentType,
 } from "./github.ts"
 import { renderOgImage } from "./og-image.tsx"
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../src/lib/site.ts"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
 const ROOT = process.cwd()

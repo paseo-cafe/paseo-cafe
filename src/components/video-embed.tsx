@@ -10,6 +10,7 @@ import type { VideoEmbed } from "@/lib/plugin-schema"
 export function VideoEmbedPlayer({ video }: { video: VideoEmbed }) {
   if (video.kind === "file") {
     return (
+      // biome-ignore lint/a11y/useMediaCaption: External demo videos do not include a caption track URL.
       <video
         src={video.url}
         controls

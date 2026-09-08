@@ -1,11 +1,10 @@
-import { Link } from "@tanstack/react-router"
 import {
   IconPhotoOff,
   IconPlayerPlayFilled,
   IconStar,
   IconVersions,
 } from "@tabler/icons-react"
-import type { PluginRecord } from "@/lib/plugin-schema"
+import { Link } from "@tanstack/react-router"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -14,13 +13,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import type { PluginRecord } from "@/lib/plugin-schema"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 
 export function PluginCard({ plugin }: { plugin: PluginRecord }) {
   return (
     <Link to="/plugins/$id" params={{ id: plugin.id }} className="block">
       <Card className="h-full pt-0 transition-shadow hover:shadow-md">
-        <div className="relative aspect-video w-full shrink-0 overflow-hidden border-b border-border bg-muted">
+        <div className="relative aspect-video w-full shrink-0 overflow-hidden border-border border-b bg-muted">
           {plugin.images[0] ? (
             <img
               src={plugin.images[0]}
@@ -36,6 +36,7 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
           {plugin.videos.length > 0 ? (
             <div
               className="absolute inset-0 flex items-center justify-center bg-black/20"
+              role="img"
               aria-label="Has a demo video"
             >
               <IconPlayerPlayFilled className="size-8 text-white drop-shadow" />
@@ -46,7 +47,7 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
           <div className="flex items-center justify-between gap-2">
             <CardTitle>{plugin.name}</CardTitle>
             {plugin.repoMeta ? (
-              <span className="flex shrink-0 items-center gap-1 text-xs text-foreground/50">
+              <span className="flex shrink-0 items-center gap-1 text-foreground/50 text-xs">
                 <IconStar className="size-3.5" />
                 {plugin.repoMeta.stars}
               </span>
@@ -56,7 +57,7 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
             {plugin.description || "No description available."}
           </CardDescription>
           {plugin.owner ? (
-            <div className="flex items-center gap-1.5 text-xs text-foreground/50">
+            <div className="flex items-center gap-1.5 text-foreground/50 text-xs">
               <img
                 src={plugin.owner.avatarUrl}
                 alt=""

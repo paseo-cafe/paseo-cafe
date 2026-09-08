@@ -2,6 +2,8 @@
   "id": "usage-monitor",
   "repo": "ABorakati/paseo-usage-monitor",
   "categories": ["monitoring", "productivity"],
-  "caveats": ["Reads credentials from the CLIs and files each provider already stores locally"],
+  "caveats": [
+    "Reads credentials from the CLIs and files each provider already stores locally"
+  ],
   "submittedBy": "ABorakati"
 }

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
+import type { VideoEmbed } from "./plugin-schema"
 import {
   extractGitHubAssetLinks,
   extractVideos,
   resolveGitHubAssetVideos,
 } from "./videos"
-import type { VideoEmbed } from "./plugin-schema"
 
 describe("extractVideos", () => {
   it("extracts a youtube.com/watch link and builds a nocookie embed URL", () => {
@@ -21,6 +21,7 @@ describe("extractVideos", () => {
   })
 
   it("extracts a youtu.be short link", () => {
+    // biome-ignore lint/security/noSecrets: This is a public YouTube fixture, not a credential.
     const videos = extractVideos("https://youtu.be/dQw4w9WgXcQ?si=abc")
     expect(videos).toHaveLength(1)
     expect(videos[0]).toMatchObject({ kind: "youtube", id: "dQw4w9WgXcQ" })

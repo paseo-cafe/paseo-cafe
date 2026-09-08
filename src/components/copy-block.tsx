@@ -9,7 +9,7 @@ export function CopyBlock({ code, label }: { code: string; label?: string }) {
   return (
     <div className="relative border border-border bg-muted">
       {label ? (
-        <p className="border-b border-border px-4 py-2 pr-10 text-xs tracking-wide text-foreground/40 uppercase">
+        <p className="border-border border-b px-4 py-2 pr-10 text-foreground/40 text-xs uppercase tracking-wide">
           {label}
         </p>
       ) : null}

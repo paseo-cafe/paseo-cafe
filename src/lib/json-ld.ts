@@ -1,6 +1,6 @@
 import type { PluginRecord } from "@/lib/plugin-schema"
-import { SITE_URL } from "@/lib/site"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
+import { SITE_URL } from "@/lib/site"
 
 /**
  * schema.org SoftwareApplication structured data for a plugin's detail
@@ -33,4 +33,9 @@ export function pluginJsonLd(plugin: PluginRecord) {
       : undefined,
     codeRepository: plugin.url,
   }
+}
+
+/** Serializes JSON-LD without allowing user-controlled data to close the script tag. */
+export function serializePluginJsonLd(plugin: PluginRecord): string {
+  return JSON.stringify(pluginJsonLd(plugin)).replaceAll("<", "\\u003c")
 }

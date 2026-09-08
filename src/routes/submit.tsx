@@ -1,15 +1,15 @@
-import { createFileRoute, Link } from "@tanstack/react-router"
 import {
   IconArrowRight,
   IconBrandGithub,
   IconCheck,
   IconExternalLink,
 } from "@tabler/icons-react"
+import { createFileRoute, Link } from "@tanstack/react-router"
+import { CopyBlock } from "@/components/copy-block"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { CopyBlock } from "@/components/copy-block"
-import { SITE_REPO } from "@/lib/site"
 import { seo } from "@/lib/seo"
+import { SITE_REPO } from "@/lib/site"
 
 export const Route = createFileRoute("/submit")({
   head: () =>
@@ -112,7 +112,7 @@ function SubmitPage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <div className="flex flex-col gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="font-semibold text-3xl tracking-tight">
           Submit your plugin
         </h1>
         <p className="max-w-2xl text-foreground/70">
@@ -125,11 +125,11 @@ function SubmitPage() {
       <Separator className="my-8" />
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="font-semibold text-xl tracking-tight">
           1. Before you submit
         </h2>
         <div>
-          <p className="mb-2 text-sm font-medium text-foreground/60">
+          <p className="mb-2 font-medium text-foreground/60 text-sm">
             Required
           </p>
           <ul className="flex flex-col gap-2">
@@ -142,7 +142,7 @@ function SubmitPage() {
           </ul>
         </div>
         <div>
-          <p className="mb-2 text-sm font-medium text-foreground/60">
+          <p className="mb-2 font-medium text-foreground/60 text-sm">
             Recommended — not required to get in, but makes your listing much
             better
           </p>
@@ -150,7 +150,7 @@ function SubmitPage() {
             {RECOMMENDED.map((item) => (
               <li
                 key={item}
-                className="flex items-start gap-2 text-sm text-foreground/70"
+                className="flex items-start gap-2 text-foreground/70 text-sm"
               >
                 <IconCheck className="mt-0.5 size-4 shrink-0 text-foreground/30" />
                 <span>{item}</span>
@@ -163,10 +163,10 @@ function SubmitPage() {
       <Separator className="my-8" />
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="font-semibold text-xl tracking-tight">
           2. Add a registry entry
         </h2>
-        <p className="text-sm text-foreground/70">
+        <p className="text-foreground/70 text-sm">
           Add one file,{" "}
           <code className="text-foreground">registry/your-plugin-id.json</code>.
           This is the entire submission — everything else is read from your repo
@@ -186,7 +186,7 @@ function SubmitPage() {
               <dt className="flex flex-col font-mono text-foreground">
                 <span>{field}</span>
                 {!required ? (
-                  <span className="text-xs text-foreground/40">optional</span>
+                  <span className="text-foreground/40 text-xs">optional</span>
                 ) : null}
               </dt>
               <dd className="text-foreground/70">{description}</dd>
@@ -198,10 +198,10 @@ function SubmitPage() {
       <Separator className="my-8" />
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="font-semibold text-xl tracking-tight">
           3. Open a pull request
         </h2>
-        <p className="text-sm text-foreground/70">
+        <p className="text-foreground/70 text-sm">
           Quickest: create the file directly on GitHub, prefilled.
         </p>
         <Button
@@ -213,7 +213,7 @@ function SubmitPage() {
           GitHub
           <IconExternalLink className="size-3.5" />
         </Button>
-        <p className="mt-2 text-sm text-foreground/70">
+        <p className="mt-2 text-foreground/70 text-sm">
           Or, from the command line:
         </p>
         <CopyBlock code={GIT_STEPS} />
@@ -222,10 +222,10 @@ function SubmitPage() {
       <Separator className="my-8" />
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="font-semibold text-xl tracking-tight">
           4. What happens next
         </h2>
-        <ol className="flex flex-col gap-3 text-sm text-foreground/70">
+        <ol className="flex flex-col gap-3 text-foreground/70 text-sm">
           <li>
             <strong className="text-foreground">On open:</strong> a check runs
             automatically, confirming your repo/path exists and has a valid
@@ -248,14 +248,14 @@ function SubmitPage() {
       <Separator className="my-8" />
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="font-semibold text-xl tracking-tight">
           What you don't need to write
         </h2>
         <ul className="flex flex-col gap-2">
           {AUTO_GENERATED.map((item) => (
             <li
               key={item}
-              className="flex items-start gap-2 text-sm text-foreground/70"
+              className="flex items-start gap-2 text-foreground/70 text-sm"
             >
               <IconCheck className="mt-0.5 size-4 shrink-0 text-green-600" />
               <span>{item}</span>
@@ -274,7 +274,7 @@ function SubmitPage() {
           href={`https://github.com/${SITE_REPO}`}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-1 text-sm text-foreground/60 hover:text-foreground"
+          className="flex items-center gap-1 text-foreground/60 text-sm hover:text-foreground"
         >
           <IconBrandGithub className="size-4" /> Read the source
           <IconExternalLink className="size-3.5" />

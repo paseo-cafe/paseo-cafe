@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react"
 import { ScriptOnce } from "@tanstack/react-router"
+import { createContext, useContext, useEffect, useState } from "react"
 
 type Theme = "dark" | "light" | "system"
 

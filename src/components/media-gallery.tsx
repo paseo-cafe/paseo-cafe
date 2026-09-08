@@ -1,5 +1,5 @@
-import type { PluginRecord } from "@/lib/plugin-schema"
 import { VideoEmbedPlayer } from "@/components/video-embed"
+import type { PluginRecord } from "@/lib/plugin-schema"
 
 /** Combined screenshots + demo videos for a plugin's detail page. Videos first — they're the richer asset when present. */
 export function MediaGallery({
@@ -11,7 +11,7 @@ export function MediaGallery({
 
   return (
     <div>
-      <h2 className="mb-2 text-sm font-medium text-foreground/60">Gallery</h2>
+      <h2 className="mb-2 font-medium text-foreground/60 text-sm">Gallery</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {plugin.videos.map((video) => (
           <div

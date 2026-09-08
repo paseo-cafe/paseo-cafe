@@ -1,16 +1,16 @@
+import { IconSearch } from "@tabler/icons-react"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { useMemo, useState } from "react"
-import { IconSearch } from "@tabler/icons-react"
-import { getPlugins } from "@/lib/plugins-data"
 import { PluginCard } from "@/components/plugin-card"
 import { Button } from "@/components/ui/button"
-import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
-import { seo } from "@/lib/seo"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { getPlugins } from "@/lib/plugins-data"
+import { seo } from "@/lib/seo"
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
 
 export const Route = createFileRoute("/")({
   head: () =>
@@ -52,11 +52,11 @@ function App() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 pb-20">
       <div className="mx-auto flex max-w-2xl flex-col gap-4 px-6 pt-16 pb-2 text-center">
-        <div className="mx-auto flex items-center gap-1.5 text-xs text-foreground/50">
+        <div className="mx-auto flex items-center gap-1.5 text-foreground/50 text-xs">
           <span className="size-1.5 rounded-full bg-primary" />
           Community-run unofficial directory
         </div>
-        <h1 className="text-4xl font-semibold tracking-tight">
+        <h1 className="font-semibold text-4xl tracking-tight">
           A directory of paseo.sh plugins
         </h1>
         <p className="mx-auto max-w-xl text-foreground/70">
@@ -69,7 +69,7 @@ function App() {
         </p>
       </div>
 
-      <p className="text-sm text-foreground/60">
+      <p className="text-foreground/60 text-sm">
         {query || category
           ? `${filtered.length} of ${plugins.length} plugin${plugins.length === 1 ? "" : "s"} found.`
           : `${plugins.length} plugin${plugins.length === 1 ? "" : "s"} generated from their source repos.`}
@@ -77,7 +77,7 @@ function App() {
       <div className="mx-auto flex w-full flex-col gap-8 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1">
           {filtered.length === 0 ? (
-            <p className="py-12 text-center text-sm text-foreground/50">
+            <p className="py-12 text-center text-foreground/50 text-sm">
               No plugins match your filters.
             </p>
           ) : (
@@ -102,7 +102,7 @@ function App() {
             </InputGroup>
           </div>
 
-          <span className="text-xs font-medium tracking-wide text-foreground/50 uppercase">
+          <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
             Categories
           </span>
           <div className="flex flex-wrap gap-1">

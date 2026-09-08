@@ -1,19 +1,19 @@
 import type { PluginTheme } from "@getpaseo/plugin"
 import {
+  copyText,
   Icon,
   ScrollView,
-  copyText,
   useToast,
 } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Image, Pressable, Text, View } from "react-native"
+import type { DirectoryEntry } from "../shared/directory"
 import {
-  HEALTH_LABELS,
   getInstallCommand,
   getSiteUrl,
+  HEALTH_LABELS,
   stripHtml,
 } from "../shared/directory"
-import type { DirectoryEntry } from "../shared/directory"
 import { openExternal } from "./open-external"
 
 interface PluginDetailPageProps {

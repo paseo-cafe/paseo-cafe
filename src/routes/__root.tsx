@@ -1,18 +1,17 @@
+import { TanStackDevtools } from "@tanstack/react-devtools"
 import {
+  createRootRoute,
   HeadContent,
   Link,
   Scripts,
-  createRootRoute,
 } from "@tanstack/react-router"
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools"
-import { TanStackDevtools } from "@tanstack/react-devtools"
-
-import appCss from "../styles.css?url"
-import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
+import { SiteHeader } from "@/components/site-header"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
+import appCss from "../styles.css?url"
 
 export const Route = createRootRoute({
   // Deliberately just charset/viewport/stylesheet/a bare title+description
@@ -36,9 +35,9 @@ export const Route = createRootRoute({
   }),
   notFoundComponent: () => (
     <main className="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-24 text-center">
-      <p className="font-mono text-6xl font-semibold text-foreground/20">404</p>
-      <h1 className="text-2xl font-semibold tracking-tight">Page not found</h1>
-      <p className="text-sm text-foreground/60">
+      <p className="font-mono font-semibold text-6xl text-foreground/20">404</p>
+      <h1 className="font-semibold text-2xl tracking-tight">Page not found</h1>
+      <p className="text-foreground/60 text-sm">
         The page you're looking for doesn't exist, or the plugin may have been
         removed from the registry.
       </p>

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
-import { pluginRecordSchema } from "@/lib/plugin-schema"
 import type { PluginRecord } from "@/lib/plugin-schema"
+import { pluginRecordSchema } from "@/lib/plugin-schema"
 import plugins from "../../data/plugins.json"
 
 // Statically imported rather than read off disk at request time: the CI
