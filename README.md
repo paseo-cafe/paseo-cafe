@@ -16,10 +16,10 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
    [Submitting a plugin](#submitting-a-plugin)).
 2. **`scripts/validate-registry.ts`** runs on every PR that touches registry inputs. It checks the
    entry is well-formed, the repo/path exists, and a valid `paseo-plugin.json` manifest is there.
-   Path-scoped CI separately checks app formatting, lint, types, tests, and the production build,
-   plus formatting, lint, and types for the companion Paseo plugin. See
-   `.github/workflows/app-ci.yml`, `.github/workflows/plugin-ci.yml`, and
-   `.github/workflows/validate.yml`.
+   CI detects affected paths, runs the app and/or companion-plugin checks, then reports one
+   aggregate `All checks passed` result. App checks cover formatting, lint, types, tests, and the
+   production build; plugin checks cover formatting, lint, and types. See
+   `.github/workflows/ci.yml` and `.github/workflows/validate.yml`.
 3. **`scripts/scan.ts`** ("plumb for paseo") runs on merge to `main` and nightly. It reads
    `paseo-plugin.json`, `package.json`, `README.md`, `LICENSE`, and `images/` straight from each
    plugin's repo, plus GitHub API metadata (stars, last commit, topics, license), and writes the
