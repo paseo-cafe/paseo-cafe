@@ -5,15 +5,11 @@ import { describe, expect, it } from "vitest"
 import { selectTargets } from "./targets.ts"
 
 describe("selectTargets", () => {
-  it("reads registry entries and PR head sha", () => {
+  it("selects checked-out registry entries for non-pr runs", async () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
     const registry = join(root, "registry")
     mkdirSync(registry)
-    writeFileSync(join(registry, "demo.json"), JSON.stringify({ id: "demo", repo: "owner/repo" }))
-    const event = join(root, "event.json")
-    writeFileSync(event, JSON.stringify({ pull_request: { head: { sha: "abc123" } } }))
-    expect(selectTargets({ registryRoot: registry, eventPath: event })).toEqual([
-      { id: "demo", repo: "owner/repo", ref: "abc123", commit: "abc123", path: undefined },
-    ])
+    writeFileSync(join(registry, "one.json"), JSON.stringify({ id: "one", repo: "o/r" }))
+    expect(await selectTargets({ registryRoot: registry })).toEqual([{ id: "one", repo: "o/r", ref: "HEAD", commit: "HEAD", path: undefined }])
   })
 })

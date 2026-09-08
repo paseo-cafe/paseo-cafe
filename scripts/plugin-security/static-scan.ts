@@ -1,72 +1,66 @@
 #!/usr/bin/env bun
 import { readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { join, relative, resolve } from "node:path"
+import semver from "semver"
 import type { SecurityFinding } from "./shared.ts"
 
-export type StaticScanInput = { root: string; pluginPath?: string }
+export type StaticScanInput = { root: string; pluginPath?: string; registryId?: string }
 export type StaticScanOutput = { files: number; bytes: number; findings: SecurityFinding[]; buildCommands: string[][] }
-
-const MAX_FILES = 200
-const MAX_BYTES = 2_000_000
-const MAX_DEPTH = 6
+const MAX_FILES = 200, MAX_BYTES = 2_000_000, MAX_DEPTH = 6
 
 export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
-  const root = join(input.root, input.pluginPath ?? "")
-  const files = collectFiles(root)
+  const root = resolve(input.root, input.pluginPath ?? ".")
+  const state = { files: 0, bytes: 0, incomplete: false }
   const findings: SecurityFinding[] = []
   const buildCommands: string[][] = []
-  let bytes = 0
-  for (const file of files.slice(0, MAX_FILES)) {
-    const content = readFileSync(file, "utf8")
-    bytes += Buffer.byteLength(content)
-    if (bytes > MAX_BYTES) {
-      findings.push(finding("scanner", "size-limit", "high", true, relative(input.root, file), "plugin exceeds size budget"))
-      break
-    }
-    if (/paseo-plugin\.json$/.test(file)) validateManifest(content, relative(input.root, file), findings)
-    if (/^(?:^|.*\/)package\.json$/.test(file)) inspectPackage(content, relative(input.root, file), findings, buildCommands)
-    if (/\.(?:ya?ml|json|md|txt|sh|ts|tsx)$/.test(file) && /(?:curl|wget|sudo|bash\s+-c|sh\s+-c|execSync|spawnSync|spawn\(|eval\()/i.test(content)) {
-      findings.push(finding("static", "dangerous-pattern", "high", true, relative(input.root, file), "potential code execution or install action"))
-    }
-  }
-  return { files: Math.min(files.length, MAX_FILES), bytes, findings, buildCommands }
+  walk(root, root, 0, state, findings, buildCommands, input.registryId)
+  if (state.incomplete) findings.push(finding("scanner", "incomplete", "high", true, ".", "scan exceeded limits or encountered unsupported filesystem state"))
+  return { files: state.files, bytes: state.bytes, findings, buildCommands }
 }
 
-function inspectPackage(content: string, path: string, findings: SecurityFinding[], buildCommands: string[][]) {
-  try {
-    const pkg = JSON.parse(content) as { scripts?: Record<string, string> }
-    for (const [name, script] of Object.entries(pkg.scripts ?? {})) {
-      if (/^(?:pre|post)?(?:install|prepare|prepack|postpack|prepublish|prepublishOnly)$/.test(name) || /(?:curl|wget|bash|sh|node|bun)\b/i.test(script)) {
-        findings.push(finding("package", "script-risk", "medium", true, path, `risky package script ${name}`))
-      }
-      if (name === "build") buildCommands.push(["bun", "run", "build"])
-    }
-  } catch {
-    findings.push(finding("package", "json", "high", true, path, "invalid JSON package manifest"))
-  }
-}
-
-function validateManifest(raw: string, path: string, findings: SecurityFinding[]) {
-  try {
-    const manifest = JSON.parse(raw) as { id?: unknown; requirements?: { paseo?: unknown }; build?: unknown }
-    if (typeof manifest.id !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(manifest.id)) findings.push(finding("manifest", "id", "high", true, path, "invalid plugin id"))
-    const paseo = manifest.requirements?.paseo
-    if (paseo !== undefined && (typeof paseo !== "string" || !/^[0-9v^<>=~.*+\-\s]+$/.test(paseo))) findings.push(finding("manifest", "requirements.paseo", "high", true, path, "invalid requirements.paseo semver range"))
-    if (manifest.build !== undefined && !Array.isArray(manifest.build)) findings.push(finding("manifest", "build", "high", true, path, "build must be argv arrays"))
-  } catch {
-    findings.push(finding("manifest", "json", "high", true, path, "invalid JSON manifest"))
-  }
-}
-
-function collectFiles(dir: string, depth = 0, out: string[] = []): string[] {
-  if (depth > MAX_DEPTH) return out
+function walk(base: string, dir: string, depth: number, state: { files: number; bytes: number; incomplete: boolean }, findings: SecurityFinding[], buildCommands: string[][], registryId?: string) {
+  if (depth > MAX_DEPTH) { state.incomplete = true; return }
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const file = join(dir, entry.name)
-    if (entry.isDirectory()) collectFiles(file, depth + 1, out)
-    else if (entry.isFile()) out.push(file)
+    const full = join(dir, entry.name)
+    const rel = relative(base, full) || entry.name
+    if (entry.isSymbolicLink()) { state.incomplete = true; findings.push(finding("scanner", "symlink", "high", true, rel, "symlink rejected")); continue }
+    if (entry.isDirectory()) { walk(base, full, depth + 1, state, findings, buildCommands, registryId); continue }
+    if (!entry.isFile()) continue
+    state.files += 1
+    if (state.files > MAX_FILES) state.incomplete = true
+    const content = readFileSync(full, "utf8")
+    state.bytes += Buffer.byteLength(content)
+    if (state.bytes > MAX_BYTES) state.incomplete = true
+    if (/paseo-plugin\.json$/.test(entry.name)) validateManifest(content, rel, registryId, findings, buildCommands)
+    if (/^(index\.(?:client|server)\.(?:ts|tsx)|index\.ts)$/.test(entry.name)) validateEntrypoint(entry.name, rel, findings)
+    scanBoundaries(content, rel, findings)
   }
-  return out
 }
 
-function relative(root: string, file: string) { return file.startsWith(root) ? file.slice(root.length + 1) : file }
+function validateManifest(raw: string, path: string, registryId: string | undefined, findings: SecurityFinding[], buildCommands: string[][]) {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (typeof parsed.id !== "string" || (registryId && parsed.id !== registryId)) findings.push(finding("manifest", "id", "high", true, path, "manifest id must match registry id"))
+    const req = parsed.requirements
+    if (req !== undefined) {
+      if (!req || typeof req !== "object" || Array.isArray(req)) findings.push(finding("manifest", "requirements", "high", true, path, "requirements must be an object"))
+      else {
+        const paseo = (req as { paseo?: unknown }).paseo
+        if (paseo !== undefined && (typeof paseo !== "string" || !semver.validRange(paseo, { loose: false }))) findings.push(finding("manifest", "requirements.paseo", "high", true, path, "invalid requirements.paseo semver range"))
+      }
+    }
+    if (parsed.build !== undefined) {
+      if (!Array.isArray(parsed.build) || parsed.build.length === 0 || !parsed.build.every((cmd) => Array.isArray(cmd) && cmd.length > 0 && cmd.every((arg) => typeof arg === "string" && arg.length > 0))) findings.push(finding("manifest", "build", "high", true, path, "build must be nonempty argv arrays"))
+      else for (const cmd of parsed.build as string[][]) buildCommands.push(cmd)
+    }
+    for (const key of Object.keys(parsed)) if (!["id", "requirements", "build"].includes(key)) findings.push(finding("manifest", `unknown:${key}`, "medium", false, path, `unknown manifest key ${key}`))
+  } catch { findings.push(finding("manifest", "json", "high", true, path, "invalid JSON manifest")) }
+}
+
+function validateEntrypoint(name: string, path: string, findings: SecurityFinding[]) {
+  if (name === "index.ts") findings.push(finding("entrypoint", "legacy-index", "high", true, path, "legacy-only index.ts is rejected"))
+}
+function scanBoundaries(content: string, path: string, findings: SecurityFinding[]) {
+  if (/from\s+["']\.\.\/(client|server|shared)\//.test(content) || /from\s+["'](?:client|server|shared)\//.test(content)) findings.push(finding("boundary", "cross-runtime-import", "high", true, path, "cross-runtime import boundary violated"))
+}
 function finding(tool: string, ruleId: string, severity: string, blocking: boolean, path: string, message: string): SecurityFinding { return { tool, ruleId, severity, blocking, path, message } }

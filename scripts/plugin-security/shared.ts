@@ -10,7 +10,15 @@ export type SecurityFinding = {
   message: string
 }
 
-export type PluginSecurityPluginResult = {
+export type SecurityTarget = {
+  id: string
+  repo: string
+  path?: string
+  ref: string
+  commit: string
+}
+
+export type SecurityPluginResult = {
   commit: string
   scannedAt: string
   status: "passed" | "review-required" | "failed" | "unavailable"
@@ -24,13 +32,5 @@ export type PluginSecurityPluginResult = {
 export type SecurityResults = {
   version: typeof SECURITY_RESULT_VERSION
   generatedAt: string
-  plugins: Record<string, PluginSecurityPluginResult>
-}
-
-export type SecurityTarget = {
-  id: string
-  repo: string
-  ref: string
-  commit: string
-  path?: string
+  plugins: Record<string, SecurityPluginResult>
 }
