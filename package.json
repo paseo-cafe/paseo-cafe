@@ -22,6 +22,10 @@
     "registry:ensure": "bun run scripts/scan.ts --if-missing",
     "icons:build": "bun run scripts/build-icons.ts",
     "build:generated": "vite build"
+    "security:targets": "bun run scripts/plugin-security/targets.ts",
+    "security:scan": "bun run scripts/plugin-security/scan.ts",
+    "security:publish": "bun run scripts/plugin-security/publish.ts",
+    "security:test": "vitest run scripts/plugin-security"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
