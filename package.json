@@ -20,6 +20,7 @@
     "registry:validate": "bun run scripts/validate-registry.ts",
     "registry:scan": "bun run scripts/scan.ts",
     "registry:ensure": "bun run scripts/scan.ts --if-missing",
+    "icons:build": "bun run scripts/build-icons.ts",
     "build:generated": "vite build"
   },
   "dependencies": {
