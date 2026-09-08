@@ -44,7 +44,7 @@ jobs:
           bun run lint:app
           bun run typecheck
           bun run test
-          bun run build
+          bun run build:generated
 
       # Zerops uploads this working directory, so the verified generated tree
       # can ship without committing derived files to protected main.

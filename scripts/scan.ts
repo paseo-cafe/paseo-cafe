@@ -12,7 +12,13 @@
  * safest defaults, so the listing can surface it as "needs attention"
  * instead of the whole build breaking.
  */
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs"
 import { join } from "node:path"
 import {
   PLATFORM_LABELS,
@@ -327,9 +333,25 @@ function writeSitemap(records: PluginRecord[]) {
 }
 
 async function main() {
+  const files = readdirSync(REGISTRY_DIR).filter((file) =>
+    file.endsWith(".json")
+  )
+  const outputExists =
+    existsSync(INDEX_PATH) &&
+    existsSync(join(PUBLIC_DIR, "sitemap.xml")) &&
+    existsSync(join(PUBLIC_DIR, "robots.txt")) &&
+    existsSync(join(OG_DIR, "default.png")) &&
+    files.every((file) => {
+      const id = file.slice(0, -".json".length)
+      return (
+        existsSync(join(OUTPUT_DIR, `${id}.json`)) &&
+        existsSync(join(OG_DIR, `${id}.png`))
+      )
+    })
+
+  if (process.argv.includes("--if-missing") && outputExists) return
   mkdirSync(OUTPUT_DIR, { recursive: true })
   mkdirSync(OG_DIR, { recursive: true })
-  const files = readdirSync(REGISTRY_DIR).filter((f) => f.endsWith(".json"))
 
   const records: PluginRecord[] = []
   for (const file of files) {

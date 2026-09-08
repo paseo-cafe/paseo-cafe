@@ -7,9 +7,9 @@ from the plugin's own repo — authors don't fill out a form, they just point us
 
 ```
 registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
-                         →  scripts/scan.ts              (CI, on merge + nightly)
-                         →  data/plugins/<id>.json + data/plugins.json
-                         →  src/routes/plugins.*.tsx (reads data/plugins.json)
+                         →  scripts/scan.ts              (build, dev, deployment, nightly)
+                         →  ignored data/plugins/*.json + public assets
+                         →  src/routes/plugins.*.tsx (build imports data/plugins.json)
 ```
 
 1. **`registry/*.json`** is the only thing a human writes — a pointer at a repo (see
@@ -20,21 +20,20 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
    aggregate `All checks passed` result. App checks cover formatting, lint, types, tests, and the
    production build; plugin checks cover formatting, lint, and types. See
    `.github/workflows/ci.yml` and `.github/workflows/validate.yml`.
-3. **`scripts/scan.ts`** ("plumb for paseo") runs on merge to `main` and nightly. It reads
-   `paseo-plugin.json`, `package.json`, `README.md`, `LICENSE`, and `images/` straight from each
-   plugin's repo, plus GitHub API metadata (stars, last commit, topics, license), and writes the
-   generated, never-hand-edited records in `data/plugins/` and `data/plugins.json`. See
+3. **`scripts/scan.ts`** ("plumb for paseo") generates data on demand before local development
+   and production builds, then refreshes it during deployment on merges to `main` and nightly. It
+   reads `paseo-plugin.json`, `package.json`, `README.md`, `LICENSE`, and `images/` straight from
+   each plugin's repo, plus GitHub API metadata (stars, last commit, topics, license), and writes
+   ignored, never-hand-edited records and public assets. See
    `.github/workflows/enrich-and-deploy.yml`.
-4. The site (`src/routes/plugins.index.tsx`, `src/routes/plugins.$id.tsx`) reads
-   `data/plugins.json` via `src/lib/plugins-data.ts` — it never talks to GitHub directly.
+4. The build imports the generated `data/plugins.json` via `src/lib/plugins-data.ts`; the running
+   site never talks to GitHub directly.
 
-5. **`.github/workflows/enrich-and-deploy.yml`** runs the scan, verifies the refreshed `data/` +
-   `public/og` + `public/sitemap.xml` + `public/robots.txt` in its working tree, then deploys that
-   exact tree to [Zerops](https://zerops.io) (`zerops.yaml`). It never writes generated artifacts
-   back to protected `main`. Zerops runs a persistent Bun server (via [Nitro](https://nitro.build),
-   wired up in `vite.config.ts`), so `src/lib/plugins-data.ts` can statically import
-   `data/plugins.json`: Vite/Nitro inlines it into the server bundle at build time, with no GitHub
-   Pages-style static-hosting constraints to design around.
+5. **`.github/workflows/enrich-and-deploy.yml`** refreshes and verifies `data/` + `public/og` +
+   `public/sitemap.xml` + `public/robots.txt` in its working tree, then deploys that exact tree to
+   [Zerops](https://zerops.io) (`zerops.yaml`). Generated outputs are ignored rather than kept stale
+   on protected `main`. Zerops runs a persistent Bun server (via [Nitro](https://nitro.build), wired
+   up in `vite.config.ts`), so Vite/Nitro can inline `data/plugins.json` into the server bundle.
 
 ## Submitting a plugin
 
@@ -70,11 +69,12 @@ Open a PR adding your `registry/<id>.json`. Once Registry validation and CI pass
 ```bash
 bun install
 bun run registry:validate   # check registry/*.json against live GitHub repos
-bun run registry:scan       # regenerate data/plugins/*.json + data/plugins.json
-bun run dev                 # http://localhost:3000
+bun run dev                 # regenerate the listing, then serve http://localhost:3000
 ```
 
-Other useful scripts: `bun run typecheck`, `bun run lint`, `bun run test`, `bun run build`.
+`bun run build` ensures the generated listing exists before producing a deployable bundle. Run
+`bun run registry:scan` explicitly to refresh it. Other useful scripts: `bun run typecheck`,
+`bun run lint`, `bun run test`.
 
 ## Stack
 
