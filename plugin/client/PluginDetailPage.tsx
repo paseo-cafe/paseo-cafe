@@ -2,25 +2,29 @@ import type { PluginTheme } from "@getpaseo/plugin"
 import {
   copyText,
   Icon,
+  Modal,
   ScrollView,
   useToast,
 } from "@getpaseo/plugin/client/react-native"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Image, Pressable, Text, View } from "react-native"
 import type { DirectoryEntry } from "../shared/directory"
 import {
   getInstallCommand,
   getSiteUrl,
   HEALTH_LABELS,
+  isValidInstallPath,
+  isValidRepo,
   stripHtml,
 } from "../shared/directory"
-import { openExternal } from "./open-external"
+import { openExternal } from "./web"
 
 interface PluginDetailPageProps {
   entry: DirectoryEntry
   theme: PluginTheme
   compact: boolean
   installing: boolean
+  installError: string | null
   onInstall: () => void
   onOpenGallery: () => void
   onBack: () => void
@@ -36,11 +40,14 @@ export function PluginDetailPage({
   theme,
   compact,
   installing,
+  installError,
   onInstall,
   onOpenGallery,
   onBack,
 }: PluginDetailPageProps) {
   const toast = useToast()
+  const [confirmingInstall, setConfirmingInstall] = useState(false)
+  const [showFullInstallError, setShowFullInstallError] = useState(false)
 
   const styles = useMemo(
     () => ({
@@ -180,9 +187,31 @@ export function PluginDetailPage({
         borderColor: theme.colors.statusDanger,
         borderRadius: 10,
         padding: 12,
+        gap: 8,
         backgroundColor: theme.colors.surface1,
       },
       errorText: { color: theme.colors.statusDanger, fontSize: 13 },
+      errorDetails: {
+        color: theme.colors.foreground,
+        fontFamily: "monospace" as const,
+        fontSize: 12,
+        lineHeight: 18,
+      },
+      errorActions: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        gap: 14,
+      },
+      errorAction: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 5,
+      },
+      errorActionText: {
+        color: theme.colors.accent,
+        fontSize: 12,
+        fontWeight: "600" as const,
+      },
       gallery: { marginHorizontal: compact ? -16 : -24 },
       galleryContent: { paddingHorizontal: compact ? 16 : 24, gap: 10 },
       galleryTile: {
@@ -258,6 +287,17 @@ export function PluginDetailPage({
       },
       healthText: { fontSize: 13 },
       footer: { color: theme.colors.foregroundMuted, fontSize: 11 },
+      modalBody: { gap: 16 },
+      modalTitle: {
+        color: theme.colors.foreground,
+        fontSize: 15,
+        fontWeight: "600" as const,
+      },
+      modalText: {
+        color: theme.colors.foregroundMuted,
+        fontSize: 13,
+        lineHeight: 19,
+      },
     }),
     [theme, compact, installing]
   )
@@ -276,23 +316,30 @@ export function PluginDetailPage({
     entry.caveats.length > 0 ||
     !!limitationsText
   const health = entry.health
+  const installable =
+    isValidRepo(entry.repo) &&
+    (entry.path === undefined || isValidInstallPath(entry.path))
+  const installErrorIsLong =
+    installError !== null &&
+    (installError.length > 500 || installError.split("\n").length > 6)
 
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Back to Plugin Directory"
+          accessibilityLabel="Back to Paseo Cafe"
           style={styles.backRow}
           onPress={onBack}
         >
           <Icon name="ArrowLeft" size={16} color={theme.colors.accent} />
-          <Text style={styles.backText}>Plugin Directory</Text>
+          <Text style={styles.backText}>Paseo Cafe</Text>
         </Pressable>
 
         <View style={styles.headerRow}>
           {entry.owner?.avatarUrl ? (
             <Image
+              accessible={false}
               source={{ uri: entry.owner.avatarUrl }}
               style={styles.avatar}
             />
@@ -491,9 +538,10 @@ export function PluginDetailPage({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Install ${entry.name}`}
-            style={styles.button}
-            disabled={installing}
-            onPress={onInstall}
+            accessibilityState={{ disabled: installing || !installable }}
+            style={[styles.button, !installable ? { opacity: 0.5 } : null]}
+            disabled={installing || !installable}
+            onPress={() => setConfirmingInstall(true)}
           >
             <Text style={styles.buttonText}>
               {installing ? "Installing…" : "Install"}
@@ -508,6 +556,63 @@ export function PluginDetailPage({
             <Text style={styles.secondaryButtonText}>View repo</Text>
           </Pressable>
         </View>
+
+        {!installable ? (
+          <View accessibilityRole="alert" style={styles.errorBox}>
+            <Text style={styles.errorText}>
+              This listing has an invalid repository or plugin subpath and
+              cannot be installed.
+            </Text>
+          </View>
+        ) : null}
+
+        {installError ? (
+          <View accessibilityRole="alert" style={styles.errorBox}>
+            <Text style={styles.errorText}>Installation failed</Text>
+            <Text
+              numberOfLines={showFullInstallError ? undefined : 6}
+              selectable
+              style={styles.errorDetails}
+            >
+              {installError}
+            </Text>
+            <View style={styles.errorActions}>
+              {installErrorIsLong ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    showFullInstallError
+                      ? "Show less installation error output"
+                      : "View full installation error output"
+                  }
+                  onPress={() => setShowFullInstallError((current) => !current)}
+                  style={styles.errorAction}
+                >
+                  <Icon
+                    name={showFullInstallError ? "ChevronUp" : "ChevronDown"}
+                    size={14}
+                    color={theme.colors.accent}
+                  />
+                  <Text style={styles.errorActionText}>
+                    {showFullInstallError ? "Show less" : "View more…"}
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Copy installation error output"
+                onPress={async () => {
+                  await copyText(installError)
+                  toast.show("Copied installation error output")
+                }}
+                style={styles.errorAction}
+              >
+                <Icon name="Copy" size={14} color={theme.colors.accent} />
+                <Text style={styles.errorActionText}>Copy error</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         {health ? (
           <View style={styles.section}>
@@ -552,6 +657,50 @@ export function PluginDetailPage({
           </Text>
         ) : null}
       </ScrollView>
+      <Modal
+        title={`Install ${entry.name}?`}
+        icon={<Icon name="Download" size={18} color={theme.colors.accent} />}
+        open={confirmingInstall}
+        onOpenChange={setConfirmingInstall}
+      >
+        <Modal.Content contentContainerStyle={styles.modalBody}>
+          <Text style={styles.modalTitle}>
+            {entry.repo}
+            {entry.path ? `/${entry.path}` : ""}
+          </Text>
+          <Text style={styles.modalText}>
+            Plugin server code, build commands, dependencies, and future updates
+            run as trusted code on the Paseo host. Review the repository before
+            installing.
+          </Text>
+          <View style={styles.actionsRow}>
+            <Pressable
+              accessibilityRole="link"
+              style={styles.secondaryButton}
+              onPress={() => openExternal(entry.url)}
+            >
+              <Text style={styles.secondaryButtonText}>View repo</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.secondaryButton}
+              onPress={() => setConfirmingInstall(false)}
+            >
+              <Text style={styles.secondaryButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.button}
+              onPress={() => {
+                setConfirmingInstall(false)
+                onInstall()
+              }}
+            >
+              <Text style={styles.buttonText}>Install</Text>
+            </Pressable>
+          </View>
+        </Modal.Content>
+      </Modal>
     </View>
   )
 }

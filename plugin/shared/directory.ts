@@ -1,4 +1,9 @@
-import { defineRpc, defineSettings } from "@getpaseo/plugin"
+import {
+  defineAttachmentSource,
+  defineRpc,
+  defineSettings,
+  PluginAttachmentSearchPayloadSchema,
+} from "@getpaseo/plugin"
 import { z } from "zod"
 
 export const DEFAULT_DIRECTORY_URL = "https://paseo.cafe/api/plugins"
@@ -6,10 +11,13 @@ export const DEFAULT_DIRECTORY_URL = "https://paseo.cafe/api/plugins"
 // Always the real site, independent of directorySettings.directoryUrl above —
 // "View on paseo.cafe" should never point at a local/staging override.
 const SITE_URL = "https://paseo.cafe"
+const httpUrlSchema = z
+  .url()
+  .refine((value) => /^https?:\/\//i.test(value), "Expected an HTTP(S) URL")
 
 /**
  * Which paseo.cafe deployment to read from — host-scoped so it's one setting
- * per daemon, editable from Settings → Plugins → Plugin Directory without a
+ * per daemon, editable from Settings → Plugins → Paseo Cafe without a
  * reload. Exists for local development (point at `npm run dev`) and for
  * anyone running a self-hosted fork of the directory.
  */
@@ -18,7 +26,7 @@ export const directorySettings = defineSettings({
   scope: "host",
   version: 1,
   schema: z.object({
-    directoryUrl: z.string().url().default(DEFAULT_DIRECTORY_URL),
+    directoryUrl: httpUrlSchema.default(DEFAULT_DIRECTORY_URL),
   }),
 })
 
@@ -32,7 +40,7 @@ export const directoryEntrySchema = z.object({
   id: z.string(),
   repo: z.string(),
   path: z.string().optional(),
-  url: z.string(),
+  url: httpUrlSchema,
   name: z.string(),
   description: z.string().default(""),
   author: z.string().optional(),
@@ -45,7 +53,7 @@ export const directoryEntrySchema = z.object({
   // same way as a platform restriction, not left for someone to dig out of
   // the README or the manifest themselves.
   paseoVersionRequirement: z.string().optional(),
-  images: z.array(z.string()).default([]),
+  images: z.array(httpUrlSchema).default([]),
   // Pre-sanitized HTML rendered at scan time from the plugin's own README
   // (see src/lib/markdown.ts on the site) — this plugin has no HTML renderer,
   // so it's shown as stripped plain text (see stripHtml below) rather than
@@ -67,7 +75,7 @@ export const directoryEntrySchema = z.object({
   owner: z
     .object({
       login: z.string().optional(),
-      avatarUrl: z.string().optional(),
+      avatarUrl: httpUrlSchema.optional(),
     })
     .optional(),
   repoMeta: z
@@ -84,11 +92,29 @@ export const directoryListRpc = defineRpc({
   name: "directory.list",
   // baseUrl comes from the client's own directorySettings read — see
   // DirectorySurface.tsx — so the server doesn't need its own settings access.
-  input: z.object({ baseUrl: z.string().url().optional() }),
+  input: z.object({
+    baseUrl: httpUrlSchema.optional(),
+    force: z.boolean().default(false),
+  }),
   output: z.object({
     plugins: z.array(directoryEntrySchema),
-    fetchedAt: z.string(),
+    fetchedAt: z.iso.datetime(),
   }),
+})
+
+export const directorySearchRpc = defineRpc({
+  name: "directory.search",
+  input: z.object({ query: z.string().max(200) }),
+  output: PluginAttachmentSearchPayloadSchema,
+})
+
+export const directoryAttachments = defineAttachmentSource({
+  id: "paseo-plugins",
+  title: "Paseo plugin",
+  icon: "Blocks",
+  pickerTitle: "Attach Paseo plugin",
+  searchPlaceholder: "Search plugins by name, repository, or category",
+  search: directorySearchRpc,
 })
 
 export const directoryInstallRpc = defineRpc({
@@ -134,7 +160,7 @@ export function getInstallCommand(
 }
 
 export function getSiteUrl(entry: Pick<DirectoryEntry, "id">): string {
-  return `${SITE_URL}/plugins/${entry.id}`
+  return `${SITE_URL}/plugins/${encodeURIComponent(entry.id)}`
 }
 
 /**

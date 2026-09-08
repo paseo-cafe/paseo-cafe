@@ -85,6 +85,7 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
       <View style={styles.headerRow}>
         {entry.owner?.avatarUrl ? (
           <Image
+            accessible={false}
             source={{ uri: entry.owner.avatarUrl }}
             style={styles.avatar}
           />
