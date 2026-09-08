@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { z } from "zod"
 import { registryEntrySchema } from "../../src/lib/registry-schema.ts"
