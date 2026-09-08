@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { readdirSync, readFileSync, lstatSync } from "node:fs"
+import { lstatSync, readdirSync, readFileSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
 import * as semver from "semver"
 import type { SecurityFinding } from "./shared.ts"

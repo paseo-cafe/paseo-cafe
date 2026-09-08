@@ -1,13 +1,6 @@
 #!/usr/bin/env bun
 import { spawnSync } from "node:child_process"
-import {
-  lstatSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
