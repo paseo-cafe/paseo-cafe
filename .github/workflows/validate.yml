@@ -1,8 +1,5 @@
-name: Validate registry
+name: Registry validation
 
-# The whole PR review burden for a plugin submission lives here. A green
-# check means the entry is well-formed and points at a real repo with a
-# real paseo-plugin.json — that's the bar for merging.
 on:
   pull_request:
     paths:
@@ -10,25 +7,37 @@ on:
       - "src/lib/registry-schema.ts"
       - "scripts/validate-registry.ts"
       - "scripts/github.ts"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/validate.yml"
 
 permissions:
   contents: read
 
+concurrency:
+  group: registry-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
+    name: Registry
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          bun-version: latest
+          persist-credentials: false
 
-      - run: bun install --frozen-lockfile
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
-      - run: bun run registry:validate
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate registry
+        run: bun run registry:validate
         env:
-          # Authenticated requests get a much higher GitHub API rate limit
-          # than the ~60/hour anonymous limit, which matters once the
-          # registry has more than a couple of entries.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}

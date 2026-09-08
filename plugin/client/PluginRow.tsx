@@ -8,7 +8,7 @@ interface PluginRowProps {
   entry: DirectoryEntry
   theme: PluginTheme
   compact: boolean
-  onPress(): void
+  onPress: () => void
 }
 
 // Deliberately no per-row Install button: with the whole card opening the
@@ -25,13 +25,31 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
         gap: 8,
         backgroundColor: theme.colors.surface1,
       },
-      headerRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
-      starsRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, marginLeft: "auto" as const },
+      headerRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 8,
+      },
+      starsRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 4,
+        marginLeft: "auto" as const,
+      },
       avatar: { width: 20, height: 20, borderRadius: 10 },
-      name: { color: theme.colors.foreground, fontSize: 16, fontWeight: "600" as const, flexShrink: 1 },
+      name: {
+        color: theme.colors.foreground,
+        fontSize: 16,
+        fontWeight: "600" as const,
+        flexShrink: 1,
+      },
       meta: { color: theme.colors.foregroundMuted, fontSize: 12 },
       description: { color: theme.colors.foregroundMuted, fontSize: 13 },
-      tagsRow: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
+      tagsRow: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        gap: 6,
+      },
       tag: {
         borderRadius: 999,
         paddingHorizontal: 8,
@@ -45,7 +63,11 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
         paddingVertical: 2,
         backgroundColor: theme.colors.accent,
       },
-      requirementTagText: { color: theme.colors.accentForeground, fontSize: 11, fontWeight: "600" as const },
+      requirementTagText: {
+        color: theme.colors.accentForeground,
+        fontSize: 11,
+        fontWeight: "600" as const,
+      },
     }),
     [theme, compact]
   )
@@ -62,7 +84,10 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
     >
       <View style={styles.headerRow}>
         {entry.owner?.avatarUrl ? (
-          <Image source={{ uri: entry.owner.avatarUrl }} style={styles.avatar} />
+          <Image
+            source={{ uri: entry.owner.avatarUrl }}
+            style={styles.avatar}
+          />
         ) : null}
         <Text style={styles.name}>{entry.name}</Text>
         {entry.repoMeta?.stars !== undefined ? (
@@ -81,7 +106,9 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
         <View style={styles.tagsRow}>
           {entry.paseoVersionRequirement ? (
             <View style={styles.requirementTag}>
-              <Text style={styles.requirementTagText}>Paseo {entry.paseoVersionRequirement}</Text>
+              <Text style={styles.requirementTagText}>
+                Paseo {entry.paseoVersionRequirement}
+              </Text>
             </View>
           ) : null}
           {tags.map((tag) => (

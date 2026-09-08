@@ -33,7 +33,9 @@ export function SiteFooter() {
             className="underline underline-offset-3 hover:text-foreground"
           >
             Tommerty
-          </a> & <a
+          </a>{" "}
+          &{" "}
+          <a
             href="https://github.com/omercnet"
             target="_blank"
             rel="noreferrer"

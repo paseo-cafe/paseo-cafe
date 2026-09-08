@@ -4,7 +4,9 @@ import { extractReadmeImages, resolveGitHubAssetImages } from "./images"
 describe("extractReadmeImages", () => {
   it("extracts a markdown image with an absolute URL", () => {
     const readme = "![Screenshot](https://example.com/shot.png)"
-    expect(extractReadmeImages(readme)).toEqual(["https://example.com/shot.png"])
+    expect(extractReadmeImages(readme)).toEqual([
+      "https://example.com/shot.png",
+    ])
   })
 
   it("extracts a markdown image with a title", () => {
@@ -18,13 +20,19 @@ describe("extractReadmeImages", () => {
   })
 
   it("extracts a raw <img> tag", () => {
-    const readme = '<p align="center"><img src="./images/demo.gif" width="600" /></p>'
+    const readme =
+      '<p align="center"><img src="./images/demo.gif" width="600" /></p>'
     expect(extractReadmeImages(readme)).toEqual(["./images/demo.gif"])
   })
 
   it("finds images anywhere in the repo, not just an images/ directory", () => {
-    const readme = "![Setup](docs/setup.png)\n![Result](.github/result.png)\n![Root](shot.png)"
-    expect(extractReadmeImages(readme)).toEqual(["docs/setup.png", ".github/result.png", "shot.png"])
+    const readme =
+      "![Setup](docs/setup.png)\n![Result](.github/result.png)\n![Root](shot.png)"
+    expect(extractReadmeImages(readme)).toEqual([
+      "docs/setup.png",
+      ".github/result.png",
+      "shot.png",
+    ])
   })
 
   it("excludes ambiguous GitHub asset links, leaving them for resolveGitHubAssetImages", () => {
@@ -33,7 +41,10 @@ describe("extractReadmeImages", () => {
   })
 
   it("dedupes repeated references and caps the total count", () => {
-    const many = Array.from({ length: 10 }, (_, i) => `![shot](shot-${i}.png)`).join("\n")
+    const many = Array.from(
+      { length: 10 },
+      (_, i) => `![shot](shot-${i}.png)`
+    ).join("\n")
     const images = extractReadmeImages(`${many}\n![shot](shot-0.png)`)
     expect(images).toHaveLength(8)
     expect(new Set(images).size).toBe(8)
@@ -63,11 +74,16 @@ describe("resolveGitHubAssetImages", () => {
   })
 
   it("respects the shared cap against `existing`", async () => {
-    const readme = Array.from({ length: 4 }, (_, i) => `https://github.com/user-attachments/assets/id${i}`).join(
-      "\n"
-    )
+    const readme = Array.from(
+      { length: 4 },
+      (_, i) => `https://github.com/user-attachments/assets/id${i}`
+    ).join("\n")
     const existing = Array.from({ length: 7 }, (_, i) => `existing-${i}.png`)
-    const images = await resolveGitHubAssetImages(readme, async () => "image/png", existing)
+    const images = await resolveGitHubAssetImages(
+      readme,
+      async () => "image/png",
+      existing
+    )
     expect(images).toHaveLength(1)
   })
 })

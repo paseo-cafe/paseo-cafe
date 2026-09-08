@@ -199,13 +199,23 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
         .replace(/^\.\//, "")
         .replace(/^\//, "")
         .replace(/[#?].*$/, "")
-      return rawUrl(owner, repo, branch, rootRelative ? cleaned : `${prefix}${cleaned}`)
+      return rawUrl(
+        owner,
+        repo,
+        branch,
+        rootRelative ? cleaned : `${prefix}${cleaned}`
+      )
     }
-    const readmeImages = [...readmeImageRefs, ...readmeAssetImages].map(resolveReadmeImageUrl)
+    const readmeImages = [...readmeImageRefs, ...readmeAssetImages].map(
+      resolveReadmeImageUrl
+    )
     const dirImages = imageDirEntries
       .filter((e) => e.type === "file")
       .map((e) => rawUrl(owner, repo, branch, e.path))
-    const images = Array.from(new Set([...dirImages, ...readmeImages])).slice(0, MAX_README_IMAGES)
+    const images = Array.from(new Set([...dirImages, ...readmeImages])).slice(
+      0,
+      MAX_README_IMAGES
+    )
 
     const record: PluginRecord = {
       id: entry.id,

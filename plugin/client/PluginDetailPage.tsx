@@ -1,5 +1,10 @@
 import type { PluginTheme } from "@getpaseo/plugin"
-import { Icon, ScrollView, copyText, useToast } from "@getpaseo/plugin/client/react-native"
+import {
+  Icon,
+  ScrollView,
+  copyText,
+  useToast,
+} from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Image, Pressable, Text, View } from "react-native"
 import {
@@ -7,8 +12,8 @@ import {
   getInstallCommand,
   getSiteUrl,
   stripHtml,
-  type DirectoryEntry,
 } from "../shared/directory"
+import type { DirectoryEntry } from "../shared/directory"
 import { openExternal } from "./open-external"
 
 interface PluginDetailPageProps {
@@ -16,9 +21,9 @@ interface PluginDetailPageProps {
   theme: PluginTheme
   compact: boolean
   installing: boolean
-  onInstall(): void
-  onOpenGallery(): void
-  onBack(): void
+  onInstall: () => void
+  onOpenGallery: () => void
+  onBack: () => void
 }
 
 /** "2026-09-08T01:09:51Z" -> "2026-09-08". No Intl formatting — good enough for a byline. */
@@ -41,9 +46,19 @@ export function PluginDetailPage({
     () => ({
       screen: { flex: 1, backgroundColor: theme.colors.surface0 },
       content: { padding: compact ? 16 : 24, gap: 16, maxWidth: 860 },
-      backRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, marginBottom: 4 },
+      backRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 4,
+        marginBottom: 4,
+      },
       backText: { color: theme.colors.accent, fontSize: 14 },
-      headerRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, flexWrap: "wrap" as const },
+      headerRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 10,
+        flexWrap: "wrap" as const,
+      },
       avatar: { width: 32, height: 32, borderRadius: 16 },
       title: {
         color: theme.colors.foreground,
@@ -57,10 +72,27 @@ export function PluginDetailPage({
         paddingVertical: 2,
         backgroundColor: theme.colors.statusDanger,
       },
-      errorBadgeText: { color: theme.colors.accentForeground, fontSize: 11, fontWeight: "600" as const },
-      description: { color: theme.colors.foregroundMuted, fontSize: 14, lineHeight: 20 },
-      tagsRow: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
-      tag: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: theme.colors.surface2 },
+      errorBadgeText: {
+        color: theme.colors.accentForeground,
+        fontSize: 11,
+        fontWeight: "600" as const,
+      },
+      description: {
+        color: theme.colors.foregroundMuted,
+        fontSize: 14,
+        lineHeight: 20,
+      },
+      tagsRow: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        gap: 6,
+      },
+      tag: {
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        backgroundColor: theme.colors.surface2,
+      },
       tagText: { color: theme.colors.foregroundMuted, fontSize: 11 },
       requirementTag: {
         borderRadius: 999,
@@ -68,9 +100,22 @@ export function PluginDetailPage({
         paddingVertical: 2,
         backgroundColor: theme.colors.accent,
       },
-      requirementTagText: { color: theme.colors.accentForeground, fontSize: 11, fontWeight: "600" as const },
-      metaRow: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 14, alignItems: "center" as const },
-      metaItem: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4 },
+      requirementTagText: {
+        color: theme.colors.accentForeground,
+        fontSize: 11,
+        fontWeight: "600" as const,
+      },
+      metaRow: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        gap: 14,
+        alignItems: "center" as const,
+      },
+      metaItem: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 4,
+      },
       metaText: { color: theme.colors.foregroundMuted, fontSize: 12 },
       linkText: { color: theme.colors.accent, fontSize: 12 },
       siteButton: {
@@ -83,7 +128,11 @@ export function PluginDetailPage({
         borderRadius: 10,
         backgroundColor: theme.colors.accent,
       },
-      siteButtonText: { color: theme.colors.accentForeground, fontSize: 15, fontWeight: "700" as const },
+      siteButtonText: {
+        color: theme.colors.accentForeground,
+        fontSize: 15,
+        fontWeight: "700" as const,
+      },
       alert: {
         gap: 6,
         borderWidth: 1,
@@ -92,10 +141,26 @@ export function PluginDetailPage({
         padding: 12,
         backgroundColor: theme.colors.surface1,
       },
-      alertTitleRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
-      alertTitle: { color: theme.colors.foreground, fontSize: 13, fontWeight: "600" as const },
-      alertBody: { color: theme.colors.foregroundMuted, fontSize: 13, lineHeight: 19 },
-      caveatLine: { color: theme.colors.statusWarning, fontSize: 13, lineHeight: 18 },
+      alertTitleRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 6,
+      },
+      alertTitle: {
+        color: theme.colors.foreground,
+        fontSize: 13,
+        fontWeight: "600" as const,
+      },
+      alertBody: {
+        color: theme.colors.foregroundMuted,
+        fontSize: 13,
+        lineHeight: 19,
+      },
+      caveatLine: {
+        color: theme.colors.statusWarning,
+        fontSize: 13,
+        lineHeight: 18,
+      },
       readmeLabel: {
         color: theme.colors.foregroundMuted,
         fontSize: 10,
@@ -104,7 +169,12 @@ export function PluginDetailPage({
         marginTop: 8,
         marginBottom: 4,
       },
-      readmeText: { color: theme.colors.foregroundMuted, fontSize: 12, lineHeight: 18, fontFamily: "monospace" as const },
+      readmeText: {
+        color: theme.colors.foregroundMuted,
+        fontSize: 12,
+        lineHeight: 18,
+        fontFamily: "monospace" as const,
+      },
       errorBox: {
         borderWidth: 1,
         borderColor: theme.colors.statusDanger,
@@ -115,7 +185,12 @@ export function PluginDetailPage({
       errorText: { color: theme.colors.statusDanger, fontSize: 13 },
       gallery: { marginHorizontal: compact ? -16 : -24 },
       galleryContent: { paddingHorizontal: compact ? 16 : 24, gap: 10 },
-      galleryTile: { width: compact ? 220 : 280, aspectRatio: 16 / 9, borderRadius: 10, backgroundColor: theme.colors.surface2 },
+      galleryTile: {
+        width: compact ? 220 : 280,
+        aspectRatio: 16 / 9,
+        borderRadius: 10,
+        backgroundColor: theme.colors.surface2,
+      },
       section: { gap: 6 },
       label: {
         color: theme.colors.foregroundMuted,
@@ -123,7 +198,11 @@ export function PluginDetailPage({
         textTransform: "uppercase" as const,
         letterSpacing: 0.5,
       },
-      commandRow: { flexDirection: "row" as const, alignItems: "stretch" as const, gap: 8 },
+      commandRow: {
+        flexDirection: "row" as const,
+        alignItems: "stretch" as const,
+        gap: 8,
+      },
       command: {
         flex: 1,
         fontFamily: "monospace" as const,
@@ -141,7 +220,11 @@ export function PluginDetailPage({
         borderWidth: 1,
         borderColor: theme.colors.border,
       },
-      actionsRow: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8 },
+      actionsRow: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        gap: 8,
+      },
       button: {
         paddingHorizontal: 14,
         paddingVertical: 10,
@@ -149,7 +232,11 @@ export function PluginDetailPage({
         backgroundColor: theme.colors.accent,
         opacity: installing ? 0.6 : 1,
       },
-      buttonText: { color: theme.colors.accentForeground, fontSize: 14, fontWeight: "600" as const },
+      buttonText: {
+        color: theme.colors.accentForeground,
+        fontSize: 14,
+        fontWeight: "600" as const,
+      },
       secondaryButton: {
         paddingHorizontal: 14,
         paddingVertical: 10,
@@ -158,8 +245,17 @@ export function PluginDetailPage({
         borderColor: theme.colors.border,
       },
       secondaryButtonText: { color: theme.colors.foreground, fontSize: 14 },
-      healthGrid: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 10 },
-      healthItem: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, width: compact ? "100%" as const : "48%" as const },
+      healthGrid: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        gap: 10,
+      },
+      healthItem: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 6,
+        width: compact ? ("100%" as const) : ("48%" as const),
+      },
       healthText: { fontSize: 13 },
       footer: { color: theme.colors.foregroundMuted, fontSize: 11 },
     }),
@@ -168,10 +264,17 @@ export function PluginDetailPage({
 
   const command = getInstallCommand(entry)
   const tags = [...entry.categories, ...entry.platforms]
-  const limitationsText = entry.limitationsNotesHtml ? stripHtml(entry.limitationsNotesHtml) : undefined
-  const installNotesText = entry.installNotesHtml ? stripHtml(entry.installNotesHtml) : undefined
+  const limitationsText = entry.limitationsNotesHtml
+    ? stripHtml(entry.limitationsNotesHtml)
+    : undefined
+  const installNotesText = entry.installNotesHtml
+    ? stripHtml(entry.installNotesHtml)
+    : undefined
   const hasCaveatsSection =
-    !!entry.paseoVersionRequirement || entry.platforms.length > 0 || entry.caveats.length > 0 || !!limitationsText
+    !!entry.paseoVersionRequirement ||
+    entry.platforms.length > 0 ||
+    entry.caveats.length > 0 ||
+    !!limitationsText
   const health = entry.health
 
   return (
@@ -188,7 +291,12 @@ export function PluginDetailPage({
         </Pressable>
 
         <View style={styles.headerRow}>
-          {entry.owner?.avatarUrl ? <Image source={{ uri: entry.owner.avatarUrl }} style={styles.avatar} /> : null}
+          {entry.owner?.avatarUrl ? (
+            <Image
+              source={{ uri: entry.owner.avatarUrl }}
+              style={styles.avatar}
+            />
+          ) : null}
           <Text style={styles.title}>{entry.name}</Text>
           {entry.scanError ? (
             <View style={styles.errorBadge}>
@@ -197,13 +305,17 @@ export function PluginDetailPage({
           ) : null}
         </View>
 
-        {entry.description ? <Text style={styles.description}>{entry.description}</Text> : null}
+        {entry.description ? (
+          <Text style={styles.description}>{entry.description}</Text>
+        ) : null}
 
         {tags.length > 0 || entry.paseoVersionRequirement ? (
           <View style={styles.tagsRow}>
             {entry.paseoVersionRequirement ? (
               <View style={styles.requirementTag}>
-                <Text style={styles.requirementTagText}>Paseo {entry.paseoVersionRequirement}</Text>
+                <Text style={styles.requirementTagText}>
+                  Paseo {entry.paseoVersionRequirement}
+                </Text>
               </View>
             ) : null}
             {tags.map((tag) => (
@@ -217,16 +329,29 @@ export function PluginDetailPage({
         <View style={styles.metaRow}>
           {entry.repoMeta?.stars !== undefined ? (
             <View style={styles.metaItem}>
-              <Icon name="Star" size={13} color={theme.colors.foregroundMuted} />
+              <Icon
+                name="Star"
+                size={13}
+                color={theme.colors.foregroundMuted}
+              />
               <Text style={styles.metaText}>{entry.repoMeta.stars} stars</Text>
             </View>
           ) : null}
-          {entry.license ? <Text style={styles.metaText}>License: {entry.license}</Text> : null}
-          {entry.author ? <Text style={styles.metaText}>By {entry.author}</Text> : null}
-          {formatDate(entry.repoMeta?.pushedAt) ? (
-            <Text style={styles.metaText}>Last updated {formatDate(entry.repoMeta?.pushedAt)}</Text>
+          {entry.license ? (
+            <Text style={styles.metaText}>License: {entry.license}</Text>
           ) : null}
-          <Pressable accessibilityRole="link" onPress={() => openExternal(entry.url)}>
+          {entry.author ? (
+            <Text style={styles.metaText}>By {entry.author}</Text>
+          ) : null}
+          {formatDate(entry.repoMeta?.pushedAt) ? (
+            <Text style={styles.metaText}>
+              Last updated {formatDate(entry.repoMeta?.pushedAt)}
+            </Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => openExternal(entry.url)}
+          >
             <Text style={styles.linkText}>{entry.repo} ↗</Text>
           </Pressable>
         </View>
@@ -237,18 +362,29 @@ export function PluginDetailPage({
           style={styles.siteButton}
           onPress={() => openExternal(getSiteUrl(entry))}
         >
-          <Icon name="ExternalLink" size={16} color={theme.colors.accentForeground} />
+          <Icon
+            name="ExternalLink"
+            size={16}
+            color={theme.colors.accentForeground}
+          />
           <Text style={styles.siteButtonText}>View on paseo.cafe</Text>
         </Pressable>
 
         <View style={styles.alert}>
           <View style={styles.alertTitleRow}>
-            <Icon name="AlertTriangle" size={14} color={theme.colors.statusWarning} />
-            <Text style={styles.alertTitle}>Community-submitted — not owned or vetted by paseo.cafe</Text>
+            <Icon
+              name="AlertTriangle"
+              size={14}
+              color={theme.colors.statusWarning}
+            />
+            <Text style={styles.alertTitle}>
+              Community-submitted — not owned or vetted by paseo.cafe
+            </Text>
           </View>
           <Text style={styles.alertBody}>
-            This listing is generated automatically from the plugin's own public repository. Paseo plugins are
-            trusted, unsandboxed code with filesystem, process, and network access — read the source at{" "}
+            This listing is generated automatically from the plugin's own public
+            repository. Paseo plugins are trusted, unsandboxed code with
+            filesystem, process, and network access — read the source at{" "}
             {entry.repo} before installing.
           </Text>
         </View>
@@ -256,16 +392,23 @@ export function PluginDetailPage({
         {hasCaveatsSection ? (
           <View style={styles.alert}>
             <View style={styles.alertTitleRow}>
-              <Icon name="AlertTriangle" size={14} color={theme.colors.statusWarning} />
+              <Icon
+                name="AlertTriangle"
+                size={14}
+                color={theme.colors.statusWarning}
+              />
               <Text style={styles.alertTitle}>Caveats</Text>
             </View>
             {entry.paseoVersionRequirement ? (
               <Text style={styles.alertBody}>
-                Requires Paseo {entry.paseoVersionRequirement} — from this plugin's own paseo-plugin.json.
+                Requires Paseo {entry.paseoVersionRequirement} — from this
+                plugin's own paseo-plugin.json.
               </Text>
             ) : null}
             {entry.platforms.length > 0 ? (
-              <Text style={styles.alertBody}>Supported platforms: {entry.platforms.join(", ")}.</Text>
+              <Text style={styles.alertBody}>
+                Supported platforms: {entry.platforms.join(", ")}.
+              </Text>
             ) : null}
             {entry.caveats.map((caveat) => (
               <Text key={caveat} style={styles.caveatLine}>
@@ -302,13 +445,19 @@ export function PluginDetailPage({
                   accessibilityLabel={`View all screenshots of ${entry.name}, starting at image ${index + 1}`}
                   onPress={onOpenGallery}
                 >
-                  <Image source={{ uri: image }} style={styles.galleryTile} resizeMode="cover" />
+                  <Image
+                    source={{ uri: image }}
+                    style={styles.galleryTile}
+                    resizeMode="cover"
+                  />
                 </Pressable>
               ))}
             </ScrollView>
             {entry.images.length > 1 ? (
               <Pressable accessibilityRole="link" onPress={onOpenGallery}>
-                <Text style={styles.linkText}>View all {entry.images.length} screenshots →</Text>
+                <Text style={styles.linkText}>
+                  View all {entry.images.length} screenshots →
+                </Text>
               </Pressable>
             ) : null}
           </View>
@@ -346,7 +495,9 @@ export function PluginDetailPage({
             disabled={installing}
             onPress={onInstall}
           >
-            <Text style={styles.buttonText}>{installing ? "Installing…" : "Install"}</Text>
+            <Text style={styles.buttonText}>
+              {installing ? "Installing…" : "Install"}
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="link"
@@ -369,9 +520,22 @@ export function PluginDetailPage({
                     <Icon
                       name={ok ? "Check" : "X"}
                       size={14}
-                      color={ok ? theme.colors.statusSuccess : theme.colors.foregroundMuted}
+                      color={
+                        ok
+                          ? theme.colors.statusSuccess
+                          : theme.colors.foregroundMuted
+                      }
                     />
-                    <Text style={[styles.healthText, { color: ok ? theme.colors.foreground : theme.colors.foregroundMuted }]}>
+                    <Text
+                      style={[
+                        styles.healthText,
+                        {
+                          color: ok
+                            ? theme.colors.foreground
+                            : theme.colors.foregroundMuted,
+                        },
+                      ]}
+                    >
                       {label}
                     </Text>
                   </View>

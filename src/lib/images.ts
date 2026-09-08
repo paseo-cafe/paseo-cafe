@@ -5,7 +5,8 @@ const MAX_README_IMAGES = 8
 // Markdown image syntax: ![alt](url "title") or ![alt](<url with spaces>) —
 // the angle-bracket form is CommonMark's way to allow spaces in a URL, so it
 // needs its own branch rather than stopping at the first whitespace.
-const MARKDOWN_IMAGE_RE = /!\[[^\]]*\]\(\s*(?:<([^>]+)>|(\S+?))(?:\s+"[^"]*")?\s*\)/g
+const MARKDOWN_IMAGE_RE =
+  /!\[[^\]]*\]\(\s*(?:<([^>]+)>|(\S+?))(?:\s+"[^"]*")?\s*\)/g
 
 // A raw <img src="..."> tag — same GitHub-README-as-HTML pattern as <video src> in videos.ts.
 const IMG_TAG_RE = /<img[^>]*\ssrc=["']([^"'<>]+)["'][^>]*>/gi
@@ -32,14 +33,20 @@ export function extractReadmeImages(readme: string): string[] {
 
   const add = (raw: string) => {
     const trimmed = raw.trim()
-    if (!trimmed || assetLinks.has(trimmed) || seen.has(trimmed) || images.length >= MAX_README_IMAGES) {
+    if (
+      !trimmed ||
+      assetLinks.has(trimmed) ||
+      seen.has(trimmed) ||
+      images.length >= MAX_README_IMAGES
+    ) {
       return
     }
     seen.add(trimmed)
     images.push(trimmed)
   }
 
-  for (const match of readme.matchAll(MARKDOWN_IMAGE_RE)) add(match[1] ?? match[2])
+  for (const match of readme.matchAll(MARKDOWN_IMAGE_RE))
+    add(match[1] || match[2])
   for (const match of readme.matchAll(IMG_TAG_RE)) add(match[1])
 
   return images

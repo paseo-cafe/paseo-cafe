@@ -2,11 +2,10 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import type { RpcInput, RpcOutput } from "@getpaseo/plugin"
 import { z } from "zod"
+import type { directoryInstallRpc, directoryListRpc } from "../shared/directory"
 import {
   DEFAULT_DIRECTORY_URL,
   directoryEntrySchema,
-  directoryInstallRpc,
-  directoryListRpc,
   isValidInstallPath,
   isValidRepo,
 } from "../shared/directory"
@@ -14,19 +13,26 @@ import {
 const execFileAsync = promisify(execFile)
 
 const CACHE_TTL_MS = 5 * 60 * 1000
-const directoryResponseSchema = z.object({ plugins: z.array(directoryEntrySchema) })
+const directoryResponseSchema = z.object({
+  plugins: z.array(directoryEntrySchema),
+})
 
 // Keyed by resolved URL so switching the directorySettings override (e.g. to
 // a local dev server) doesn't serve a stale production-fetched cache, or vice
 // versa.
-const cache = new Map<string, { fetchedAt: number; plugins: z.infer<typeof directoryEntrySchema>[] }>()
+const cache = new Map<
+  string,
+  { fetchedAt: number; plugins: z.infer<typeof directoryEntrySchema>[] }
+>()
 
 function resolveDirectoryUrl(baseUrl: string | undefined): string {
   // PASEO_CAFE_DIRECTORY_URL is a lower-priority escape hatch for environments
   // where the daemon's own env is easier to control than the plugin's
   // settings (e.g. scripted daemon setups) — the settings override above
   // normally wins since it's reachable from the running app.
-  return baseUrl || process.env.PASEO_CAFE_DIRECTORY_URL || DEFAULT_DIRECTORY_URL
+  return (
+    baseUrl || process.env.PASEO_CAFE_DIRECTORY_URL || DEFAULT_DIRECTORY_URL
+  )
 }
 
 async function fetchDirectory(baseUrl: string | undefined) {
@@ -72,7 +78,10 @@ export async function installDirectoryPlugin(
   // from fetchDirectory(): this is the boundary that actually shells out, and
   // it shouldn't trust the network response (or any other RPC caller) blindly.
   if (!isValidRepo(repo)) {
-    return { ok: false, message: `"${repo}" doesn't look like a GitHub "owner/repo".` }
+    return {
+      ok: false,
+      message: `"${repo}" doesn't look like a GitHub "owner/repo".`,
+    }
   }
   if (path !== undefined && !isValidInstallPath(path)) {
     return { ok: false, message: `"${path}" isn't a valid plugin subpath.` }

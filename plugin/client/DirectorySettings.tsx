@@ -1,6 +1,11 @@
 import { useSettings } from "@getpaseo/plugin/client"
 import { useToast } from "@getpaseo/plugin/client/react-native"
-import { SettingsAction, SettingsInput, SettingsRow, SettingsSection } from "@getpaseo/plugin/client/ui"
+import {
+  SettingsAction,
+  SettingsInput,
+  SettingsRow,
+  SettingsSection,
+} from "@getpaseo/plugin/client/ui"
 import { useState } from "react"
 import { DEFAULT_DIRECTORY_URL, directorySettings } from "../shared/directory"
 
@@ -14,7 +19,10 @@ export function DirectorySettings() {
   if (settings.status === "error" || settings.status === "invalid") {
     return (
       <SettingsSection title="Plugin Directory">
-        <SettingsRow label="Directory URL" error="Couldn't load this plugin's settings." />
+        <SettingsRow
+          label="Directory URL"
+          error="Couldn't load this plugin's settings."
+        />
       </SettingsSection>
     )
   }

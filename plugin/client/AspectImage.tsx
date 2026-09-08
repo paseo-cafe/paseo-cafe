@@ -14,7 +14,11 @@ interface AspectImageProps {
  * inside our own full-width surface, the container really does have the
  * width to give each image, so this can just ask for what it needs.
  */
-export function AspectImage({ uri, backgroundColor, borderRadius = 10 }: AspectImageProps) {
+export function AspectImage({
+  uri,
+  backgroundColor,
+  borderRadius = 10,
+}: AspectImageProps) {
   const [aspectRatio, setAspectRatio] = useState(16 / 9)
 
   useEffect(() => {

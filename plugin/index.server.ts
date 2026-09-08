@@ -1,6 +1,10 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server"
 import { installDirectoryPlugin, listDirectory } from "./server/directory"
-import { directoryInstallRpc, directoryListRpc, directorySettings } from "./shared/directory"
+import {
+  directoryInstallRpc,
+  directoryListRpc,
+  directorySettings,
+} from "./shared/directory"
 
 export default function contribute(server: PluginServerContext) {
   server.registerSettings(directorySettings)

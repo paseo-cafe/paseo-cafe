@@ -13,7 +13,11 @@ export const Route = createFileRoute("/api/plugins")({
       GET: async () => {
         const plugins = listPlugins()
         return Response.json(
-          { plugins, count: plugins.length, generatedAt: new Date().toISOString() },
+          {
+            plugins,
+            count: plugins.length,
+            generatedAt: new Date().toISOString(),
+          },
           { headers: { "Cache-Control": "public, max-age=300" } }
         )
       },

@@ -4,13 +4,15 @@ import { Route } from "./api.plugins"
 describe("GET /api/plugins", () => {
   it("returns the same records listPlugins() produces, with an envelope", async () => {
     const handlers = Route.options.server?.handlers
-    const handler = typeof handlers === "object" ? handlers?.GET : undefined
-    if (typeof handler !== "function") throw new Error("GET handler not registered")
+    const handler = typeof handlers === "object" ? handlers.GET : undefined
+    if (typeof handler !== "function")
+      throw new Error("GET handler not registered")
 
     const response = await handler({
       request: new Request("http://localhost/api/plugins"),
     } as never)
-    if (!(response instanceof Response)) throw new Error("GET handler did not return a Response")
+    if (!(response instanceof Response))
+      throw new Error("GET handler did not return a Response")
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=300")
 
     const body = await response.json()

@@ -1,72 +1,79 @@
 name: Enrich and deploy
 
-# Rebuilds data/plugins.json (and the OG images/sitemap/robots.txt that go
-# with it) from every registry/*.json entry, commits the result back to
-# main, then deploys to Zerops. Runs on every push to main — which is what
-# a submission PR merge is — and nightly so stars/last-commit/broken-repo
-# detection stay fresh even without new submissions.
-#
-# Why one job does scan -> commit -> deploy instead of "PR merges, then a
-# separate deploy picks it up": `zcli push` (used by zeropsio/actions below)
-# uploads *this job's local working directory* to Zerops, which then runs
-# its own build there (see zerops.yaml). It does not care what's on the
-# `main` ref. So the commit-back step is for the repo's own record (so
-# data/plugins.json in git matches what's live, and future scans diff
-# against it) — not something the deploy depends on. There's no race and
-# no separate "wait for the commit, then redeploy" step to get wrong.
 on:
   push:
     branches: [main]
   schedule:
     - cron: "17 3 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: enrich-and-deploy
   cancel-in-progress: false
 
 jobs:
-  build:
+  enrich:
+    name: Enrich and verify
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    outputs:
+      source-sha: ${{ steps.publish.outputs.source-sha }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: oven-sh/setup-bun@v2
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
-      - run: bun install --frozen-lockfile
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Scan registry
         run: bun run registry:scan
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Commit refreshed data
+      - name: Verify generated site
+        run: |
+          bun run check
+          bun run lint
+          bun run typecheck
+          bun run test
+          bun run build
+
+      - name: Publish refreshed data
+        id: publish
         run: |
           git config user.name "paseo-cafe-bot"
           git config user.email "actions@github.com"
           git add data/ public/og public/sitemap.xml public/robots.txt
-          # [skip ci] stops this commit from re-triggering this same
-          # push-triggered workflow — GitHub skips runs for commits whose
-          # message contains it, so this can't loop.
           git diff --cached --quiet || git commit -m "chore: refresh plugin data [skip ci]"
           git push
+          echo "source-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Typecheck & build
-        # Not what actually ships — Zerops does its own build from
-        # zerops.yaml on its own infrastructure. This is a fast-fail gate so
-        # a broken build fails here in ~a minute instead of failing (or
-        # worse, half-deploying) over on Zerops.
-        run: |
-          bun run typecheck
-          bun run build
+  deploy:
+    name: Deploy to Zerops
+    needs: enrich
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out verified source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.enrich.outputs.source-sha }}
+          persist-credentials: false
 
       - name: Deploy to Zerops
-        uses: zeropsio/actions@main
+        uses: zeropsio/actions@19329d7d7ecaad2c382fb30ea6e52aaa15ec1f20 # v1.0.2
         with:
           access-token: ${{ secrets.ZEROPS_TOKEN }}
           service-id: ${{ secrets.ZEROPS_SERVICE_ID }}

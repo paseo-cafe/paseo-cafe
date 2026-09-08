@@ -107,7 +107,8 @@ export const directoryInstallRpc = defineRpc({
 // the client disables Install for anything that fails this, and the server
 // re-checks it right before exec'ing the CLI, since that's the boundary that
 // actually matters (see server/directory.ts).
-const REPO_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/
+const REPO_PATTERN =
+  /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/
 
 // Relative subpath within a repo — no leading slash, no ".." segments.
 const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
@@ -118,11 +119,15 @@ export function isValidRepo(repo: string): boolean {
 
 export function isValidInstallPath(path: string): boolean {
   const segments = path.split("/")
-  return segments.every((segment) => segment !== ".." && PATH_SEGMENT_PATTERN.test(segment))
+  return segments.every(
+    (segment) => segment !== ".." && PATH_SEGMENT_PATTERN.test(segment)
+  )
 }
 
 /** Mirrors src/lib/install-command.ts on the site — kept in sync by hand, it's one line. */
-export function getInstallCommand(entry: Pick<DirectoryEntry, "repo" | "path">): string {
+export function getInstallCommand(
+  entry: Pick<DirectoryEntry, "repo" | "path">
+): string {
   return entry.path
     ? `paseo plugin add ${entry.repo} --path ${entry.path}`
     : `paseo plugin add ${entry.repo}`

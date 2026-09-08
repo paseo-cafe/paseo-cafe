@@ -1,7 +1,11 @@
 import type { PluginTheme } from "@getpaseo/plugin"
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client"
 import { useRpc, useSettings } from "@getpaseo/plugin/client"
-import { FlatList, TextInput, useToast } from "@getpaseo/plugin/client/react-native"
+import {
+  FlatList,
+  TextInput,
+  useToast,
+} from "@getpaseo/plugin/client/react-native"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Pressable, Text, View } from "react-native"
@@ -9,8 +13,8 @@ import {
   directoryInstallRpc,
   directoryListRpc,
   directorySettings,
-  type DirectoryEntry,
 } from "../shared/directory"
+import type { DirectoryEntry } from "../shared/directory"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
 import { PluginRow } from "./PluginRow"
@@ -29,15 +33,31 @@ interface FilterRowProps {
   options: string[]
   selected: ReadonlySet<string>
   theme: PluginTheme
-  onToggle(value: string): void
-  onClear(): void
+  onToggle: (value: string) => void
+  onClear: () => void
 }
 
-function FilterRow({ label, options, selected, theme, onToggle, onClear }: FilterRowProps) {
+function FilterRow({
+  label,
+  options,
+  selected,
+  theme,
+  onToggle,
+  onClear,
+}: FilterRowProps) {
   const styles = useMemo(
     () => ({
-      row: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, flexWrap: "wrap" as const },
-      label: { color: theme.colors.foregroundMuted, fontSize: 12, marginRight: 2 },
+      row: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 6,
+        flexWrap: "wrap" as const,
+      },
+      label: {
+        color: theme.colors.foregroundMuted,
+        fontSize: 12,
+        marginRight: 2,
+      },
       chip: (active: boolean) => ({
         borderRadius: 999,
         paddingHorizontal: 10,
@@ -46,7 +66,9 @@ function FilterRow({ label, options, selected, theme, onToggle, onClear }: Filte
       }),
       chipText: (active: boolean) => ({
         fontSize: 12,
-        color: active ? theme.colors.accentForeground : theme.colors.foregroundMuted,
+        color: active
+          ? theme.colors.accentForeground
+          : theme.colors.foregroundMuted,
       }),
     }),
     [theme]
@@ -90,15 +112,20 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState<ReadonlySet<string>>(new Set())
-  const [platformFilter, setPlatformFilter] = useState<ReadonlySet<string>>(new Set())
+  const [categoryFilter, setCategoryFilter] = useState<ReadonlySet<string>>(
+    new Set()
+  )
+  const [platformFilter, setPlatformFilter] = useState<ReadonlySet<string>>(
+    new Set()
+  )
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [detailEntry, setDetailEntry] = useState<DirectoryEntry | null>(null)
   const [galleryEntry, setGalleryEntry] = useState<DirectoryEntry | null>(null)
 
   // Undefined while settings are still loading — the server falls back to
   // its own default in that case, so there's nothing to gate on here.
-  const baseUrl = settings.status === "ready" ? settings.values.directoryUrl : undefined
+  const baseUrl =
+    settings.status === "ready" ? settings.values.directoryUrl : undefined
   const queryKey = [DIRECTORY_QUERY_KEY, baseUrl]
 
   const directoryQuery = useQuery({
@@ -113,7 +140,8 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       return installPlugin({ repo: entry.repo, path: entry.path })
     },
     onSuccess: (result, entry) => {
-      if (result.ok) toast.show(`Installed ${entry.name}`, { variant: "success" })
+      if (result.ok)
+        toast.show(`Installed ${entry.name}`, { variant: "success" })
       else toast.error(result.message)
     },
     onError: (error) => {
@@ -125,11 +153,13 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const plugins = directoryQuery.data?.plugins ?? []
 
   const allCategories = useMemo(
-    () => Array.from(new Set(plugins.flatMap((entry) => entry.categories))).sort(),
+    () =>
+      Array.from(new Set(plugins.flatMap((entry) => entry.categories))).sort(),
     [plugins]
   )
   const allPlatforms = useMemo(
-    () => Array.from(new Set(plugins.flatMap((entry) => entry.platforms))).sort(),
+    () =>
+      Array.from(new Set(plugins.flatMap((entry) => entry.platforms))).sort(),
     [plugins]
   )
 
@@ -137,19 +167,35 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     const query = search.trim().toLowerCase()
     return plugins.filter((entry) => {
       if (query) {
-        const haystack = [entry.name, entry.description, entry.repo, ...entry.categories]
+        const haystack = [
+          entry.name,
+          entry.description,
+          entry.repo,
+          ...entry.categories,
+        ]
           .join(" ")
           .toLowerCase()
         if (!haystack.includes(query)) return false
       }
-      if (categoryFilter.size > 0 && !entry.categories.some((c) => categoryFilter.has(c))) return false
-      if (platformFilter.size > 0 && !entry.platforms.some((p) => platformFilter.has(p))) return false
+      if (
+        categoryFilter.size > 0 &&
+        !entry.categories.some((c) => categoryFilter.has(c))
+      )
+        return false
+      if (
+        platformFilter.size > 0 &&
+        !entry.platforms.some((p) => platformFilter.has(p))
+      )
+        return false
       return true
     })
   }, [plugins, search, categoryFilter, platformFilter])
 
   const sorted = useMemo(
-    () => [...filtered].sort((a, b) => (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)),
+    () =>
+      [...filtered].sort(
+        (a, b) => (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)
+      ),
     [filtered]
   )
 
@@ -176,7 +222,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         color: theme.colors.foreground,
       },
       filtersBlock: { gap: 8 },
-      emptyText: { color: theme.colors.foregroundMuted, textAlign: "center" as const, marginTop: 24 },
+      emptyText: {
+        color: theme.colors.foregroundMuted,
+        textAlign: "center" as const,
+        marginTop: 24,
+      },
       refreshButton: { alignSelf: "flex-start" as const, paddingVertical: 4 },
       refreshText: { color: theme.colors.accent, fontSize: 13 },
     }),
@@ -211,7 +261,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Plugin Directory</Text>
-      <Text style={styles.subtitle}>Browse and install plugins from paseo.cafe.</Text>
+      <Text style={styles.subtitle}>
+        Browse and install plugins from paseo.cafe.
+      </Text>
       <TextInput
         placeholder="Search plugins…"
         value={search}
@@ -243,16 +295,22 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         style={styles.refreshButton}
         onPress={() => queryClient.invalidateQueries({ queryKey })}
       >
-        <Text style={styles.refreshText}>{directoryQuery.isFetching ? "Refreshing…" : "Refresh"}</Text>
+        <Text style={styles.refreshText}>
+          {directoryQuery.isFetching ? "Refreshing…" : "Refresh"}
+        </Text>
       </Pressable>
-      {directoryQuery.isPending ? <Text style={styles.emptyText}>Loading plugins…</Text> : null}
+      {directoryQuery.isPending ? (
+        <Text style={styles.emptyText}>Loading plugins…</Text>
+      ) : null}
       {directoryQuery.isError ? (
         <Text style={styles.emptyText}>
-          Couldn't reach paseo.cafe: {(directoryQuery.error as Error).message}
+          Couldn't reach paseo.cafe: {directoryQuery.error.message}
         </Text>
       ) : null}
       {directoryQuery.isSuccess && sorted.length === 0 ? (
-        <Text style={styles.emptyText}>No plugins match the current search and filters.</Text>
+        <Text style={styles.emptyText}>
+          No plugins match the current search and filters.
+        </Text>
       ) : null}
       <FlatList
         data={sorted}
