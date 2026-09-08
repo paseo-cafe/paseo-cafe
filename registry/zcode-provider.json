@@ -1,0 +1,12 @@
+{
+  "id": "zcode-provider",
+  "repo": "supermomonga/paseo-plugin-zcode-provider",
+  "categories": ["provider"],
+  "caveats": [
+    "Requires Paseo 0.8.0-beta.1+, and authenticated ZCode 3.11.2+.",
+    "Unofficial integration using ZCode's undocumented headless mode.",
+    "Supports macOS and Linux arm64/x64 and Windows x64; host initialization and model listing verified only on macOS arm64.",
+    "Under development; see the README for verification status and known limitations."
+  ],
+  "submittedBy": "supermomonga"
+}
