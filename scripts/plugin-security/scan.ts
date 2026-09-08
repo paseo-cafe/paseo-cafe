@@ -4,12 +4,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
-import { scanStaticFiles } from "./static-scan.ts"
 import type {
   SecurityPluginResult,
   SecurityResults,
   SecurityTarget,
 } from "./shared.ts"
+import { scanStaticFiles } from "./static-scan.ts"
 
 const args = process.argv.slice(2)
 const targetsPath = valueFor(args, "--targets")
