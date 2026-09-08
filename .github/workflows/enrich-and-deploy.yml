@@ -15,17 +15,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  enrich:
-    name: Enrich and verify
+  deploy:
+    name: Enrich, verify, and deploy
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: write
-    outputs:
-      source-sha: ${{ steps.publish.outputs.source-sha }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -48,30 +46,8 @@ jobs:
           bun run test
           bun run build
 
-      - name: Publish refreshed data
-        id: publish
-        run: |
-          git config user.name "paseo-cafe-bot"
-          git config user.email "actions@github.com"
-          git add data/ public/og public/sitemap.xml public/robots.txt
-          git diff --cached --quiet || git commit -m "chore: refresh plugin data [skip ci]"
-          git push
-          echo "source-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-  deploy:
-    name: Deploy to Zerops
-    needs: enrich
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - name: Check out verified source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ needs.enrich.outputs.source-sha }}
-          persist-credentials: false
-
+      # Zerops uploads this working directory, so the verified generated tree
+      # can ship without committing derived files to protected main.
       - name: Deploy to Zerops
         uses: zeropsio/actions@19329d7d7ecaad2c382fb30ea6e52aaa15ec1f20 # v1.0.2
         with:

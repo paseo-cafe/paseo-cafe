@@ -28,14 +28,13 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
 4. The site (`src/routes/plugins.index.tsx`, `src/routes/plugins.$id.tsx`) reads
    `data/plugins.json` via `src/lib/plugins-data.ts` — it never talks to GitHub directly.
 
-5. **`.github/workflows/enrich-and-deploy.yml`** runs the scan, commits the refreshed `data/` +
-   `public/og` + `public/sitemap.xml` + `public/robots.txt` back to `main`, then deploys to
-   [Zerops](https://zerops.io) (`zerops.yaml`) — a persistent Bun server (via
-   [Nitro](https://nitro.build), wired up in `vite.config.ts`), not a static export. That's also why
-   `src/lib/plugins-data.ts` can just statically `import` `data/plugins.json` instead of reading it
-   off disk at request time: it gets inlined into the server bundle at build time, and there's an
-   actual long-running server to run that bundle on — no GitHub Pages-style static-hosting
-   constraints to design around.
+5. **`.github/workflows/enrich-and-deploy.yml`** runs the scan, verifies the refreshed `data/` +
+   `public/og` + `public/sitemap.xml` + `public/robots.txt` in its working tree, then deploys that
+   exact tree to [Zerops](https://zerops.io) (`zerops.yaml`). It never writes generated artifacts
+   back to protected `main`. Zerops runs a persistent Bun server (via [Nitro](https://nitro.build),
+   wired up in `vite.config.ts`), so `src/lib/plugins-data.ts` can statically import
+   `data/plugins.json`: Vite/Nitro inlines it into the server bundle at build time, with no GitHub
+   Pages-style static-hosting constraints to design around.
 
 ## Submitting a plugin
 
