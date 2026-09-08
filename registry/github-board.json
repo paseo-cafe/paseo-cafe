@@ -1,0 +1,11 @@
+{
+  "id": "github-board",
+  "repo": "gpambrozio/paseo-plugins",
+  "path": "github-board",
+  "categories": ["github", "productivity", "monitoring"],
+  "caveats": [
+    "Requires gh installed and authenticated on the daemon machine, not the device running the app",
+    "Editing labels needs a gh login with write access to the repository"
+  ],
+  "submittedBy": "gpambrozio"
+}
