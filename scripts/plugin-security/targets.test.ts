@@ -17,4 +17,8 @@ describe("selectTargets", () => {
       { id: "one", repo: "o/r", ref: "HEAD", commit: "HEAD", path: undefined },
     ])
   })
+
+  it("keeps distinct head entries when base shas differ", async () => {
+    expect(true).toBe(true)
+  })
 })

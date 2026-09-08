@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { readdirSync, readFileSync } from "node:fs"
+import { readdirSync, readFileSync, lstatSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
-import semver from "semver"
+import * as semver from "semver"
 import type { SecurityFinding } from "./shared.ts"
 
 export type StaticScanInput = {
@@ -15,9 +15,9 @@ export type StaticScanOutput = {
   findings: SecurityFinding[]
   buildCommands: string[][]
 }
-const MAX_FILES = 200,
-  MAX_BYTES = 2_000_000,
-  MAX_DEPTH = 6
+const MAX_FILES = 200
+const MAX_BYTES = 2_000_000
+const MAX_DEPTH = 6
 
 export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
   const root = resolve(input.root, input.pluginPath ?? ".")
@@ -62,6 +62,21 @@ function walk(
       )
       continue
     }
+    const meta = lstatSafe(full)
+    if (meta && meta.size > MAX_BYTES) {
+      state.incomplete = true
+      findings.push(
+        finding(
+          "scanner",
+          "size-limit",
+          "high",
+          true,
+          rel,
+          "file exceeds size budget"
+        )
+      )
+      continue
+    }
     if (entry.isDirectory()) {
       walk(base, full, depth + 1, state, findings, buildCommands, registryId)
       continue
@@ -69,7 +84,7 @@ function walk(
     if (!entry.isFile()) continue
     state.files += 1
     if (state.files > MAX_FILES) state.incomplete = true
-    const content = readFileSync(full, "utf8")
+    const content = readBounded(full, MAX_BYTES - state.bytes)
     state.bytes += Buffer.byteLength(content)
     if (state.bytes > MAX_BYTES) state.incomplete = true
     if (/paseo-plugin\.json$/.test(entry.name))
@@ -78,6 +93,19 @@ function walk(
       validateEntrypoint(entry.name, rel, findings)
     scanBoundaries(content, rel, findings)
   }
+}
+
+function lstatSafe(path: string) {
+  try {
+    return lstatSync(path)
+  } catch {
+    return null
+  }
+}
+
+function readBounded(path: string, budget: number) {
+  const raw = readFileSync(path, "utf8")
+  return raw.slice(0, Math.max(0, budget))
 }
 
 function validateManifest(
@@ -176,7 +204,6 @@ function validateManifest(
     )
   }
 }
-
 function validateEntrypoint(
   name: string,
   path: string,

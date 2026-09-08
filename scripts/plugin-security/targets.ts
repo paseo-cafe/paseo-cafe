@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { z } from "zod"
 import { registryEntrySchema } from "../../src/lib/registry-schema.ts"
@@ -22,6 +22,12 @@ const eventSchema = z.object({
 })
 
 type ContentsEntry = { name: string; path: string; type: string }
+type RegistrySnapshotEntry = {
+  id: string
+  repo: string
+  path?: string
+  fingerprint: string
+}
 
 export async function selectTargets(opts: {
   registryRoot: string
@@ -62,9 +68,10 @@ async function selectPullRequestTargets(
   const head = await readRegistrySnapshot(headRepo, headSha, token)
   const out = new Map<string, SecurityTarget>()
   for (const entry of local) out.set(key(entry), toTarget(entry, "HEAD"))
-  for (const entry of head.values()) {
-    const prior = base.get(key(entry))
-    if (!prior || prior.commit !== entry.commit) out.set(key(entry), entry)
+  for (const [identity, entry] of head.entries()) {
+    if (base.get(identity)?.fingerprint !== entry.fingerprint) {
+      out.set(identity, toTarget(entry, headSha))
+    }
   }
   const targets = [...out.values()]
   writeCount(targets.length)
@@ -97,7 +104,7 @@ async function readRegistrySnapshot(
         token
       )
     ) as ContentsEntry[]
-  const out = new Map<string, SecurityTarget>()
+  const out = new Map<string, RegistrySnapshotEntry>()
   for (const entry of entries) {
     if (
       entry.type !== "file" ||
@@ -105,18 +112,15 @@ async function readRegistrySnapshot(
       !safeRegistryPath(entry.path)
     )
       continue
-    const parsed = validateRegistryEntry(
-      registryEntrySchema.parse(
-        JSON.parse(
-          await fetchText(
-            `https://raw.githubusercontent.com/${owner}/${repo}/${sha}/${entry.path}`,
-            token
-          )
-        )
-      )
+    const raw = await fetchText(
+      `https://raw.githubusercontent.com/${owner}/${repo}/${sha}/${encodePath(entry.path)}`,
+      token
     )
-    const target = toTarget(parsed, sha)
-    out.set(key(target), target)
+    const parsed = validateRegistryEntry(
+      registryEntrySchema.parse(JSON.parse(raw))
+    )
+    const identity = key(parsed)
+    out.set(identity, { ...parsed, fingerprint: raw })
   }
   return out
 }
@@ -200,6 +204,9 @@ function safeRegistryPath(path: string) {
         !segment.includes("\\") &&
         !segment.includes(":")
     )
+}
+function encodePath(path: string) {
+  return path.split("/").map(encodeURIComponent).join("/")
 }
 function toTarget(
   entry: { id: string; repo: string; path?: string },

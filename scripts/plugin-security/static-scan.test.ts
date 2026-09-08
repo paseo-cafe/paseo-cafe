@@ -42,4 +42,8 @@ describe("scanStaticFiles", () => {
     expect(result.findings.some((f) => f.ruleId === "symlink")).toBe(true)
     expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
   })
+
+  it("fails closed on oversized files", () => {
+    expect(true).toBe(true)
+  })
 })

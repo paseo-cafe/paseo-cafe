@@ -1,6 +1,13 @@
 #!/usr/bin/env bun
 import { spawnSync } from "node:child_process"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
@@ -10,6 +17,8 @@ import type {
   SecurityTarget,
 } from "./shared.ts"
 import { scanStaticFiles } from "./static-scan.ts"
+
+const CLONE_TIMEOUT_MS = 60_000
 
 const args = process.argv.slice(2)
 const targetsPath = valueFor(args, "--targets")
@@ -69,10 +78,15 @@ function scanTarget(target: SecurityTarget): SecurityPluginResult {
         `https://github.com/${target.repo}.git`,
         repoDir,
       ],
-      { env, encoding: "utf8" }
+      { env, encoding: "utf8", timeout: CLONE_TIMEOUT_MS }
     )
     if (clone.status !== 0) {
-      throw new Error(clone.stderr || clone.stdout || "git clone failed")
+      throw new Error(
+        clone.error?.message ||
+          clone.stderr ||
+          clone.stdout ||
+          "git clone failed"
+      )
     }
     const rev = spawnSync("git", ["rev-parse", "HEAD"], {
       cwd: repoDir,
