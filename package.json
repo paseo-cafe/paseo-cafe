@@ -10,8 +10,12 @@
     "start": "bun run .output/server/index.mjs",
     "test": "vitest run",
     "lint": "eslint",
+    "lint:app": "eslint --ignore-pattern plugin",
+    "lint:plugin": "eslint plugin",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx}\"",
     "check": "prettier --check \"**/*.{ts,tsx,js,jsx}\"",
+    "check:app": "prettier --check \"*.{ts,tsx,js,jsx}\" \"{scripts,src}/**/*.{ts,tsx,js,jsx}\"",
+    "check:plugin": "prettier --check \"plugin/**/*.{ts,tsx,js,jsx}\"",
     "typecheck": "tsc --noEmit",
     "registry:validate": "bun run scripts/validate-registry.ts",
     "registry:scan": "bun run scripts/scan.ts"

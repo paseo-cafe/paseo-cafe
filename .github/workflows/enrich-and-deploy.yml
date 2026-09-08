@@ -42,8 +42,8 @@ jobs:
 
       - name: Verify generated site
         run: |
-          bun run check
-          bun run lint
+          bun run check:app
+          bun run lint:app
           bun run typecheck
           bun run test
           bun run build
