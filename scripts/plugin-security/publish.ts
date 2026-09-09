@@ -78,6 +78,10 @@ export function boundedReport(report: string): string {
     .replaceAll("@", "@\u200b")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
+    .replace(
+      /&lt;(\/?(?:details|summary))&gt;/g,
+      (_match, tag: string) => `<${tag}>`
+    )
   if (sanitized.length <= MAX_COMMENT_LENGTH) return sanitized
   return `${sanitized.slice(0, MAX_COMMENT_LENGTH)}\n\n_Report truncated._`
 }
