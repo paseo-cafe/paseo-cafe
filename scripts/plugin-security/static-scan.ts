@@ -87,10 +87,10 @@ function walk(
     const content = readFileSync(full, "utf8");
     state.bytes += Buffer.byteLength(content);
     if (state.bytes > MAX_BYTES) state.incomplete = true;
-    if (rel === "paseo-plugin.json")
-      validateManifest(content, rel, registryId, findings, buildCommands);
-    if (/^(index\.(?:client|server)\.(?:ts|tsx)|index\.ts)$/.test(entry.name))
-      validateEntrypoint(entry.name, rel, findings);
+    if (entry.name === "paseo-plugin.json")
+      validateManifest(content, rel, registryId, findings, buildCommands)
+    if (/^(?:index\.(?:client|server)\.(?:ts|tsx)|index\.ts)$/.test(rel))
+      validateEntrypoint(entry.name, rel, findings)
     scanBoundaries(content, rel, findings);
   }
 }
