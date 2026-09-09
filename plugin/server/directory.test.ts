@@ -197,9 +197,9 @@ describe("catalog installation matching", () => {
       id: "review",
     })
 
-    expect(findInstallations({ id: "review", repo: "other/repo" }, [installation])).toEqual([
-      installation,
-    ])
+    expect(
+      findInstallations({ id: "review", repo: "other/repo" }, [installation])
+    ).toEqual([installation])
   })
 
   it("defaults missing update state to unknown for mixed bundle versions", () => {
@@ -322,7 +322,7 @@ describe("Paseo CLI invocation", () => {
       "/d",
       "/s",
       "/c",
-      '\"paseo\" \"plugin\" \"update\" \"review\" \"--json\"',
+      '"paseo" "plugin" "update" "review" "--json"',
     ])
   })
 
@@ -352,4 +352,4 @@ describe("bounded update checks", () => {
     expect(maximum).toBe(2)
     expect(results).toEqual([2, 4, 6, 8, 10, 12])
   })
-}
+})
