@@ -23,13 +23,14 @@ interface PluginDetailPageProps {
   entry: DirectoryEntry
   theme: PluginTheme
   compact: boolean
-  installation?: InstalledPlugin
+  installations: readonly InstalledPlugin[]
+  inventoryAvailable: boolean
   installing: boolean
-  updating: boolean
+  updatingId: string | null
   installError: string | null
   updateError: string | null
   onInstall: () => void
-  onUpdate: () => void
+  onUpdate: (installation: InstalledPlugin) => void
   onOpenGallery: () => void
   onBack: () => void
 }
@@ -39,13 +40,23 @@ function formatDate(iso: string | undefined): string | undefined {
   return iso ? iso.slice(0, 10) : undefined
 }
 
+function installationStateLabel(installation: InstalledPlugin): string {
+  if (installation.source === "directory") return "Installed locally"
+  if (installation.updateState === "available") return "Update available"
+  if (installation.updateState === "current") return "Up to date"
+  if (installation.updateState === "pinned") return "Pinned"
+  if (installation.updateState === "diverged") return "Source diverged"
+  return "Update status unavailable"
+}
+
 export function PluginDetailPage({
   entry,
   theme,
   compact,
-  installation,
+  installations,
+  inventoryAvailable,
   installing,
-  updating,
+  updatingId,
   installError,
   updateError,
   onInstall,
@@ -55,6 +66,8 @@ export function PluginDetailPage({
 }: PluginDetailPageProps) {
   const toast = useToast()
   const [confirmingInstall, setConfirmingInstall] = useState(false)
+  const [confirmingUpdate, setConfirmingUpdate] =
+    useState<InstalledPlugin | null>(null)
   const [showFullActionError, setShowFullActionError] = useState(false)
 
   const styles = useMemo(
@@ -267,7 +280,7 @@ export function PluginDetailPage({
         paddingVertical: 10,
         borderRadius: 8,
         backgroundColor: theme.colors.accent,
-        opacity: installing || updating ? 0.6 : 1,
+        opacity: installing || updatingId !== null ? 0.6 : 1,
       },
       buttonText: {
         color: theme.colors.accentForeground,
@@ -282,6 +295,20 @@ export function PluginDetailPage({
         borderColor: theme.colors.border,
       },
       secondaryButtonText: { color: theme.colors.foreground, fontSize: 14 },
+      installationList: { gap: 8 },
+      installationCard: {
+        gap: 8,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderRadius: 8,
+        padding: 10,
+        backgroundColor: theme.colors.surface1,
+      },
+      installationTitle: {
+        color: theme.colors.foreground,
+        fontSize: 13,
+        fontWeight: "600" as const,
+      },
       healthGrid: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
@@ -307,7 +334,7 @@ export function PluginDetailPage({
         lineHeight: 19,
       },
     }),
-    [theme, compact, installing, updating]
+    [theme, compact, installing, updatingId]
   )
 
   const command = getInstallCommand(entry)
@@ -327,18 +354,8 @@ export function PluginDetailPage({
   const installable =
     isValidRepo(entry.repo) &&
     (entry.path === undefined || isValidInstallPath(entry.path))
-  const actionPending = installing || updating
-  const canUpdate =
-    installation?.source === "git" && installation.updateAvailable
-  const actionEnabled = installation ? canUpdate : installable
-  const primaryActionLabel = updating
-    ? "Updating…"
-    : installing
-      ? "Installing…"
-      : installation
-        ? "Update"
-        : "Install"
-  const actionError = installation ? updateError : installError
+  const actionPending = installing || updatingId !== null
+  const actionError = installations.length > 0 ? updateError : installError
   // The toggle and the clamp share one condition: a short error is never
   // clamped, so wrapping on a narrow screen cannot hide text with no way back.
   const actionErrorIsLong =
@@ -556,34 +573,94 @@ export function PluginDetailPage({
           ) : null}
         </View>
 
-        {installation ? (
-          <Text style={styles.metaText}>
-            {installation.source === "directory"
-              ? "Installed locally"
-              : installation.updateAvailable
-                ? "Update available"
-                : "Up to date"}
-            {` · ${installation.id}`}
-            {installation.commit
-              ? ` at ${installation.commit.slice(0, 12)}`
-              : ""}
-            .
-          </Text>
+        {!inventoryAvailable ? (
+          <View accessibilityRole="alert" style={styles.errorBox}>
+            <Text style={styles.errorText}>
+              Installed plugin status unavailable
+            </Text>
+            <Text style={styles.alertBody}>
+              Install and update actions are disabled until Paseo can read this
+              host's plugin inventory.
+            </Text>
+          </View>
+        ) : null}
+
+        {installations.length > 0 ? (
+          <View style={styles.installationList}>
+            <Text style={styles.label}>Installations</Text>
+            {installations.map((installation) => {
+              const updateCommand = `paseo plugin update ${installation.id}`
+              return (
+                <View key={installation.id} style={styles.installationCard}>
+                  <Text style={styles.installationTitle}>
+                    {installationStateLabel(installation)} · {installation.id}
+                  </Text>
+                  <Text selectable style={styles.metaText}>
+                    {installation.remote ?? installation.path}
+                    {installation.ref ? ` · ${installation.ref}` : ""}
+                    {installation.commit
+                      ? ` · ${installation.commit.slice(0, 12)}`
+                      : ""}
+                    {installation.latestCommit
+                      ? ` → ${installation.latestCommit.slice(0, 12)}`
+                      : ""}
+                  </Text>
+                  {installation.updateError ? (
+                    <Text style={styles.errorText}>
+                      {installation.updateError}
+                    </Text>
+                  ) : null}
+                  {installation.updateState === "available" ? (
+                    entry.id === "paseo-cafe" ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Copy update command for ${installation.id}`}
+                        style={styles.secondaryButton}
+                        onPress={async () => {
+                          await copyText(updateCommand)
+                          toast.show("Copied update command")
+                        }}
+                      >
+                        <Text style={styles.secondaryButtonText}>
+                          Copy update command
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Update ${entry.name} installation ${installation.id}`}
+                        accessibilityState={{ disabled: actionPending }}
+                        style={styles.button}
+                        disabled={actionPending}
+                        onPress={() => setConfirmingUpdate(installation)}
+                      >
+                        <Text style={styles.buttonText}>
+                          {updatingId === installation.id
+                            ? "Updating…"
+                            : "Update"}
+                        </Text>
+                      </Pressable>
+                    )
+                  ) : null}
+                </View>
+              )
+            })}
+          </View>
         ) : null}
 
         <View style={styles.actionsRow}>
-          {!installation || canUpdate ? (
+          {inventoryAvailable && installations.length === 0 ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${installation ? "Update" : "Install"} ${entry.name}`}
-              accessibilityState={{ disabled: actionPending || !actionEnabled }}
-              style={[styles.button, !actionEnabled ? { opacity: 0.5 } : null]}
-              disabled={actionPending || !actionEnabled}
-              onPress={
-                installation ? onUpdate : () => setConfirmingInstall(true)
-              }
+              accessibilityLabel={`Install ${entry.name}`}
+              accessibilityState={{ disabled: actionPending || !installable }}
+              style={[styles.button, !installable ? { opacity: 0.5 } : null]}
+              disabled={actionPending || !installable}
+              onPress={() => setConfirmingInstall(true)}
             >
-              <Text style={styles.buttonText}>{primaryActionLabel}</Text>
+              <Text style={styles.buttonText}>
+                {installing ? "Installing…" : "Install"}
+              </Text>
             </Pressable>
           ) : null}
           <Pressable
@@ -596,7 +673,7 @@ export function PluginDetailPage({
           </Pressable>
         </View>
 
-        {!installation && !installable ? (
+        {inventoryAvailable && installations.length === 0 && !installable ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
             <Text style={styles.errorText}>
               This listing has an invalid repository or plugin subpath and
@@ -608,7 +685,9 @@ export function PluginDetailPage({
         {actionError ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
             <Text style={styles.errorText}>
-              {installation ? "Update failed" : "Installation failed"}
+              {installations.length > 0
+                ? "Update failed"
+                : "Installation failed"}
             </Text>
             <Text
               numberOfLines={
@@ -740,6 +819,56 @@ export function PluginDetailPage({
               }}
             >
               <Text style={styles.buttonText}>Install</Text>
+            </Pressable>
+          </View>
+        </Modal.Content>
+      </Modal>
+      <Modal
+        title={`Update ${entry.name}?`}
+        icon={<Icon name="RefreshCw" size={18} color={theme.colors.accent} />}
+        open={confirmingUpdate !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingUpdate(null)
+        }}
+      >
+        <Modal.Content contentContainerStyle={styles.modalBody}>
+          <Text style={styles.modalTitle}>{confirmingUpdate?.id}</Text>
+          <Text selectable style={styles.modalText}>
+            {confirmingUpdate?.remote}
+            {confirmingUpdate?.ref ? ` · ${confirmingUpdate.ref}` : ""}
+          </Text>
+          <Text selectable style={styles.modalText}>
+            {confirmingUpdate?.commit?.slice(0, 12)} →{" "}
+            {confirmingUpdate?.latestCommit?.slice(0, 12)}
+          </Text>
+          <Text style={styles.modalText}>
+            Updating replaces trusted, unsandboxed plugin code on this Paseo
+            host. Review the source before continuing.
+          </Text>
+          <View style={styles.actionsRow}>
+            <Pressable
+              accessibilityRole="link"
+              style={styles.secondaryButton}
+              onPress={() => openExternal(entry.url)}
+            >
+              <Text style={styles.secondaryButtonText}>View repo</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.secondaryButton}
+              onPress={() => setConfirmingUpdate(null)}
+            >
+              <Text style={styles.secondaryButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.button}
+              onPress={() => {
+                if (confirmingUpdate) onUpdate(confirmingUpdate)
+                setConfirmingUpdate(null)
+              }}
+            >
+              <Text style={styles.buttonText}>Update</Text>
             </Pressable>
           </View>
         </Modal.Content>

@@ -8,7 +8,7 @@ interface PluginRowProps {
   entry: DirectoryEntry
   theme: PluginTheme
   compact: boolean
-  installation?: InstalledPlugin
+  installations: readonly InstalledPlugin[]
   onPress: () => void
 }
 
@@ -19,7 +19,7 @@ export function PluginRow({
   entry,
   theme,
   compact,
-  installation,
+  installations,
   onPress,
 }: PluginRowProps) {
   const styles = useMemo(
@@ -36,6 +36,7 @@ export function PluginRow({
         flexDirection: "row" as const,
         alignItems: "center" as const,
         gap: 8,
+        flexWrap: "wrap" as const,
       },
       starsRow: {
         flexDirection: "row" as const,
@@ -95,10 +96,24 @@ export function PluginRow({
   const tags = [...entry.categories, ...entry.platforms]
   const hasTagsRow = tags.length > 0 || !!entry.paseoVersionRequirement
 
+  const updateCount = installations.filter(
+    (installation) => installation.updateState === "available"
+  ).length
+  const statusLabel =
+    updateCount > 0
+      ? updateCount === 1
+        ? "Update available"
+        : `${updateCount} updates available`
+      : installations.length > 0
+        ? installations.length === 1
+          ? "Installed"
+          : `${installations.length} installations`
+        : undefined
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`View details for ${entry.name}`}
+      accessibilityLabel={`View details for ${entry.name}${statusLabel ? `, ${statusLabel}` : ""}`}
       style={styles.row}
       onPress={onPress}
     >
@@ -111,10 +126,10 @@ export function PluginRow({
           />
         ) : null}
         <Text style={styles.name}>{entry.name}</Text>
-        {installation ? (
+        {statusLabel ? (
           <View style={styles.statusBadge}>
-            <Text style={styles.statusText(installation.updateAvailable)}>
-              {installation.updateAvailable ? "Update available" : "Installed"}
+            <Text style={styles.statusText(updateCount > 0)}>
+              {statusLabel}
             </Text>
           </View>
         ) : null}

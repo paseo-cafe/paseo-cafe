@@ -15,13 +15,15 @@ import {
   directoryListRpc,
   directorySettings,
   directoryUpdateRpc,
-  findInstallation,
+  directoryUpdateStatusRpc,
+  findInstallations,
 } from "../shared/directory"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
 import { PluginRow } from "./PluginRow"
 
 const DIRECTORY_QUERY_KEY = "paseo-cafe-directory"
+const UPDATE_STATUS_QUERY_KEY = "paseo-cafe-update-status"
 
 function toggle<T>(set: ReadonlySet<T>, value: T): Set<T> {
   const next = new Set(set)
@@ -118,7 +120,8 @@ type InstallationStatusFilter =
 interface StatusFilterOption {
   value: InstallationStatusFilter
   label: string
-  count: number
+  count?: number
+  disabled?: boolean
 }
 
 function StatusFilterRow({
@@ -146,6 +149,8 @@ function StatusFilterRow({
         marginRight: 2,
       },
       chip: (active: boolean) => ({
+        minHeight: 44,
+        justifyContent: "center" as const,
         borderRadius: 999,
         paddingHorizontal: 10,
         paddingVertical: 5,
@@ -163,21 +168,33 @@ function StatusFilterRow({
   )
 
   return (
-    <View style={styles.row}>
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel="Plugin installation status"
+      style={styles.row}
+    >
       <Text style={styles.label}>Show:</Text>
       {options.map((option) => {
         const active = selected === option.value
+        const countLabel =
+          option.count === undefined ? "unavailable" : `${option.count} plugins`
         return (
           <Pressable
             key={option.value}
-            accessibilityRole="button"
-            accessibilityLabel={`Show ${option.label.toLowerCase()} plugins`}
-            accessibilityState={{ selected: active }}
-            style={styles.chip(active)}
+            accessibilityRole="radio"
+            accessibilityLabel={`${option.label}, ${countLabel}`}
+            accessibilityState={{ checked: active, disabled: option.disabled }}
+            aria-checked={active}
+            aria-disabled={option.disabled}
+            disabled={option.disabled}
+            style={[
+              styles.chip(active),
+              option.disabled ? { opacity: 0.5 } : null,
+            ]}
             onPress={() => onSelect(option.value)}
           >
             <Text style={styles.chipText(active)}>
-              {option.label} {option.count}
+              {option.label} {option.count ?? "—"}
             </Text>
           </Pressable>
         )
@@ -190,6 +207,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const listDirectory = useRpc(directoryListRpc)
   const installPlugin = useRpc(directoryInstallRpc)
   const updatePlugin = useRpc(directoryUpdateRpc)
+  const listUpdateStatus = useRpc(directoryUpdateStatusRpc)
   const settings = useSettings(directorySettings)
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -222,6 +240,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     settings.status === "ready" ? settings.values.directoryUrl : undefined
   const settingsPending = settings.status === "loading"
   const queryKey = [DIRECTORY_QUERY_KEY, baseUrl]
+  const updateStatusQueryKey = [UPDATE_STATUS_QUERY_KEY, baseUrl]
 
   const directoryQuery = useQuery({
     queryKey,
@@ -231,6 +250,13 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     enabled: !settingsPending,
     staleTime: 60_000,
   })
+  const inventoryAvailable = directoryQuery.data?.installations !== undefined
+  const updateStatusQuery = useQuery({
+    queryKey: updateStatusQueryKey,
+    queryFn: () => listUpdateStatus({ baseUrl }),
+    enabled: inventoryAvailable,
+    staleTime: 60_000,
+  })
 
   const installMutation = useMutation({
     mutationFn: (entry: DirectoryEntry) => {
@@ -238,11 +264,15 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       setInstallFailure(null)
       return installPlugin({ repo: entry.repo, path: entry.path })
     },
-    onSuccess: (result, entry) => {
+    onSuccess: async (result, entry) => {
       if (result.ok) {
         setInstallFailure(null)
         toast.show(`Installed ${entry.name}`, { variant: "success" })
-        void queryClient.invalidateQueries({ queryKey })
+        await queryClient.invalidateQueries({ queryKey, exact: true })
+        await queryClient.invalidateQueries({
+          queryKey: updateStatusQueryKey,
+          exact: true,
+        })
       } else {
         setInstallFailure({ entryId: entry.id, message: result.message })
         toast.error(`Couldn't install ${entry.name}. See details below.`)
@@ -258,6 +288,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
 
   const updateMutation = useMutation({
     mutationFn: ({
+      entry,
       installation,
     }: {
       entry: DirectoryEntry
@@ -265,13 +296,20 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     }) => {
       setUpdatingId(installation.id)
       setUpdateFailure(null)
-      return updatePlugin({ pluginId: installation.id })
+      return updatePlugin({
+        pluginId: installation.id,
+        entry: { id: entry.id, repo: entry.repo, path: entry.path },
+      })
     },
-    onSuccess: (result, { entry }) => {
+    onSuccess: async (result, { entry }) => {
       if (result.ok) {
         setUpdateFailure(null)
         toast.show(result.message, { variant: "success" })
-        void queryClient.invalidateQueries({ queryKey })
+        await queryClient.invalidateQueries({ queryKey, exact: true })
+        await queryClient.invalidateQueries({
+          queryKey: updateStatusQueryKey,
+          exact: true,
+        })
       } else {
         setUpdateFailure({ entryId: entry.id, message: result.message })
         toast.error(`Couldn't update ${entry.name}. See details below.`)
@@ -292,8 +330,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       const key = [DIRECTORY_QUERY_KEY, baseUrl]
       return { key, result: await listDirectory({ baseUrl, force: true }) }
     },
-    onSuccess: ({ key, result }) => {
+    onSuccess: async ({ key, result }) => {
       queryClient.setQueryData(key, result)
+      await queryClient.invalidateQueries({
+        queryKey: updateStatusQueryKey,
+        exact: true,
+      })
       toast.show("Paseo Cafe refreshed.", { variant: "success" })
     },
     onError: (error) => {
@@ -302,34 +344,24 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   })
 
   const plugins = directoryQuery.data?.plugins ?? []
-  const installations = directoryQuery.data?.installations ?? []
+  const installations = inventoryAvailable
+    ? (updateStatusQuery.data?.installations ??
+      directoryQuery.data?.installations ??
+      [])
+    : []
   const installationByEntryId = useMemo(
     () =>
       new Map(
         plugins.flatMap((entry) => {
-          const installation = findInstallation(entry, installations)
-          return installation ? [[entry.id, installation] as const] : []
+          const matches = findInstallations(entry, installations)
+          return matches.length > 0 ? [[entry.id, matches] as const] : []
         })
       ),
     [plugins, installations]
   )
-  const detailInstallation = detailEntry
-    ? installationByEntryId.get(detailEntry.id)
-    : undefined
-  const installedCount = installationByEntryId.size
-  const updateCount = Array.from(installationByEntryId.values()).filter(
-    (installation) => installation.updateAvailable
-  ).length
-  const statusOptions: readonly StatusFilterOption[] = [
-    { value: "all", label: "All", count: plugins.length },
-    { value: "installed", label: "Installed", count: installedCount },
-    { value: "updates", label: "Updates", count: updateCount },
-    {
-      value: "not-installed",
-      label: "Not installed",
-      count: plugins.length - installedCount,
-    },
-  ]
+  const detailInstallations = detailEntry
+    ? (installationByEntryId.get(detailEntry.id) ?? [])
+    : []
 
   const allCategories = useMemo(
     () =>
@@ -342,7 +374,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     [plugins]
   )
 
-  const filtered = useMemo(() => {
+  const nonStatusFiltered = useMemo(() => {
     const query = search.trim().toLowerCase()
     return plugins.filter((entry) => {
       if (query) {
@@ -356,41 +388,81 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           .toLowerCase()
         if (!haystack.includes(query)) return false
       }
-      const installation = installationByEntryId.get(entry.id)
-      if (statusFilter === "installed" && !installation) return false
-      if (statusFilter === "updates" && !installation?.updateAvailable)
-        return false
-      if (statusFilter === "not-installed" && installation) return false
       if (
         categoryFilter.size > 0 &&
-        !entry.categories.some((c) => categoryFilter.has(c))
+        !entry.categories.some((category) => categoryFilter.has(category))
       )
         return false
       if (
         platformFilter.size > 0 &&
-        !entry.platforms.some((p) => platformFilter.has(p))
+        !entry.platforms.some((platform) => platformFilter.has(platform))
       )
         return false
       return true
     })
-  }, [
-    plugins,
-    search,
-    categoryFilter,
-    platformFilter,
-    statusFilter,
-    installationByEntryId,
-  ])
+  }, [plugins, search, categoryFilter, platformFilter])
+
+  const installedCount = nonStatusFiltered.filter(
+    (entry) => (installationByEntryId.get(entry.id)?.length ?? 0) > 0
+  ).length
+  const updateCount = nonStatusFiltered.filter((entry) =>
+    installationByEntryId
+      .get(entry.id)
+      ?.some((installation) => installation.updateState === "available")
+  ).length
+  const statusOptions: readonly StatusFilterOption[] = [
+    { value: "all", label: "All", count: nonStatusFiltered.length },
+    {
+      value: "installed",
+      label: "Installed",
+      count: inventoryAvailable ? installedCount : undefined,
+      disabled: !inventoryAvailable,
+    },
+    {
+      value: "updates",
+      label: "Updates",
+      count: updateStatusQuery.isSuccess ? updateCount : undefined,
+      disabled: !updateStatusQuery.isSuccess,
+    },
+    {
+      value: "not-installed",
+      label: "Not installed",
+      count: inventoryAvailable
+        ? nonStatusFiltered.length - installedCount
+        : undefined,
+      disabled: !inventoryAvailable,
+    },
+  ]
+  const effectiveStatusFilter = inventoryAvailable ? statusFilter : "all"
+  const filtered = useMemo(
+    () =>
+      nonStatusFiltered.filter((entry) => {
+        const matches = installationByEntryId.get(entry.id) ?? []
+        if (effectiveStatusFilter === "installed") return matches.length > 0
+        if (effectiveStatusFilter === "updates") {
+          return matches.some(
+            (installation) => installation.updateState === "available"
+          )
+        }
+        if (effectiveStatusFilter === "not-installed")
+          return matches.length === 0
+        return true
+      }),
+    [nonStatusFiltered, effectiveStatusFilter, installationByEntryId]
+  )
 
   const sorted = useMemo(
     () =>
       [...filtered].sort((a, b) => {
-        const aInstallation = installationByEntryId.get(a.id)
-        const bInstallation = installationByEntryId.get(b.id)
-        const aRank = aInstallation?.updateAvailable ? 0 : aInstallation ? 1 : 2
-        const bRank = bInstallation?.updateAvailable ? 0 : bInstallation ? 1 : 2
+        const aHasUpdate = installationByEntryId
+          .get(a.id)
+          ?.some((installation) => installation.updateState === "available")
+        const bHasUpdate = installationByEntryId
+          .get(b.id)
+          ?.some((installation) => installation.updateState === "available")
         return (
-          aRank - bRank || (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)
+          Number(Boolean(bHasUpdate)) - Number(Boolean(aHasUpdate)) ||
+          (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)
         )
       }),
     [filtered, installationByEntryId]
@@ -447,28 +519,24 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         entry={detailEntry}
         theme={theme}
         compact={layout.compact}
-        installation={detailInstallation}
+        installations={detailInstallations}
+        inventoryAvailable={inventoryAvailable}
         installing={installingId === detailEntry.id}
-        updating={updatingId === detailInstallation?.id}
+        updatingId={updatingId}
         installError={
           installFailure?.entryId === detailEntry.id
             ? installFailure.message
             : null
         }
         updateError={
-          detailEntry && updateFailure?.entryId === detailEntry.id
+          updateFailure?.entryId === detailEntry.id
             ? updateFailure.message
             : null
         }
         onInstall={() => installMutation.mutate(detailEntry)}
-        onUpdate={() => {
-          if (detailInstallation) {
-            updateMutation.mutate({
-              entry: detailEntry,
-              installation: detailInstallation,
-            })
-          }
-        }}
+        onUpdate={(installation) =>
+          updateMutation.mutate({ entry: detailEntry, installation })
+        }
         onOpenGallery={() => setGalleryEntry(detailEntry)}
         onBack={() => setDetailEntry(null)}
       />
@@ -488,7 +556,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       />
       <StatusFilterRow
         options={statusOptions}
-        selected={statusFilter}
+        selected={effectiveStatusFilter}
         theme={theme}
         onSelect={setStatusFilter}
       />
@@ -530,6 +598,14 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       {settingsPending ? (
         <Text style={styles.emptyText}>Loading Paseo Cafe settings…</Text>
       ) : null}
+      {updateStatusQuery.isFetching ? (
+        <Text style={styles.emptyText}>Checking for plugin updates…</Text>
+      ) : null}
+      {updateStatusQuery.isError ? (
+        <Text accessibilityRole="alert" style={styles.emptyText}>
+          Update status is unavailable: {updateStatusQuery.error.message}
+        </Text>
+      ) : null}
       {settings.status === "error" || settings.status === "invalid" ? (
         <Text accessibilityRole="alert" style={styles.emptyText}>
           Paseo Cafe settings need attention, so the default catalog is in use:{" "}
@@ -555,6 +631,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           Catalog generated {directoryQuery.data.fetchedAt.slice(0, 10)}.
         </Text>
       ) : null}
+      {directoryQuery.isSuccess ? (
+        <Text accessibilityLiveRegion="polite" style={styles.emptyText}>
+          Showing {sorted.length} of {nonStatusFiltered.length} matching
+          plugins.
+        </Text>
+      ) : null}
       {directoryQuery.isSuccess && sorted.length === 0 ? (
         <Text style={styles.emptyText}>
           No plugins match the current search and filters.
@@ -568,7 +650,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           <PluginRow
             entry={item}
             theme={theme}
-            installation={installationByEntryId.get(item.id)}
+            installations={installationByEntryId.get(item.id) ?? []}
             compact={layout.compact}
             onPress={() => setDetailEntry(item)}
           />

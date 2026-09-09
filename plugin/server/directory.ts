@@ -8,11 +8,13 @@ import type {
   directoryListRpc,
   directorySearchRpc,
   directoryUpdateRpc,
+  directoryUpdateStatusRpc,
+  InstalledPlugin,
 } from "../shared/directory"
 import {
   DEFAULT_DIRECTORY_URL,
   directoryEntrySchema,
-  findInstallation,
+  findInstallations,
   getInstallCommand,
   getSiteUrl,
   HEALTH_LABELS,
@@ -31,7 +33,7 @@ const ANSI_ESCAPE_PATTERN = new RegExp(
   "g"
 )
 const directoryResponseSchema = z.object({
-  plugins: z.array(directoryEntrySchema),
+  plugins: z.array(directoryEntrySchema).max(500),
   generatedAt: z.iso.datetime({ offset: true, local: true }).optional(),
 })
 const pluginUpdateResponseSchema = z.array(
@@ -44,48 +46,201 @@ const pluginUpdateResponseSchema = z.array(
   })
 )
 const TRACKED_BRANCH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
+const UPDATE_STATUS_TTL_MS = 60_000
+const UPDATE_CHECK_CONCURRENCY = 4
+const GIT_ENV = { GIT_TERMINAL_PROMPT: "0" }
+const updateStatusCache = new Map<
+  string,
+  { expiresAt: number; value: Promise<InstalledPlugin> }
+>()
 
-async function addUpdateAvailability(
-  plugins: readonly DirectoryEntry[],
-  installations: readonly z.infer<typeof installedPluginSchema>[]
-) {
-  return Promise.all(
-    installations.map(async (installation) => {
-      if (
-        installation.source !== "git" ||
-        !installation.ref ||
-        !installation.commit ||
-        !TRACKED_BRANCH_PATTERN.test(installation.ref) ||
-        installation.ref.includes("..")
-      ) {
-        return installation
-      }
-      const entry = plugins.find(
-        (candidate) => findInstallation(candidate, [installation]) !== undefined
+export function buildPaseoInvocation(
+  args: readonly string[],
+  platform = process.platform
+): { executable: string; args: string[] } {
+  if (platform !== "win32") return { executable: "paseo", args: [...args] }
+  const tokens = ["paseo", ...args].map((value) => {
+    if (
+      value.includes(String.fromCharCode(0)) ||
+      value.includes('"') ||
+      /[\r\n&|<>()^%!]/.test(value)
+    ) {
+      throw new Error(
+        "Paseo CLI argument contains unsupported Windows shell characters"
       )
-      if (!entry || !isValidRepo(entry.repo)) return installation
-      try {
-        const { stdout } = await execFileAsync(
-          "git",
-          [
-            "ls-remote",
-            "--heads",
-            `https://github.com/${entry.repo}.git`,
-            `refs/heads/${installation.ref}`,
-          ],
-          { timeout: 15_000 }
-        )
-        const latestCommit = stdout.trim().split(/\s+/)[0]
-        if (!/^[0-9a-f]{40,64}$/i.test(latestCommit ?? "")) return installation
-        return {
-          ...installation,
-          latestCommit,
-          updateAvailable: latestCommit !== installation.commit,
-        }
-      } catch {
-        return installation
-      }
+    }
+    return `"${value}"`
+  })
+  return {
+    executable: process.env.ComSpec || "cmd.exe",
+    args: ["/d", "/s", "/c", tokens.join(" ")],
+  }
+}
+
+async function execPaseo(args: readonly string[], timeout: number) {
+  const invocation = buildPaseoInvocation(args)
+  return execFileAsync(invocation.executable, invocation.args, { timeout })
+}
+
+async function execGit(
+  cwd: string,
+  args: readonly string[],
+  timeout = 15_000
+): Promise<{ stdout: string; exitCode: number }> {
+  try {
+    const { stdout } = await execFileAsync("git", args, {
+      cwd,
+      env: { ...process.env, ...GIT_ENV },
+      timeout,
     })
+    return { stdout, exitCode: 0 }
+  } catch (error) {
+    const failure = error as { code?: unknown; stdout?: unknown }
+    if (typeof failure.code !== "number") throw error
+    return {
+      stdout: typeof failure.stdout === "string" ? failure.stdout : "",
+      exitCode: failure.code,
+    }
+  }
+}
+
+type GitRunner = typeof execGit
+
+export async function inspectUpdateStatus(
+  installation: InstalledPlugin,
+  runGit: GitRunner = execGit
+): Promise<InstalledPlugin> {
+  if (
+    installation.source !== "git" ||
+    !installation.ref ||
+    !installation.commit ||
+    !TRACKED_BRANCH_PATTERN.test(installation.ref) ||
+    installation.ref.includes("..")
+  ) {
+    return { ...installation, updateState: "unknown" }
+  }
+  const branchRef = `refs/remotes/origin/${installation.ref}`
+  try {
+    const tracked = await runGit(installation.path, [
+      "show-ref",
+      "--verify",
+      "--quiet",
+      branchRef,
+    ])
+    if (tracked.exitCode === 1) {
+      if (/^[0-9a-f]{40,64}$/i.test(installation.ref)) {
+        return { ...installation, updateState: "pinned" }
+      }
+      const tag = await runGit(installation.path, [
+        "show-ref",
+        "--verify",
+        "--quiet",
+        `refs/tags/${installation.ref}`,
+      ])
+      if (tag.exitCode === 0) return { ...installation, updateState: "pinned" }
+      throw new Error("Tracked branch is unavailable")
+    }
+    if (tracked.exitCode !== 0)
+      throw new Error("Could not inspect tracked branch")
+    const fetched = await runGit(
+      installation.path,
+      ["fetch", "--prune", "--tags", "origin"],
+      120_000
+    )
+    if (fetched.exitCode !== 0) throw new Error("Could not fetch plugin source")
+    const latest = await runGit(installation.path, [
+      "rev-parse",
+      "--verify",
+      branchRef,
+    ])
+    const latestCommit = latest.stdout.trim()
+    if (latest.exitCode !== 0 || !/^[0-9a-f]{40,64}$/i.test(latestCommit)) {
+      throw new Error("Could not resolve tracked branch")
+    }
+    if (latestCommit === installation.commit) {
+      return { ...installation, latestCommit, updateState: "current" }
+    }
+    const ancestor = await runGit(installation.path, [
+      "merge-base",
+      "--is-ancestor",
+      installation.commit,
+      latestCommit,
+    ])
+    return {
+      ...installation,
+      latestCommit,
+      updateState: ancestor.exitCode === 0 ? "available" : "diverged",
+    }
+  } catch (error) {
+    return {
+      ...installation,
+      updateState: "unknown",
+      updateError: commandFailureMessage(error),
+    }
+  }
+}
+
+async function cachedUpdateStatus(
+  installation: InstalledPlugin
+): Promise<InstalledPlugin> {
+  const key = `${installation.path}\u0000${installation.ref ?? ""}\u0000${installation.commit ?? ""}`
+  const now = Date.now()
+  const cached = updateStatusCache.get(key)
+  if (cached && cached.expiresAt > now) return cached.value
+  if (updateStatusCache.size >= 500) {
+    for (const [cachedKey, entry] of updateStatusCache) {
+      if (entry.expiresAt <= now) updateStatusCache.delete(cachedKey)
+    }
+    if (updateStatusCache.size >= 500) {
+      const oldestKey = updateStatusCache.keys().next().value
+      if (oldestKey !== undefined) updateStatusCache.delete(oldestKey)
+    }
+  }
+  const value = inspectUpdateStatus(installation)
+  updateStatusCache.set(key, { expiresAt: now + UPDATE_STATUS_TTL_MS, value })
+  return value
+}
+
+export async function mapWithConcurrency<Input, Output>(
+  values: readonly Input[],
+  limit: number,
+  mapper: (value: Input) => Promise<Output>
+): Promise<Output[]> {
+  const output = new Array<Output>(values.length)
+  let nextIndex = 0
+  async function worker() {
+    while (nextIndex < values.length) {
+      const index = nextIndex++
+      output[index] = await mapper(values[index])
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, values.length) }, () => worker())
+  )
+  return output
+}
+
+async function addUpdateStatus(
+  plugins: readonly DirectoryEntry[],
+  installations: readonly InstalledPlugin[]
+): Promise<InstalledPlugin[]> {
+  const matched = new Map<string, InstalledPlugin>()
+  for (const entry of plugins) {
+    for (const installation of findInstallations(entry, installations)) {
+      if (installation.source === "git")
+        matched.set(installation.id, installation)
+    }
+  }
+  const checked = await mapWithConcurrency(
+    [...matched.values()],
+    UPDATE_CHECK_CONCURRENCY,
+    cachedUpdateStatus
+  )
+  const byId = new Map(
+    checked.map((installation) => [installation.id, installation])
+  )
+  return installations.map(
+    (installation) => byId.get(installation.id) ?? installation
   )
 }
 
@@ -112,10 +267,8 @@ function commandFailureMessage(error: unknown): string {
 }
 
 async function listInstalledPlugins() {
-  const { stdout } = await execFileAsync("paseo", ["plugin", "ls", "--json"], {
-    timeout: 30_000,
-  })
-  return z.array(installedPluginSchema).parse(JSON.parse(stdout))
+  const { stdout } = await execPaseo(["plugin", "ls", "--json"], 30_000)
+  return z.array(installedPluginSchema).max(500).parse(JSON.parse(stdout))
 }
 
 // Keyed by resolved URL so switching the directorySettings override (e.g. to
@@ -178,23 +331,25 @@ export async function listDirectory(
     fetchDirectory(input.baseUrl, input.force),
     listInstalledPlugins().then(
       (installations) => ({ installations }),
-      (error) => ({
-        installations: [],
-        installationError: commandFailureMessage(error),
-      })
+      (error) => ({ installationError: commandFailureMessage(error) })
     ),
   ])
-  const installations = await addUpdateAvailability(
-    directory.plugins,
-    installed.installations
-  )
-  const installationError =
-    "installationError" in installed ? installed.installationError : undefined
   return {
     plugins: directory.plugins,
     fetchedAt: directory.fetchedAt,
-    installations,
-    ...(installationError ? { installationError } : {}),
+    ...installed,
+  }
+}
+
+export async function listDirectoryUpdateStatus(
+  input: RpcInput<typeof directoryUpdateStatusRpc>
+): Promise<RpcOutput<typeof directoryUpdateStatusRpc>> {
+  const [directory, installations] = await Promise.all([
+    fetchDirectory(input.baseUrl),
+    listInstalledPlugins(),
+  ])
+  return {
+    installations: await addUpdateStatus(directory.plugins, installations),
   }
 }
 
@@ -296,10 +451,9 @@ export async function installDirectoryPlugin(
 
   const args = ["plugin", "add", repo, ...(path ? ["--path", path] : [])]
   try {
-    // execFile, not exec/shell — args are passed as an array straight to the
-    // process, so there's no shell to inject into even though repo/path
-    // ultimately came from a remote JSON response.
-    const { stdout } = await execFileAsync("paseo", args, { timeout: 120_000 })
+    // Arguments are passed as an array on Unix and strictly quoted through
+    // cmd.exe for npm's paseo.cmd shim on Windows.
+    const { stdout } = await execPaseo(args, 120_000)
     return { ok: true, message: stdout.trim() || `Installed ${repo}.` }
   } catch (error) {
     return { ok: false, message: commandFailureMessage(error) }
@@ -309,22 +463,62 @@ export async function installDirectoryPlugin(
 export async function updateDirectoryPlugin(
   input: RpcInput<typeof directoryUpdateRpc>
 ): Promise<RpcOutput<typeof directoryUpdateRpc>> {
+  const { entry, pluginId } = input
+  if (!isValidRepo(entry.repo)) {
+    return {
+      ok: false,
+      message: `"${entry.repo}" isn't a valid catalog repository.`,
+    }
+  }
+  if (entry.path !== undefined && !isValidInstallPath(entry.path)) {
+    return {
+      ok: false,
+      message: `"${entry.path}" isn't a valid plugin subpath.`,
+    }
+  }
+  if (entry.id === "paseo-cafe") {
+    return {
+      ok: false,
+      message: `Update Paseo Cafe outside the running plugin: paseo plugin update ${pluginId}`,
+    }
+  }
   try {
-    const { stdout } = await execFileAsync(
-      "paseo",
-      ["plugin", "update", input.pluginId, "--json"],
-      { timeout: 120_000 }
+    const installed = await listInstalledPlugins()
+    const target = findInstallations(entry, installed).find(
+      (installation) =>
+        installation.id === pluginId && installation.source === "git"
+    )
+    if (!target) {
+      return {
+        ok: false,
+        message: `Installed plugin ${pluginId} does not match ${entry.repo}${entry.path ? `/${entry.path}` : ""}.`,
+      }
+    }
+    const checked = await inspectUpdateStatus(target)
+    if (checked.updateState !== "available") {
+      return {
+        ok: false,
+        message:
+          checked.updateState === "current"
+            ? `${pluginId} is already up to date.`
+            : `Update status for ${pluginId} is ${checked.updateState}.`,
+      }
+    }
+    const { stdout } = await execPaseo(
+      ["plugin", "update", pluginId, "--json"],
+      120_000
     )
     const [result] = pluginUpdateResponseSchema.parse(JSON.parse(stdout))
     if (!result) {
-      return { ok: false, message: `No update result for ${input.pluginId}.` }
+      return { ok: false, message: `No update result for ${pluginId}.` }
     }
+    updateStatusCache.clear()
     return {
       ok: true,
       updated: result.updated,
       message: result.updated
-        ? `Updated ${input.pluginId} by ${result.commits} commit${result.commits === 1 ? "" : "s"}.`
-        : `${input.pluginId} is already up to date.`,
+        ? `Updated ${pluginId} by ${result.commits} commit${result.commits === 1 ? "" : "s"}.`
+        : `${pluginId} is already up to date.`,
     }
   } catch (error) {
     return { ok: false, message: commandFailureMessage(error) }
