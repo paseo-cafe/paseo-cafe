@@ -4,16 +4,19 @@
  * cheapest-first so a malformed entry fails fast without spending API calls:
  *
  *   1. JSON parses and matches registryEntrySchema
- *   2. filename matches the entry's id, ids are unique
+ *   2. filename is a valid registry ID
  *   3. the repo/path actually exists on GitHub
- *   4. a valid paseo-plugin.json manifest exists at that path
+ *   4. paseo-plugin.json exists and its ID matches the filename
  *
  * Exits non-zero (and prints a summary) if anything fails, which fails the
  * validate.yml workflow and blocks the PR from being merged.
  */
 import { readdirSync, readFileSync } from "node:fs"
 import { basename, join } from "node:path"
-import { registryEntrySchema } from "../src/lib/registry-schema.ts"
+import {
+  registryEntrySchema,
+  registryIdSchema,
+} from "../src/lib/registry-schema.ts"
 import { fetchRawJson, GitHubNotFoundError, listDir } from "./github.ts"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
@@ -26,7 +29,6 @@ interface Problem {
 
 async function main() {
   const problems: Problem[] = []
-  const seenIds = new Map<string, string>()
 
   const files = readdirSync(REGISTRY_DIR).filter((f) => f.endsWith(".json"))
   if (files.length === 0) {
@@ -37,6 +39,15 @@ async function main() {
   for (const file of files) {
     const full = join(REGISTRY_DIR, file)
     const expectedId = basename(file, ".json")
+    const idResult = registryIdSchema.safeParse(expectedId)
+    if (!idResult.success) {
+      problems.push({
+        file,
+        message:
+          idResult.error.issues[0]?.message ?? "invalid registry filename",
+      })
+      continue
+    }
 
     let raw: unknown
     try {
@@ -61,22 +72,6 @@ async function main() {
     }
 
     const entry = parsed.data
-    if (entry.id !== expectedId) {
-      problems.push({
-        file,
-        message: `id "${entry.id}" must match filename "${expectedId}.json"`,
-      })
-    }
-
-    const existing = seenIds.get(entry.id)
-    if (existing) {
-      problems.push({
-        file,
-        message: `duplicate id "${entry.id}" (also used by ${existing})`,
-      })
-    } else {
-      seenIds.set(entry.id, file)
-    }
 
     const [owner, repo] = entry.repo.split("/")
 
@@ -102,14 +97,15 @@ async function main() {
         "HEAD",
         manifestPath
       )
-      if (
-        !manifest ||
-        typeof manifest.id !== "string" ||
-        manifest.id.length === 0
-      ) {
+      if (!manifest || typeof manifest.id !== "string") {
         problems.push({
           file,
           message: `paseo-plugin.json at ${manifestPath} is missing a string "id" field`,
+        })
+      } else if (manifest.id !== expectedId) {
+        problems.push({
+          file,
+          message: `paseo-plugin.json id "${manifest.id}" must match registry filename "${file}"`,
         })
       }
     } catch (err) {

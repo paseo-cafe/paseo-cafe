@@ -1,8 +1,11 @@
 #!/usr/bin/env bun
 import { readdirSync, readFileSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { basename, join } from "node:path"
 import { z } from "zod"
-import { registryEntrySchema } from "../../src/lib/registry-schema.ts"
+import {
+  registryEntrySchema,
+  registryIdSchema,
+} from "../../src/lib/registry-schema.ts"
 import type { SecurityTarget } from "./shared.ts"
 
 const eventSchema = z.object({
@@ -78,11 +81,7 @@ function readLocalRegistry(root: string) {
   return readdirSync(root)
     .filter((file) => file.endsWith(".json"))
     .map((file) =>
-      validateRegistryEntry(
-        registryEntrySchema.parse(
-          JSON.parse(readFileSync(join(root, file), "utf8"))
-        )
-      )
+      parseRegistryFile(file, readFileSync(join(root, file), "utf8"))
     )
 }
 
@@ -112,12 +111,14 @@ async function readRegistrySnapshot(
       `https://raw.githubusercontent.com/${owner}/${repo}/${sha}/${encodePath(entry.path)}`,
       token
     )
-    const parsed = validateRegistryEntry(
-      registryEntrySchema.parse(JSON.parse(raw))
-    )
+    const parsed = parseRegistryFile(entry.name, raw)
     const identity = key(parsed)
     const commit = await resolvePluginRepoRevision(parsed.repo, token)
-    out.set(identity, { ...parsed, fingerprint: raw, commit })
+    out.set(identity, {
+      ...parsed,
+      fingerprint: `${parsed.id}\n${raw}`,
+      commit,
+    })
   }
   return out
 }
@@ -183,13 +184,17 @@ function githubHeaders(token?: string) {
     "user-agent": "paseo-security-scanner",
   }
 }
+function parseRegistryFile(file: string, raw: string) {
+  const id = registryIdSchema.parse(basename(file, ".json"))
+  const entry = registryEntrySchema.parse(JSON.parse(raw))
+  return validateRegistryEntry({ id, ...entry })
+}
+
 function validateRegistryEntry(entry: {
   id: string
   repo: string
   path?: string
 }) {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.id))
-    throw new Error(`unsafe registry id ${entry.id}`)
   if (!/^[\w.-]+\/[\w.-]+$/.test(entry.repo))
     throw new Error(`unsafe repo ${entry.repo}`)
   if (entry.path && !safeRegistryPath(entry.path))
