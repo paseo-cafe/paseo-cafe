@@ -113,7 +113,7 @@ describe("publishReport", () => {
     const notice = "\n\n_Report truncated._"
     const body = bounded.slice(0, -notice.length)
 
-    expect(bounded.length).toBeLessThanOrEqual(60_000)
+    expect(`${REPORT_MARKER}\n${bounded}`.length).toBeLessThanOrEqual(60_000)
     expect(bounded.endsWith(notice)).toBe(true)
     expect(body.split("\n").at(-1)).toBe(line)
   })

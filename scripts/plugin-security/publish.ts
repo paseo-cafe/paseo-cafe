@@ -9,6 +9,7 @@ import {
 
 export const REPORT_MARKER = "<!-- paseo-plugin-security-report -->"
 const MAX_COMMENT_LENGTH = 60_000
+const MAX_REPORT_LENGTH = MAX_COMMENT_LENGTH - `${REPORT_MARKER}\n`.length
 const TRUNCATION_NOTICE = "\n\n_Report truncated._"
 const REPORT_MARKUP: Record<string, string> = {
   [REPORT_DETAILS_OPEN]: "<details>",
@@ -94,9 +95,9 @@ export function boundedReport(report: string): string {
   for (const [token, markup] of Object.entries(REPORT_MARKUP)) {
     sanitized = sanitized.replaceAll(token, markup)
   }
-  if (sanitized.length <= MAX_COMMENT_LENGTH) return sanitized
+  if (sanitized.length <= MAX_REPORT_LENGTH) return sanitized
 
-  const budget = MAX_COMMENT_LENGTH - TRUNCATION_NOTICE.length
+  const budget = MAX_REPORT_LENGTH - TRUNCATION_NOTICE.length
   const lineBreak = sanitized.lastIndexOf("\n", budget)
   const end = lineBreak > 0 ? lineBreak : budget
   return `${sanitized.slice(0, end)}${TRUNCATION_NOTICE}`
