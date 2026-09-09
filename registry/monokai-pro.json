@@ -1,0 +1,11 @@
+{
+  "id": "monokai-pro",
+  "repo": "JrDw0/paseo-monokai-pro",
+  "categories": ["theme"],
+  "caveats": [
+    "Requires Paseo 0.8 or newer; 0.8 builds that reject the manifest requirements key need the v0.2.0 tag",
+    "Paseo 0.7 hosts need the v0.1.0 tag",
+    "Code blocks keep Paseo's built-in syntax theme — plugins cannot contribute one"
+  ],
+  "submittedBy": "JrDw0"
+}
