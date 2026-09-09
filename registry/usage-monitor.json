@@ -1,4 +1,5 @@
 {
+  "id": "usage-monitor",
   "repo": "ABorakati/paseo-usage-monitor",
   "categories": ["monitoring", "productivity"],
   "caveats": [

@@ -1,4 +1,5 @@
 {
+  "id": "subagent-activity",
   "repo": "mcowger/paseo-plugins",
   "path": "subagent-activity",
   "categories": ["monitoring"]

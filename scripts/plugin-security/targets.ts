@@ -187,7 +187,7 @@ function githubHeaders(token?: string) {
 function parseRegistryFile(file: string, raw: string) {
   const id = registryIdSchema.parse(basename(file, ".json"))
   const entry = registryEntrySchema.parse(JSON.parse(raw))
-  return validateRegistryEntry({ id, ...entry })
+  return validateRegistryEntry({ ...entry, id })
 }
 
 function validateRegistryEntry(entry: {

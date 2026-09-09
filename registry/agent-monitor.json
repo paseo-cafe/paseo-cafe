@@ -1,4 +1,5 @@
 {
+  "id": "agent-monitor",
   "repo": "omercnet/paseo-agent-monitor",
   "categories": ["monitoring", "productivity"],
   "platforms": ["macos", "linux", "windows"],

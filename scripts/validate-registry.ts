@@ -70,8 +70,14 @@ async function main() {
       }
       continue
     }
-
     const entry = parsed.data
+
+    if (entry.id !== undefined && entry.id !== expectedId) {
+      problems.push({
+        file,
+        message: `legacy registry id "${entry.id}" must match filename "${file}"`,
+      })
+    }
 
     const [owner, repo] = entry.repo.split("/")
 

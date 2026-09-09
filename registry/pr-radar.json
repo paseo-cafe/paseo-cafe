@@ -1,4 +1,5 @@
 {
+  "id": "pr-radar",
   "repo": "omercnet/paseo-pr-radar",
   "categories": ["monitoring", "productivity", "github"],
   "caveats": [

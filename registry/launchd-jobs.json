@@ -1,4 +1,5 @@
 {
+  "id": "launchd-jobs",
   "repo": "gpambrozio/paseo-plugins",
   "path": "launchd-jobs",
   "categories": ["automation"],
