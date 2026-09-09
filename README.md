@@ -35,6 +35,10 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
    on protected `main`. Zerops runs a persistent Bun server (via [Nitro](https://nitro.build), wired
    up in `vite.config.ts`), so Vite/Nitro can inline `data/plugins.json` into the server bundle.
 
+The Zerops `app` service must define `GITHUB_TOKEN` as a secret runtime variable. Zerops exposes it
+to the build as `RUNTIME_GITHUB_TOKEN`; `zerops.yaml` limits the credential to the registry scan and
+fails the deployment before scanning when the secret is absent.
+
 ## Submitting a plugin
 
 The full walkthrough (with a prefilled "create this file on GitHub" button) lives on the site
