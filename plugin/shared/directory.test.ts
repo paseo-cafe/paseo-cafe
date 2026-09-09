@@ -40,6 +40,9 @@ describe("directory presentation", () => {
       stripHtml(
         '<p>Review &amp; install <strong>carefully</strong>.</p><script>alert("x")</script>'
       )
-    ).toBe("Review & install carefully .")
+    ).toBe("Review & install carefully.")
+    expect(stripHtml("<span>separate</span><span>segments</span>")).toBe(
+      "separate segments"
+    )
   })
 })

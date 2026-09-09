@@ -179,6 +179,7 @@ export function getSiteUrl(entry: Pick<DirectoryEntry, "id">): string {
 export function stripHtml(html: string): string {
   return html
     .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/[^>]+>(?=[.,!?;:])/g, "")
     .replace(/<[^>]+>/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
