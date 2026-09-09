@@ -2,6 +2,7 @@
   "name": "paseo-cafe-plugin",
   "private": true,
   "version": "0.1.0",
+  "description": "Browse the paseo.cafe plugin catalog inside Paseo and install plugins without leaving the app.",
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
