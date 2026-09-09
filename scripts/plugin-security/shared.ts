@@ -1,5 +1,10 @@
 export const SECURITY_RESULT_VERSION = 1 as const
 
+export const REPORT_DETAILS_OPEN = "\uE000paseo-details-open\uE001"
+export const REPORT_DETAILS_CLOSE = "\uE000paseo-details-close\uE001"
+export const REPORT_SUMMARY_OPEN = "\uE000paseo-summary-open\uE001"
+export const REPORT_SUMMARY_CLOSE = "\uE000paseo-summary-close\uE001"
+
 export type SecurityFinding = {
   tool: string
   ruleId: string
