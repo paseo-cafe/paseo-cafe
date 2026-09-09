@@ -145,7 +145,41 @@ describe("scanStaticFiles", () => {
     expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
   })
 
+  it("excludes Git metadata from coverage", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    mkdirSync(join(root, ".git", "objects"), { recursive: true })
+    const manifest = JSON.stringify({ id: "plugin" })
+    writeFileSync(join(root, "paseo-plugin.json"), manifest)
+    writeFileSync(
+      join(root, ".git", "objects", "pack"),
+      Buffer.alloc(2_000_001)
+    )
+
+    const result = scanStaticFiles({ root, registryId: "plugin" })
+
+    expect(result.files).toBe(1)
+    expect(result.bytes).toBe(Buffer.byteLength(manifest))
+    expect(result.findings).toEqual([])
+  })
+
+  it("counts binary files by their on-disk size", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    const binary = Buffer.from([0xff, 0xfe])
+    writeFileSync(join(root, "artifact.bin"), binary)
+
+    const result = scanStaticFiles({ root })
+
+    expect(result.files).toBe(1)
+    expect(result.bytes).toBe(binary.byteLength)
+  })
+
   it("fails closed on oversized files", () => {
-    expect(true).toBe(true)
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    writeFileSync(join(root, "artifact.bin"), Buffer.alloc(2_000_001))
+
+    const result = scanStaticFiles({ root })
+
+    expect(result.findings.some((f) => f.ruleId === "size-limit")).toBe(true)
+    expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
   })
 })

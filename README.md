@@ -15,7 +15,7 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
 1. **`registry/*.json`** is the only thing a human writes — a pointer at a repo (see
    [Submitting a plugin](#submitting-a-plugin)).
 2. **`scripts/validate-registry.ts`** runs on every PR that touches registry inputs. It checks the
-   entry is well-formed, the repo/path exists, and a valid `paseo-plugin.json` manifest is there.
+   entry is well-formed, the repo/path exists, and `paseo-plugin.json.id` matches the registry filename.
    CI detects affected paths, runs the app and/or companion-plugin checks, then reports one
    aggregate `All checks passed` result. App checks cover formatting, lint, types, tests, and the
    production build; plugin checks cover formatting, lint, and types. See
@@ -42,7 +42,6 @@ itself at `/submit`. The short version — add one file, `registry/<your-plugin-
 
 ```jsonc
 {
-  "id": "your-plugin-id", // must match the filename
   "repo": "yourname/your-repo", // GitHub "owner/repo", not a full URL
   "path": "optional/subpath", // omit if your repo *is* the plugin
   "categories": ["productivity"], // free-form, refined over time
@@ -54,13 +53,13 @@ itself at `/submit`. The short version — add one file, `registry/<your-plugin-
 
 Requirements, checked automatically by CI:
 
-- Your repo (at `path`, if given) contains a valid `paseo-plugin.json` with an `id`.
-- `id` is unique across the registry and matches the filename.
+- The registry filename is a lowercase kebab-case plugin ID.
+- Your repo (at `path`, if given) contains a valid `paseo-plugin.json` with the same `id`.
 
-Everything else — name, description, version, license, screenshots, stars, and even a
-best-effort limitations excerpt (if your README has an "Install" or "Limitations" section) —
-is read from your repo automatically. A `README.md`, `LICENSE`, and an `images/` folder with
-screenshots all make your listing better; none are required to get in.
+The plugin name comes from the registry filename after it is validated against the manifest ID. Description, version, license, screenshots,
+stars, and the best-effort limitations excerpt are read from the plugin repository automatically.
+A `README.md`, `LICENSE`, and an `images/` folder with screenshots all make a listing better; none
+are required to get in.
 
 Open a PR adding your `registry/<id>.json`. Once Registry validation and CI pass, it's ready to merge.
 

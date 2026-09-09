@@ -56,6 +56,7 @@ function walk(
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
     const rel = relative(base, full) || entry.name
+    if (entry.isDirectory() && entry.name === ".git") continue
     if (entry.isSymbolicLink()) {
       state.incomplete = true
       findings.push(
@@ -86,7 +87,7 @@ function walk(
     state.files += 1
     if (state.files > MAX_FILES) state.incomplete = true
     const content = readFileSync(full, "utf8")
-    state.bytes += Buffer.byteLength(content)
+    state.bytes += meta.size
     if (state.bytes > MAX_BYTES) state.incomplete = true
     if (entry.name === "paseo-plugin.json")
       validateManifest(content, rel, registryId, findings, buildCommands)
