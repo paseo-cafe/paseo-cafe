@@ -108,6 +108,13 @@ export const directorySearchRpc = defineRpc({
   output: PluginAttachmentSearchPayloadSchema,
 })
 
+/**
+ * Attachment search always reads the default catalog: Paseo calls the search
+ * contract with `{ query }` only, and a server handler cannot read its own
+ * settings document (PluginServerContext exposes registerSettings/handle/
+ * registerProvider, and its context is just `paseo`). A host that overrides
+ * directoryUrl therefore still gets paseo.cafe results in the composer.
+ */
 export const directoryAttachments = defineAttachmentSource({
   id: "paseo-plugins",
   title: "Paseo plugin",
