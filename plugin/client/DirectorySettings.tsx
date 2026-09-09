@@ -66,13 +66,13 @@ export function DirectorySettings() {
   return (
     <SettingsSection
       title="Paseo Cafe"
-      info="Point this at another deployment of paseo.cafe — a local `npm run dev`, a staging build, or a self-hosted fork — that serves the same /api/plugins shape."
+      info="Point this at another deployment of paseo.cafe — a local `bun run dev`, a staging build, or a self-hosted fork — that serves the same /api/plugins shape. The catalog picks what the install button hands to the paseo CLI, so it must be HTTPS unless it is on localhost."
     >
       <SettingsCard>
         <SettingsInput
           ref={inputRef}
           label="Catalog URL"
-          hint="e.g. http://localhost:3000/api/plugins"
+          hint="HTTPS, or HTTP on localhost — e.g. http://localhost:3000/api/plugins"
           error={saveError}
           initialValue={values.directoryUrl}
           placeholder={DEFAULT_DIRECTORY_URL}

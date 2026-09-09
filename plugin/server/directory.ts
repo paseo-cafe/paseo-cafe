@@ -19,6 +19,7 @@ import {
   getSiteUrl,
   HEALTH_LABELS,
   installedPluginSchema,
+  isTrustedCatalogUrl,
   isValidInstallPath,
   isValidRepo,
   stripHtml,
@@ -287,9 +288,17 @@ function resolveDirectoryUrl(baseUrl: string | undefined): string {
   // PASEO_CAFE_DIRECTORY_URL is a lower-priority escape hatch for contexts that
   // cannot persist plugin settings yet (CI, headless smoke tests). The settings
   // override wins because it is reachable from the running app.
-  return (
-    baseUrl || process.env.PASEO_CAFE_DIRECTORY_URL || DEFAULT_DIRECTORY_URL
+  if (baseUrl) return baseUrl
+  const fromEnv = process.env.PASEO_CAFE_DIRECTORY_URL
+  if (!fromEnv) return DEFAULT_DIRECTORY_URL
+  // Unlike the settings value this never passed a schema, so it gets the same
+  // transport check here; a rejected value falls back instead of silently
+  // pointing the install button at an unauthenticated catalog.
+  if (isTrustedCatalogUrl(fromEnv)) return fromEnv
+  console.error(
+    `Ignoring PASEO_CAFE_DIRECTORY_URL: ${fromEnv} must use HTTPS, or HTTP on localhost.`
   )
+  return DEFAULT_DIRECTORY_URL
 }
 
 async function fetchDirectory(baseUrl: string | undefined, force = false) {

@@ -16,6 +16,37 @@ const httpUrlSchema = z
   .refine((value) => /^https?:\/\//i.test(value), "Expected an HTTP(S) URL")
 
 /**
+ * Catalog responses decide which repositories the install button hands to the
+ * `paseo` CLI, so the transport has to be authenticated: anyone able to rewrite
+ * a plaintext response picks what gets installed on the daemon host. HTTP is
+ * allowed only for loopback, which is what the local-development workflow in
+ * the README needs; every other catalog has to be HTTPS.
+ */
+export function isTrustedCatalogUrl(value: string): boolean {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return false
+  }
+  if (url.protocol === "https:") return true
+  if (url.protocol !== "http:") return false
+  const host = url.hostname
+  return (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host === "[::1]" ||
+    host === "::1" ||
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
+  )
+}
+
+const catalogUrlSchema = httpUrlSchema.refine(
+  isTrustedCatalogUrl,
+  "Catalog URL must use HTTPS, or HTTP on localhost"
+)
+
+/**
  * Which paseo.cafe deployment to read from — host-scoped so it's one setting
  * per daemon, editable from Settings → Plugins → Paseo Cafe without a
  * reload. Exists for local development (point at `npm run dev`) and for
@@ -26,7 +57,7 @@ export const directorySettings = defineSettings({
   scope: "host",
   version: 1,
   schema: z.object({
-    directoryUrl: httpUrlSchema.default(DEFAULT_DIRECTORY_URL),
+    directoryUrl: catalogUrlSchema.default(DEFAULT_DIRECTORY_URL),
   }),
 })
 
@@ -111,7 +142,7 @@ export const directoryListRpc = defineRpc({
   // baseUrl comes from the client's own directorySettings read — see
   // DirectorySurface.tsx — so the server doesn't need its own settings access.
   input: z.object({
-    baseUrl: httpUrlSchema.optional(),
+    baseUrl: catalogUrlSchema.optional(),
     force: z.boolean().default(false),
   }),
   output: z.object({
