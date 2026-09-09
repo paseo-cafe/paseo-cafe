@@ -120,15 +120,17 @@ function App() {
           </div>
 
           {showNewFilter ? (
+            // whitespace-normal: buttons are nowrap by default, which pushes a
+            // label this long straight out of the sidebar instead of wrapping.
             <Button
               size={"sm"}
               onClick={() => setOnlyNew((value) => !value)}
               aria-pressed={onlyNew}
-              className="h-auto w-full text-sm!"
+              className="h-auto w-full whitespace-normal py-1 text-sm!"
               variant={onlyNew ? "default" : "outline"}
             >
               <IconSparkles />
-              New since your last visit
+              New since last visit
               <span className="text-xs! opacity-70">{newIds.size}</span>
             </Button>
           ) : null}
