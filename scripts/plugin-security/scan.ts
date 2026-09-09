@@ -4,11 +4,15 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
-import type {
-  SecurityFinding,
-  SecurityPluginResult,
-  SecurityResults,
-  SecurityTarget,
+import {
+  REPORT_DETAILS_CLOSE,
+  REPORT_DETAILS_OPEN,
+  REPORT_SUMMARY_CLOSE,
+  REPORT_SUMMARY_OPEN,
+  type SecurityFinding,
+  type SecurityPluginResult,
+  type SecurityResults,
+  type SecurityTarget,
 } from "./shared.ts"
 import { scanStaticFiles } from "./static-scan.ts"
 
@@ -160,7 +164,7 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
   "scanner/incomplete": {
     issue:
       "The scanner could not inspect the complete plugin, so a clean result cannot be trusted.",
-    fix: "Keep the plugin within 200 files, 2 MiB total, 2 MiB per file, and six directory levels. Resolve any accompanying scanner finding first.",
+    fix: "Keep the plugin within 200 files, 2 MB (2,000,000 bytes) total, 2 MB per file, and six directory levels. Resolve any accompanying scanner finding first.",
   },
   "scanner/symlink": {
     issue:
@@ -168,8 +172,8 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
     fix: "Replace the symlink with a regular file or directory inside the plugin.",
   },
   "scanner/size-limit": {
-    issue: "The scanner skipped a file larger than its 2 MiB inspection limit.",
-    fix: "Remove generated artifacts from the plugin or reduce the file below 2 MiB.",
+    issue: "The scanner skipped a file larger than its 2 MB inspection limit.",
+    fix: "Remove generated artifacts from the plugin or reduce the file below 2,000,000 bytes.",
   },
   "scanner/scan-error": {
     issue:
@@ -220,18 +224,28 @@ function guidanceKey(finding: SecurityFinding): string {
   return `${finding.tool}/${finding.ruleId}`
 }
 
+function escapeReportText(value: string): string {
+  return value
+    .replace(/[\uE000\uE001]/g, "�")
+    .replaceAll("\\", "\\\\")
+    .replaceAll("\r", "\\r")
+    .replaceAll("\n", "\\n")
+    .replace(/([`*_[\]{}()#+\-.!|~])/g, "\\$1")
+}
+
 function renderRuleGuidance(findings: SecurityFinding[]): string[] {
   const rules = new Map<string, RuleGuidance>()
   for (const finding of findings) {
     const key = guidanceKey(finding)
     const guidance = RULE_GUIDANCE[key]
-    if (guidance) rules.set(key, guidance)
+    if (!guidance) throw new Error(`missing rule guidance for ${key}`)
+    rules.set(key, guidance)
   }
   if (rules.size === 0) return []
 
   const lines = [
-    "<details>",
-    "<summary>Why these rules failed and how to fix them</summary>",
+    REPORT_DETAILS_OPEN,
+    `${REPORT_SUMMARY_OPEN}Why these rules failed and how to fix them${REPORT_SUMMARY_CLOSE}`,
     "",
   ]
   for (const [rule, guidance] of rules) {
@@ -244,28 +258,37 @@ function renderRuleGuidance(findings: SecurityFinding[]): string[] {
       ""
     )
   }
-  lines.push("</details>")
+  lines.push(REPORT_DETAILS_CLOSE)
   return lines
 }
 
 export function renderReport(results: SecurityResults) {
-  const lines = ["# Security Scan", `Generated: ${results.generatedAt}`, ""]
+  const lines = [
+    "# Security Scan",
+    `Generated: ${escapeReportText(results.generatedAt)}`,
+    "",
+  ]
+  const findings = Object.values(results.plugins).flatMap(
+    (plugin) => plugin.findings
+  )
+  const guidance = renderRuleGuidance(findings)
+  if (guidance.length > 0) lines.push(...guidance, "")
+
   for (const [id, plugin] of Object.entries(results.plugins)) {
     lines.push(
-      `## ${id}`,
+      `## ${escapeReportText(id)}`,
       `Status: ${plugin.status}`,
-      `Commit: ${plugin.commit}`,
+      `Commit: ${escapeReportText(plugin.commit)}`,
       `Blocking findings: ${plugin.blockingFindings}`,
       `Advisory findings: ${plugin.advisoryFindings}`,
       ""
     )
     for (const finding of plugin.findings) {
+      const location = `${finding.path}${finding.line ? `:${finding.line}` : ""}`
       lines.push(
-        `- [${finding.tool}] ${finding.ruleId} ${finding.path}${finding.line ? `:${finding.line}` : ""} ${finding.message}`
+        `- [${escapeReportText(finding.tool)}] ${escapeReportText(finding.ruleId)} ${escapeReportText(location)} ${escapeReportText(finding.message)}`
       )
     }
-    const guidance = renderRuleGuidance(plugin.findings)
-    if (guidance.length > 0) lines.push("", ...guidance)
     lines.push("")
   }
   return lines.join("\n")

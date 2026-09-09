@@ -1,8 +1,21 @@
 #!/usr/bin/env bun
 import { appendFileSync, readFileSync } from "node:fs"
+import {
+  REPORT_DETAILS_CLOSE,
+  REPORT_DETAILS_OPEN,
+  REPORT_SUMMARY_CLOSE,
+  REPORT_SUMMARY_OPEN,
+} from "./shared.ts"
 
 export const REPORT_MARKER = "<!-- paseo-plugin-security-report -->"
 const MAX_COMMENT_LENGTH = 60_000
+const TRUNCATION_NOTICE = "\n\n_Report truncated._"
+const REPORT_MARKUP: Record<string, string> = {
+  [REPORT_DETAILS_OPEN]: "<details>",
+  [REPORT_DETAILS_CLOSE]: "</details>",
+  [REPORT_SUMMARY_OPEN]: "<summary>",
+  [REPORT_SUMMARY_CLOSE]: "</summary>",
+}
 
 type PullRequestEvent = {
   pull_request?: { number?: number }
@@ -73,17 +86,20 @@ export async function publishReport(options: PublishOptions): Promise<void> {
 }
 
 export function boundedReport(report: string): string {
-  const sanitized = report
+  let sanitized = report
     .replaceAll("\0", "")
     .replaceAll("@", "@\u200b")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replace(
-      /&lt;(\/?(?:details|summary))&gt;/g,
-      (_match, tag: string) => `<${tag}>`
-    )
+  for (const [token, markup] of Object.entries(REPORT_MARKUP)) {
+    sanitized = sanitized.replaceAll(token, markup)
+  }
   if (sanitized.length <= MAX_COMMENT_LENGTH) return sanitized
-  return `${sanitized.slice(0, MAX_COMMENT_LENGTH)}\n\n_Report truncated._`
+
+  const budget = MAX_COMMENT_LENGTH - TRUNCATION_NOTICE.length
+  const lineBreak = sanitized.lastIndexOf("\n", budget)
+  const end = lineBreak > 0 ? lineBreak : budget
+  return `${sanitized.slice(0, end)}${TRUNCATION_NOTICE}`
 }
 
 async function main() {

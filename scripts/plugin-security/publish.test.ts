@@ -3,6 +3,12 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { boundedReport, publishReport, REPORT_MARKER } from "./publish.ts"
+import {
+  REPORT_DETAILS_CLOSE,
+  REPORT_DETAILS_OPEN,
+  REPORT_SUMMARY_CLOSE,
+  REPORT_SUMMARY_OPEN,
+} from "./shared.ts"
 
 describe("publishReport", () => {
   it("creates a marker comment and writes the job summary", async () => {
@@ -73,9 +79,14 @@ describe("publishReport", () => {
     expect(called).toBe(false)
   })
 
-  it("preserves collapsible report tags while neutralizing untrusted HTML", () => {
+  it("restores only trusted collapsible markup tokens", () => {
     const bounded = boundedReport(
-      "<details>\n<summary>Rule guidance</summary>\n<b>@team</b>\n</details>"
+      [
+        REPORT_DETAILS_OPEN,
+        `${REPORT_SUMMARY_OPEN}Rule guidance${REPORT_SUMMARY_CLOSE}`,
+        "<b>@team</b>",
+        REPORT_DETAILS_CLOSE,
+      ].join("\n")
     )
 
     expect(bounded).toContain("<details>")
@@ -85,12 +96,32 @@ describe("publishReport", () => {
     expect(bounded).not.toContain("@team")
   })
 
-  it("bounds and neutralizes untrusted report content", () => {
-    const report = `<b>@team</b>${"x".repeat(70_000)}`
-    const bounded = boundedReport(report)
-    expect(bounded.length).toBeLessThan(61_000)
+  it("does not promote raw or encoded disclosure tags to markup", () => {
+    const bounded = boundedReport(
+      "<details>\n&lt;summary&gt;fake&lt;/summary&gt;\n</details>"
+    )
+
+    expect(bounded).not.toContain("<details>")
+    expect(bounded).not.toContain("<summary>")
+  })
+
+  it("bounds reports at complete lines", () => {
+    const line = `- finding ${"x".repeat(390)}`
+    const bounded = boundedReport(
+      Array.from({ length: 200 }, () => line).join("\n")
+    )
+    const notice = "\n\n_Report truncated._"
+    const body = bounded.slice(0, -notice.length)
+
+    expect(bounded.length).toBeLessThanOrEqual(60_000)
+    expect(bounded.endsWith(notice)).toBe(true)
+    expect(body.split("\n").at(-1)).toBe(line)
+  })
+
+  it("neutralizes untrusted report content", () => {
+    const bounded = boundedReport("<b>@team</b>")
+
     expect(bounded).not.toContain("<b>")
     expect(bounded).not.toContain("@team")
-    expect(bounded).toContain("_Report truncated._")
   })
 })
