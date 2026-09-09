@@ -1,30 +1,30 @@
 #!/usr/bin/env bun
-import { lstatSync, readdirSync, readFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
-import * as semver from "semver";
-import type { SecurityFinding } from "./shared.ts";
+import { lstatSync, readdirSync, readFileSync } from "node:fs"
+import { join, relative, resolve } from "node:path"
+import * as semver from "semver"
+import type { SecurityFinding } from "./shared.ts"
 
 export type StaticScanInput = {
-  root: string;
-  pluginPath?: string;
-  registryId?: string;
-};
+  root: string
+  pluginPath?: string
+  registryId?: string
+}
 export type StaticScanOutput = {
-  files: number;
-  bytes: number;
-  findings: SecurityFinding[];
-  buildCommands: string[][];
-};
-const MAX_FILES = 200;
-const MAX_BYTES = 2_000_000;
-const MAX_DEPTH = 6;
+  files: number
+  bytes: number
+  findings: SecurityFinding[]
+  buildCommands: string[][]
+}
+const MAX_FILES = 200
+const MAX_BYTES = 2_000_000
+const MAX_DEPTH = 6
 
 export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
-  const root = resolve(input.root, input.pluginPath ?? ".");
-  const state = { files: 0, bytes: 0, incomplete: false };
-  const findings: SecurityFinding[] = [];
-  const buildCommands: string[][] = [];
-  walk(root, root, 0, state, findings, buildCommands, input.registryId);
+  const root = resolve(input.root, input.pluginPath ?? ".")
+  const state = { files: 0, bytes: 0, incomplete: false }
+  const findings: SecurityFinding[] = []
+  const buildCommands: string[][] = []
+  walk(root, root, 0, state, findings, buildCommands, input.registryId)
   if (state.incomplete)
     findings.push(
       finding(
@@ -35,8 +35,8 @@ export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
         ".",
         "scan exceeded limits or encountered unsupported filesystem state",
       ),
-    );
-  return { files: state.files, bytes: state.bytes, findings, buildCommands };
+    )
+  return { files: state.files, bytes: state.bytes, findings, buildCommands }
 }
 
 function walk(
@@ -49,22 +49,22 @@ function walk(
   registryId?: string,
 ) {
   if (depth > MAX_DEPTH) {
-    state.incomplete = true;
-    return;
+    state.incomplete = true
+    return
   }
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    const rel = relative(base, full) || entry.name;
+    const full = join(dir, entry.name)
+    const rel = relative(base, full) || entry.name
     if (entry.isSymbolicLink()) {
-      state.incomplete = true;
+      state.incomplete = true
       findings.push(
         finding("scanner", "symlink", "high", true, rel, "symlink rejected"),
-      );
-      continue;
+      )
+      continue
     }
-    const meta = lstatSync(full);
+    const meta = lstatSync(full)
     if (meta.size > MAX_BYTES) {
-      state.incomplete = true;
+      state.incomplete = true
       findings.push(
         finding(
           "scanner",
@@ -74,24 +74,24 @@ function walk(
           rel,
           "file exceeds size budget",
         ),
-      );
-      continue;
+      )
+      continue
     }
     if (entry.isDirectory()) {
-      walk(base, full, depth + 1, state, findings, buildCommands, registryId);
-      continue;
+      walk(base, full, depth + 1, state, findings, buildCommands, registryId)
+      continue
     }
-    if (!entry.isFile()) continue;
-    state.files += 1;
-    if (state.files > MAX_FILES) state.incomplete = true;
-    const content = readFileSync(full, "utf8");
-    state.bytes += Buffer.byteLength(content);
-    if (state.bytes > MAX_BYTES) state.incomplete = true;
+    if (!entry.isFile()) continue
+    state.files += 1
+    if (state.files > MAX_FILES) state.incomplete = true
+    const content = readFileSync(full, "utf8")
+    state.bytes += Buffer.byteLength(content)
+    if (state.bytes > MAX_BYTES) state.incomplete = true
     if (entry.name === "paseo-plugin.json")
       validateManifest(content, rel, registryId, findings, buildCommands)
     if (/^(?:index\.(?:client|server)\.(?:ts|tsx)|index\.ts)$/.test(rel))
       validateEntrypoint(entry.name, rel, findings)
-    scanBoundaries(content, rel, findings);
+    scanBoundaries(content, rel, findings)
   }
 }
 
@@ -103,7 +103,7 @@ function validateManifest(
   buildCommands: string[][],
 ) {
   try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const parsed = JSON.parse(raw) as Record<string, unknown>
     if (
       typeof parsed.id !== "string" ||
       (registryId && parsed.id !== registryId)
@@ -117,8 +117,8 @@ function validateManifest(
           path,
           "manifest id must match registry id",
         ),
-      );
-    const req = parsed.requirements;
+      )
+    const req = parsed.requirements
     if (req !== undefined) {
       if (!req || typeof req !== "object" || Array.isArray(req))
         findings.push(
@@ -130,9 +130,9 @@ function validateManifest(
             path,
             "requirements must be an object",
           ),
-        );
+        )
       else {
-        const paseo = (req as { paseo?: unknown }).paseo;
+        const paseo = (req as { paseo?: unknown }).paseo
         if (
           paseo !== undefined &&
           (typeof paseo !== "string" ||
@@ -147,7 +147,7 @@ function validateManifest(
               path,
               "invalid requirements.paseo semver range",
             ),
-          );
+          )
       }
     }
     if (parsed.build !== undefined) {
@@ -170,9 +170,9 @@ function validateManifest(
             path,
             "build must be nonempty argv arrays",
           ),
-        );
+        )
       else
-        for (const cmd of parsed.build as string[][]) buildCommands.push(cmd);
+        for (const cmd of parsed.build as string[][]) buildCommands.push(cmd)
     }
     for (const key of Object.keys(parsed))
       if (!["id", "requirements", "build"].includes(key))
@@ -185,11 +185,11 @@ function validateManifest(
             path,
             `unknown manifest key ${key}`,
           ),
-        );
+        )
   } catch {
     findings.push(
       finding("manifest", "json", "high", true, path, "invalid JSON manifest"),
-    );
+    )
   }
 }
 function validateEntrypoint(
@@ -207,7 +207,7 @@ function validateEntrypoint(
         path,
         "legacy-only index.ts is rejected",
       ),
-    );
+    )
 }
 function scanBoundaries(
   content: string,
@@ -227,7 +227,7 @@ function scanBoundaries(
         path,
         "cross-runtime import boundary violated",
       ),
-    );
+    )
 }
 function finding(
   tool: string,
@@ -237,5 +237,5 @@ function finding(
   path: string,
   message: string,
 ): SecurityFinding {
-  return { tool, ruleId, severity, blocking, path, message };
+  return { tool, ruleId, severity, blocking, path, message }
 }

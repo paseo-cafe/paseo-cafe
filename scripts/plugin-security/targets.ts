@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { z } from "zod";
-import { registryEntrySchema } from "../../src/lib/registry-schema.ts";
-import type { SecurityTarget } from "./shared.ts";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import { z } from "zod"
+import { registryEntrySchema } from "../../src/lib/registry-schema.ts"
+import type { SecurityTarget } from "./shared.ts"
 
 const eventSchema = z.object({
   action: z.string().optional(),
@@ -19,21 +19,21 @@ const eventSchema = z.object({
       }),
     })
     .optional(),
-});
+})
 
-type ContentsEntry = { name: string; path: string; type: string };
+type ContentsEntry = { name: string; path: string; type: string }
 type RegistrySnapshotEntry = {
-  id: string;
-  repo: string;
-  path?: string;
-  fingerprint: string;
-  commit: string;
-};
+  id: string
+  repo: string
+  path?: string
+  fingerprint: string
+  commit: string
+}
 
 export async function selectTargets(opts: {
-  registryRoot: string;
-  eventPath?: string;
-  githubToken?: string;
+  registryRoot: string
+  eventPath?: string
+  githubToken?: string
 }): Promise<SecurityTarget[]> {
   const local = readLocalRegistry(opts.registryRoot)
   if (!opts.eventPath) return local.map((entry) => toTarget(entry, "HEAD"))
@@ -182,9 +182,9 @@ function githubHeaders(token?: string) {
   }
 }
 function validateRegistryEntry(entry: {
-  id: string;
-  repo: string;
-  path?: string;
+  id: string
+  repo: string
+  path?: string
 }) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.id))
     throw new Error(`unsafe registry id ${entry.id}`)
