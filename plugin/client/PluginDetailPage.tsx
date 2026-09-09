@@ -8,7 +8,7 @@ import {
 } from "@getpaseo/plugin/client/react-native"
 import { useMemo, useState } from "react"
 import { Image, Pressable, Text, View } from "react-native"
-import type { DirectoryEntry } from "../shared/directory"
+import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   getInstallCommand,
   getSiteUrl,
@@ -23,9 +23,13 @@ interface PluginDetailPageProps {
   entry: DirectoryEntry
   theme: PluginTheme
   compact: boolean
+  installation?: InstalledPlugin
   installing: boolean
+  updating: boolean
   installError: string | null
+  updateError: string | null
   onInstall: () => void
+  onUpdate: () => void
   onOpenGallery: () => void
   onBack: () => void
 }
@@ -39,15 +43,19 @@ export function PluginDetailPage({
   entry,
   theme,
   compact,
+  installation,
   installing,
+  updating,
   installError,
+  updateError,
   onInstall,
+  onUpdate,
   onOpenGallery,
   onBack,
 }: PluginDetailPageProps) {
   const toast = useToast()
   const [confirmingInstall, setConfirmingInstall] = useState(false)
-  const [showFullInstallError, setShowFullInstallError] = useState(false)
+  const [showFullActionError, setShowFullActionError] = useState(false)
 
   const styles = useMemo(
     () => ({
@@ -259,7 +267,7 @@ export function PluginDetailPage({
         paddingVertical: 10,
         borderRadius: 8,
         backgroundColor: theme.colors.accent,
-        opacity: installing ? 0.6 : 1,
+        opacity: installing || updating ? 0.6 : 1,
       },
       buttonText: {
         color: theme.colors.accentForeground,
@@ -299,7 +307,7 @@ export function PluginDetailPage({
         lineHeight: 19,
       },
     }),
-    [theme, compact, installing]
+    [theme, compact, installing, updating]
   )
 
   const command = getInstallCommand(entry)
@@ -319,11 +327,23 @@ export function PluginDetailPage({
   const installable =
     isValidRepo(entry.repo) &&
     (entry.path === undefined || isValidInstallPath(entry.path))
+  const actionPending = installing || updating
+  const canUpdate =
+    installation?.source === "git" && installation.updateAvailable
+  const actionEnabled = installation ? canUpdate : installable
+  const primaryActionLabel = updating
+    ? "Updating…"
+    : installing
+      ? "Installing…"
+      : installation
+        ? "Update"
+        : "Install"
+  const actionError = installation ? updateError : installError
   // The toggle and the clamp share one condition: a short error is never
   // clamped, so wrapping on a narrow screen cannot hide text with no way back.
-  const installErrorIsLong =
-    installError !== null &&
-    (installError.length > 240 || installError.split("\n").length > 6)
+  const actionErrorIsLong =
+    actionError !== null &&
+    (actionError.length > 240 || actionError.split("\n").length > 6)
 
   return (
     <View style={styles.screen}>
@@ -536,19 +556,36 @@ export function PluginDetailPage({
           ) : null}
         </View>
 
+        {installation ? (
+          <Text style={styles.metaText}>
+            {installation.source === "directory"
+              ? "Installed locally"
+              : installation.updateAvailable
+                ? "Update available"
+                : "Up to date"}
+            {` · ${installation.id}`}
+            {installation.commit
+              ? ` at ${installation.commit.slice(0, 12)}`
+              : ""}
+            .
+          </Text>
+        ) : null}
+
         <View style={styles.actionsRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Install ${entry.name}`}
-            accessibilityState={{ disabled: installing || !installable }}
-            style={[styles.button, !installable ? { opacity: 0.5 } : null]}
-            disabled={installing || !installable}
-            onPress={() => setConfirmingInstall(true)}
-          >
-            <Text style={styles.buttonText}>
-              {installing ? "Installing…" : "Install"}
-            </Text>
-          </Pressable>
+          {!installation || canUpdate ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${installation ? "Update" : "Install"} ${entry.name}`}
+              accessibilityState={{ disabled: actionPending || !actionEnabled }}
+              style={[styles.button, !actionEnabled ? { opacity: 0.5 } : null]}
+              disabled={actionPending || !actionEnabled}
+              onPress={
+                installation ? onUpdate : () => setConfirmingInstall(true)
+              }
+            >
+              <Text style={styles.buttonText}>{primaryActionLabel}</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="link"
             accessibilityLabel={`Open ${entry.name} on GitHub`}
@@ -559,7 +596,7 @@ export function PluginDetailPage({
           </Pressable>
         </View>
 
-        {!installable ? (
+        {!installation && !installable ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
             <Text style={styles.errorText}>
               This listing has an invalid repository or plugin subpath and
@@ -568,46 +605,48 @@ export function PluginDetailPage({
           </View>
         ) : null}
 
-        {installError ? (
+        {actionError ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
-            <Text style={styles.errorText}>Installation failed</Text>
+            <Text style={styles.errorText}>
+              {installation ? "Update failed" : "Installation failed"}
+            </Text>
             <Text
               numberOfLines={
-                installErrorIsLong && !showFullInstallError ? 6 : undefined
+                actionErrorIsLong && !showFullActionError ? 6 : undefined
               }
               selectable
               style={styles.errorDetails}
             >
-              {installError}
+              {actionError}
             </Text>
             <View style={styles.errorActions}>
-              {installErrorIsLong ? (
+              {actionErrorIsLong ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={
-                    showFullInstallError
-                      ? "Show less installation error output"
-                      : "View full installation error output"
+                    showFullActionError
+                      ? "Show less action error output"
+                      : "View full action error output"
                   }
-                  onPress={() => setShowFullInstallError((current) => !current)}
+                  onPress={() => setShowFullActionError((current) => !current)}
                   style={styles.errorAction}
                 >
                   <Icon
-                    name={showFullInstallError ? "ChevronUp" : "ChevronDown"}
+                    name={showFullActionError ? "ChevronUp" : "ChevronDown"}
                     size={14}
                     color={theme.colors.accent}
                   />
                   <Text style={styles.errorActionText}>
-                    {showFullInstallError ? "Show less" : "View more…"}
+                    {showFullActionError ? "Show less" : "View more…"}
                   </Text>
                 </Pressable>
               ) : null}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Copy installation error output"
+                accessibilityLabel="Copy action error output"
                 onPress={async () => {
-                  await copyText(installError)
-                  toast.show("Copied installation error output")
+                  await copyText(actionError)
+                  toast.show("Copied action error output")
                 }}
                 style={styles.errorAction}
               >

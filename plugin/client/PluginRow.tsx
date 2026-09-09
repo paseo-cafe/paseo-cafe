@@ -2,19 +2,26 @@ import type { PluginTheme } from "@getpaseo/plugin"
 import { Icon } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Image, Pressable, Text, View } from "react-native"
-import type { DirectoryEntry } from "../shared/directory"
+import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 
 interface PluginRowProps {
   entry: DirectoryEntry
   theme: PluginTheme
   compact: boolean
+  installation?: InstalledPlugin
   onPress: () => void
 }
 
 // Deliberately no per-row Install button: with the whole card opening the
 // detail page (see onPress below), a nested button here fights the card's
 // own press target. Install lives on the detail page instead.
-export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
+export function PluginRow({
+  entry,
+  theme,
+  compact,
+  installation,
+  onPress,
+}: PluginRowProps) {
   const styles = useMemo(
     () => ({
       row: {
@@ -43,6 +50,19 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
         fontWeight: "600" as const,
         flexShrink: 1,
       },
+      statusBadge: {
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        backgroundColor: theme.colors.surface2,
+      },
+      statusText: (updateAvailable: boolean) => ({
+        color: updateAvailable
+          ? theme.colors.statusWarning
+          : theme.colors.statusSuccess,
+        fontSize: 11,
+        fontWeight: "600" as const,
+      }),
       meta: { color: theme.colors.foregroundMuted, fontSize: 12 },
       description: { color: theme.colors.foregroundMuted, fontSize: 13 },
       tagsRow: {
@@ -91,6 +111,13 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
           />
         ) : null}
         <Text style={styles.name}>{entry.name}</Text>
+        {installation ? (
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusText(installation.updateAvailable)}>
+              {installation.updateAvailable ? "Update available" : "Installed"}
+            </Text>
+          </View>
+        ) : null}
         {entry.repoMeta?.stars !== undefined ? (
           <View style={styles.starsRow}>
             <Icon name="Star" size={12} color={theme.colors.foregroundMuted} />

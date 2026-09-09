@@ -9,11 +9,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Pressable, Text, View } from "react-native"
-import type { DirectoryEntry } from "../shared/directory"
+import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   directoryInstallRpc,
   directoryListRpc,
   directorySettings,
+  directoryUpdateRpc,
+  findInstallation,
 } from "../shared/directory"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
@@ -107,9 +109,87 @@ function FilterRow({
   )
 }
 
+type InstallationStatusFilter =
+  | "all"
+  | "installed"
+  | "updates"
+  | "not-installed"
+
+interface StatusFilterOption {
+  value: InstallationStatusFilter
+  label: string
+  count: number
+}
+
+function StatusFilterRow({
+  options,
+  selected,
+  theme,
+  onSelect,
+}: {
+  options: readonly StatusFilterOption[]
+  selected: InstallationStatusFilter
+  theme: PluginTheme
+  onSelect: (value: InstallationStatusFilter) => void
+}) {
+  const styles = useMemo(
+    () => ({
+      row: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 6,
+        flexWrap: "wrap" as const,
+      },
+      label: {
+        color: theme.colors.foregroundMuted,
+        fontSize: 12,
+        marginRight: 2,
+      },
+      chip: (active: boolean) => ({
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        backgroundColor: active ? theme.colors.accent : theme.colors.surface2,
+      }),
+      chipText: (active: boolean) => ({
+        color: active
+          ? theme.colors.accentForeground
+          : theme.colors.foregroundMuted,
+        fontSize: 12,
+        fontWeight: active ? ("600" as const) : ("400" as const),
+      }),
+    }),
+    [theme]
+  )
+
+  return (
+    <View style={styles.row}>
+      <Text style={styles.label}>Show:</Text>
+      {options.map((option) => {
+        const active = selected === option.value
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="button"
+            accessibilityLabel={`Show ${option.label.toLowerCase()} plugins`}
+            accessibilityState={{ selected: active }}
+            style={styles.chip(active)}
+            onPress={() => onSelect(option.value)}
+          >
+            <Text style={styles.chipText(active)}>
+              {option.label} {option.count}
+            </Text>
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
+
 export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const listDirectory = useRpc(directoryListRpc)
   const installPlugin = useRpc(directoryInstallRpc)
+  const updatePlugin = useRpc(directoryUpdateRpc)
   const settings = useSettings(directorySettings)
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -120,8 +200,15 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const [platformFilter, setPlatformFilter] = useState<ReadonlySet<string>>(
     new Set()
   )
+  const [statusFilter, setStatusFilter] =
+    useState<InstallationStatusFilter>("all")
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [installFailure, setInstallFailure] = useState<{
+    entryId: string
+    message: string
+  } | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [updateFailure, setUpdateFailure] = useState<{
     entryId: string
     message: string
   } | null>(null)
@@ -155,6 +242,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       if (result.ok) {
         setInstallFailure(null)
         toast.show(`Installed ${entry.name}`, { variant: "success" })
+        void queryClient.invalidateQueries({ queryKey })
       } else {
         setInstallFailure({ entryId: entry.id, message: result.message })
         toast.error(`Couldn't install ${entry.name}. See details below.`)
@@ -166,6 +254,35 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       toast.error(`Couldn't install ${entry.name}. See details below.`)
     },
     onSettled: () => setInstallingId(null),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      installation,
+    }: {
+      entry: DirectoryEntry
+      installation: InstalledPlugin
+    }) => {
+      setUpdatingId(installation.id)
+      setUpdateFailure(null)
+      return updatePlugin({ pluginId: installation.id })
+    },
+    onSuccess: (result, { entry }) => {
+      if (result.ok) {
+        setUpdateFailure(null)
+        toast.show(result.message, { variant: "success" })
+        void queryClient.invalidateQueries({ queryKey })
+      } else {
+        setUpdateFailure({ entryId: entry.id, message: result.message })
+        toast.error(`Couldn't update ${entry.name}. See details below.`)
+      }
+    },
+    onError: (error, { entry }) => {
+      const message = error instanceof Error ? error.message : "Update failed"
+      setUpdateFailure({ entryId: entry.id, message })
+      toast.error(`Couldn't update ${entry.name}. See details below.`)
+    },
+    onSettled: () => setUpdatingId(null),
   })
 
   const refreshMutation = useMutation({
@@ -185,6 +302,34 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   })
 
   const plugins = directoryQuery.data?.plugins ?? []
+  const installations = directoryQuery.data?.installations ?? []
+  const installationByEntryId = useMemo(
+    () =>
+      new Map(
+        plugins.flatMap((entry) => {
+          const installation = findInstallation(entry, installations)
+          return installation ? [[entry.id, installation] as const] : []
+        })
+      ),
+    [plugins, installations]
+  )
+  const detailInstallation = detailEntry
+    ? installationByEntryId.get(detailEntry.id)
+    : undefined
+  const installedCount = installationByEntryId.size
+  const updateCount = Array.from(installationByEntryId.values()).filter(
+    (installation) => installation.updateAvailable
+  ).length
+  const statusOptions: readonly StatusFilterOption[] = [
+    { value: "all", label: "All", count: plugins.length },
+    { value: "installed", label: "Installed", count: installedCount },
+    { value: "updates", label: "Updates", count: updateCount },
+    {
+      value: "not-installed",
+      label: "Not installed",
+      count: plugins.length - installedCount,
+    },
+  ]
 
   const allCategories = useMemo(
     () =>
@@ -211,6 +356,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           .toLowerCase()
         if (!haystack.includes(query)) return false
       }
+      const installation = installationByEntryId.get(entry.id)
+      if (statusFilter === "installed" && !installation) return false
+      if (statusFilter === "updates" && !installation?.updateAvailable)
+        return false
+      if (statusFilter === "not-installed" && installation) return false
       if (
         categoryFilter.size > 0 &&
         !entry.categories.some((c) => categoryFilter.has(c))
@@ -223,14 +373,27 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         return false
       return true
     })
-  }, [plugins, search, categoryFilter, platformFilter])
+  }, [
+    plugins,
+    search,
+    categoryFilter,
+    platformFilter,
+    statusFilter,
+    installationByEntryId,
+  ])
 
   const sorted = useMemo(
     () =>
-      [...filtered].sort(
-        (a, b) => (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)
-      ),
-    [filtered]
+      [...filtered].sort((a, b) => {
+        const aInstallation = installationByEntryId.get(a.id)
+        const bInstallation = installationByEntryId.get(b.id)
+        const aRank = aInstallation?.updateAvailable ? 0 : aInstallation ? 1 : 2
+        const bRank = bInstallation?.updateAvailable ? 0 : bInstallation ? 1 : 2
+        return (
+          aRank - bRank || (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)
+        )
+      }),
+    [filtered, installationByEntryId]
   )
 
   const styles = useMemo(
@@ -284,13 +447,28 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         entry={detailEntry}
         theme={theme}
         compact={layout.compact}
+        installation={detailInstallation}
         installing={installingId === detailEntry.id}
+        updating={updatingId === detailInstallation?.id}
         installError={
           installFailure?.entryId === detailEntry.id
             ? installFailure.message
             : null
         }
+        updateError={
+          detailEntry && updateFailure?.entryId === detailEntry.id
+            ? updateFailure.message
+            : null
+        }
         onInstall={() => installMutation.mutate(detailEntry)}
+        onUpdate={() => {
+          if (detailInstallation) {
+            updateMutation.mutate({
+              entry: detailEntry,
+              installation: detailInstallation,
+            })
+          }
+        }}
         onOpenGallery={() => setGalleryEntry(detailEntry)}
         onBack={() => setDetailEntry(null)}
       />
@@ -307,6 +485,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         onChangeText={setSearch}
         style={styles.searchInput}
         placeholderTextColor={theme.colors.foregroundMuted}
+      />
+      <StatusFilterRow
+        options={statusOptions}
+        selected={statusFilter}
+        theme={theme}
+        onSelect={setStatusFilter}
       />
       <View style={styles.filtersBlock}>
         <FilterRow
@@ -352,6 +536,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           {settings.error}
         </Text>
       ) : null}
+      {directoryQuery.data?.installationError ? (
+        <Text accessibilityRole="alert" style={styles.emptyText}>
+          Couldn't check installed plugins:{" "}
+          {directoryQuery.data.installationError}
+        </Text>
+      ) : null}
       {directoryQuery.isPending && !settingsPending ? (
         <Text style={styles.emptyText}>Loading plugins…</Text>
       ) : null}
@@ -378,6 +568,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           <PluginRow
             entry={item}
             theme={theme}
+            installation={installationByEntryId.get(item.id)}
             compact={layout.compact}
             onPress={() => setDetailEntry(item)}
           />

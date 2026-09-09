@@ -7,13 +7,16 @@ import type {
   directoryInstallRpc,
   directoryListRpc,
   directorySearchRpc,
+  directoryUpdateRpc,
 } from "../shared/directory"
 import {
   DEFAULT_DIRECTORY_URL,
   directoryEntrySchema,
+  findInstallation,
   getInstallCommand,
   getSiteUrl,
   HEALTH_LABELS,
+  installedPluginSchema,
   isValidInstallPath,
   isValidRepo,
   stripHtml,
@@ -31,6 +34,89 @@ const directoryResponseSchema = z.object({
   plugins: z.array(directoryEntrySchema),
   generatedAt: z.iso.datetime({ offset: true, local: true }).optional(),
 })
+const pluginUpdateResponseSchema = z.array(
+  z.object({
+    id: z.string(),
+    updated: z.boolean(),
+    previousCommit: z.string(),
+    currentCommit: z.string(),
+    commits: z.number().int().nonnegative(),
+  })
+)
+const TRACKED_BRANCH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
+
+async function addUpdateAvailability(
+  plugins: readonly DirectoryEntry[],
+  installations: readonly z.infer<typeof installedPluginSchema>[]
+) {
+  return Promise.all(
+    installations.map(async (installation) => {
+      if (
+        installation.source !== "git" ||
+        !installation.ref ||
+        !installation.commit ||
+        !TRACKED_BRANCH_PATTERN.test(installation.ref) ||
+        installation.ref.includes("..")
+      ) {
+        return installation
+      }
+      const entry = plugins.find(
+        (candidate) => findInstallation(candidate, [installation]) !== undefined
+      )
+      if (!entry || !isValidRepo(entry.repo)) return installation
+      try {
+        const { stdout } = await execFileAsync(
+          "git",
+          [
+            "ls-remote",
+            "--heads",
+            `https://github.com/${entry.repo}.git`,
+            `refs/heads/${installation.ref}`,
+          ],
+          { timeout: 15_000 }
+        )
+        const latestCommit = stdout.trim().split(/\s+/)[0]
+        if (!/^[0-9a-f]{40,64}$/i.test(latestCommit ?? "")) return installation
+        return {
+          ...installation,
+          latestCommit,
+          updateAvailable: latestCommit !== installation.commit,
+        }
+      } catch {
+        return installation
+      }
+    })
+  )
+}
+
+function commandFailureMessage(error: unknown): string {
+  const failure = error as {
+    message?: unknown
+    stderr?: unknown
+    stdout?: unknown
+  }
+  const text = (value: unknown) => (typeof value === "string" ? value : "")
+  const details = [
+    text(failure.message).split("\n")[0] ?? "",
+    text(failure.stderr),
+    text(failure.stdout),
+  ]
+    .filter((value) => value.trim().length > 0)
+    .join("\n\n")
+    .replace(ANSI_ESCAPE_PATTERN, "")
+    .trim()
+  const message = details || String(error)
+  return message.length > MAX_INSTALL_ERROR_LENGTH
+    ? `${message.slice(0, MAX_INSTALL_ERROR_LENGTH)}\n\n[Output truncated by Paseo Cafe]`
+    : message
+}
+
+async function listInstalledPlugins() {
+  const { stdout } = await execFileAsync("paseo", ["plugin", "ls", "--json"], {
+    timeout: 30_000,
+  })
+  return z.array(installedPluginSchema).parse(JSON.parse(stdout))
+}
 
 // Keyed by resolved URL so switching the directorySettings override (e.g. to
 // a local dev server) doesn't serve a stale production-fetched cache, or vice
@@ -88,11 +174,28 @@ async function fetchDirectory(baseUrl: string | undefined, force = false) {
 export async function listDirectory(
   input: RpcInput<typeof directoryListRpc>
 ): Promise<RpcOutput<typeof directoryListRpc>> {
-  const { plugins, fetchedAt } = await fetchDirectory(
-    input.baseUrl,
-    input.force
+  const [directory, installed] = await Promise.all([
+    fetchDirectory(input.baseUrl, input.force),
+    listInstalledPlugins().then(
+      (installations) => ({ installations }),
+      (error) => ({
+        installations: [],
+        installationError: commandFailureMessage(error),
+      })
+    ),
+  ])
+  const installations = await addUpdateAvailability(
+    directory.plugins,
+    installed.installations
   )
-  return { plugins, fetchedAt }
+  const installationError =
+    "installationError" in installed ? installed.installationError : undefined
+  return {
+    plugins: directory.plugins,
+    fetchedAt: directory.fetchedAt,
+    installations,
+    ...(installationError ? { installationError } : {}),
+  }
 }
 
 function attachmentText(entry: DirectoryEntry): string {
@@ -199,31 +302,31 @@ export async function installDirectoryPlugin(
     const { stdout } = await execFileAsync("paseo", args, { timeout: 120_000 })
     return { ok: true, message: stdout.trim() || `Installed ${repo}.` }
   } catch (error) {
-    const failure = error as {
-      message?: unknown
-      stderr?: unknown
-      stdout?: unknown
+    return { ok: false, message: commandFailureMessage(error) }
+  }
+}
+
+export async function updateDirectoryPlugin(
+  input: RpcInput<typeof directoryUpdateRpc>
+): Promise<RpcOutput<typeof directoryUpdateRpc>> {
+  try {
+    const { stdout } = await execFileAsync(
+      "paseo",
+      ["plugin", "update", input.pluginId, "--json"],
+      { timeout: 120_000 }
+    )
+    const [result] = pluginUpdateResponseSchema.parse(JSON.parse(stdout))
+    if (!result) {
+      return { ok: false, message: `No update result for ${input.pluginId}.` }
     }
-    const text = (value: unknown) => (typeof value === "string" ? value : "")
-    // execFile puts "Command failed: <cmd>\n" in front of a copy of stderr, so
-    // only its first line is kept; otherwise every failure prints stderr twice
-    // and eats half of MAX_INSTALL_ERROR_LENGTH.
-    const details = [
-      text(failure.message).split("\n")[0] ?? "",
-      text(failure.stderr),
-      text(failure.stdout),
-    ]
-      .filter((value) => value.trim().length > 0)
-      .join("\n\n")
-      .replace(ANSI_ESCAPE_PATTERN, "")
-      .trim()
-    const message = details || String(error)
     return {
-      ok: false,
-      message:
-        message.length > MAX_INSTALL_ERROR_LENGTH
-          ? `${message.slice(0, MAX_INSTALL_ERROR_LENGTH)}\n\n[Output truncated by Paseo Cafe]`
-          : message,
+      ok: true,
+      updated: result.updated,
+      message: result.updated
+        ? `Updated ${input.pluginId} by ${result.commits} commit${result.commits === 1 ? "" : "s"}.`
+        : `${input.pluginId} is already up to date.`,
     }
+  } catch (error) {
+    return { ok: false, message: commandFailureMessage(error) }
   }
 }
