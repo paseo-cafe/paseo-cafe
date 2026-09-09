@@ -73,6 +73,18 @@ describe("publishReport", () => {
     expect(called).toBe(false)
   })
 
+  it("preserves collapsible report tags while neutralizing untrusted HTML", () => {
+    const bounded = boundedReport(
+      "<details>\n<summary>Rule guidance</summary>\n<b>@team</b>\n</details>"
+    )
+
+    expect(bounded).toContain("<details>")
+    expect(bounded).toContain("<summary>Rule guidance</summary>")
+    expect(bounded).toContain("</details>")
+    expect(bounded).not.toContain("<b>")
+    expect(bounded).not.toContain("@team")
+  })
+
   it("bounds and neutralizes untrusted report content", () => {
     const report = `<b>@team</b>${"x".repeat(70_000)}`
     const bounded = boundedReport(report)
