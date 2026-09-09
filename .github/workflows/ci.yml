@@ -131,6 +131,10 @@ jobs:
         working-directory: plugin
         run: npm run typecheck
 
+      - name: Test
+        working-directory: plugin
+        run: npm run test
+
   all-checks:
     name: All checks passed
     needs: [changes, app, plugin]

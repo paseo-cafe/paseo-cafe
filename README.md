@@ -18,7 +18,7 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
    entry is well-formed, the repo/path exists, and `paseo-plugin.json.id` matches the registry filename.
    CI detects affected paths, runs the app and/or companion-plugin checks, then reports one
    aggregate `All checks passed` result. App checks cover formatting, lint, types, tests, and the
-   production build; plugin checks cover formatting, lint, and types. See
+   production build; plugin checks cover formatting, lint, types, and tests. See
    `.github/workflows/ci.yml` and `.github/workflows/validate.yml`.
 3. **`scripts/scan.ts`** ("plumb for paseo") generates data on demand before local development
    and production builds, then refreshes it during deployment on merges to `main` and nightly. It

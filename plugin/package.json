@@ -2,8 +2,10 @@
   "name": "paseo-cafe-plugin",
   "private": true,
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "description": "Browse the paseo.cafe plugin catalog inside Paseo and install plugins without leaving the app.",
   "scripts": {
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -14,6 +16,7 @@
     "react": "19.1.0",
     "react-native": "0.81.5",
     "typescript": "^5.9.3",
+    "vitest": "^4.0.0",
     "zod": "^4.4.3"
   }
 }
