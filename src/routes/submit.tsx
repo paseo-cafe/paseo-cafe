@@ -23,7 +23,6 @@ export const Route = createFileRoute("/submit")({
 })
 
 const REGISTRY_TEMPLATE = `{
-  "id": "your-plugin-id",
   "repo": "yourname/your-repo",
   "categories": ["productivity"],
   "submittedBy": "yourname"
@@ -42,12 +41,6 @@ const createFileUrl = `https://github.com/${SITE_REPO}/new/main?filename=${encod
 )}&value=${encodeURIComponent(REGISTRY_TEMPLATE)}`
 
 const FIELDS: { field: string; required: boolean; description: string }[] = [
-  {
-    field: "id",
-    required: true,
-    description:
-      "Kebab-case slug. Must match the filename: registry/<id>.json.",
-  },
   {
     field: "repo",
     required: true,
@@ -85,7 +78,7 @@ const FIELDS: { field: string; required: boolean; description: string }[] = [
 
 const REQUIRED_CHECKS = [
   "Your repo is public on GitHub.",
-  "It contains a paseo-plugin.json manifest (at the repo root, or at path for a monorepo) with a string id field.",
+  "Its paseo-plugin.json id matches the registry filename.",
 ]
 
 const RECOMMENDED = [
@@ -99,7 +92,7 @@ const RECOMMENDED = [
 ]
 
 const AUTO_GENERATED = [
-  "Name, description, version, author, and license — from package.json, paseo-plugin.json, and the README.",
+  "Name from the validated plugin ID; description, version, author, and license from package.json, paseo-plugin.json, and the README.",
   "The exact install command (paseo plugin add ...), derived from repo + path.",
   "Screenshots, from an images/ folder in your repo.",
   "Demo videos, detected in your README (YouTube, Loom, or an uploaded GitHub video).",
@@ -167,9 +160,9 @@ function SubmitPage() {
           2. Add a registry entry
         </h2>
         <p className="text-foreground/70 text-sm">
-          Add one file,{" "}
+          Add one file named after your plugin's manifest ID, such as{" "}
           <code className="text-foreground">registry/your-plugin-id.json</code>.
-          This is the entire submission — everything else is read from your repo
+          This is the entire submission; everything else is read from your repo
           automatically.
         </p>
         <CopyBlock
@@ -228,14 +221,14 @@ function SubmitPage() {
         <ol className="flex flex-col gap-3 text-foreground/70 text-sm">
           <li>
             <strong className="text-foreground">On open:</strong> a check runs
-            automatically, confirming your repo/path exists and has a valid
-            manifest. A green check means it's ready to merge — that's the whole
-            review.
+            automatically, confirming your repo/path exists and the manifest ID
+            matches the registry filename. A green check means it is ready to
+            merge.
           </li>
           <li>
             <strong className="text-foreground">On merge:</strong> your full
-            listing gets generated — name, description, install command,
-            screenshots, video, health badges — straight from your repo.
+            listing gets generated from your repository, including its name,
+            description, install command, screenshots, video, and health badges.
           </li>
           <li>
             <strong className="text-foreground">Every night:</strong> everything
