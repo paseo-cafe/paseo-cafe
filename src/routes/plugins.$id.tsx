@@ -45,7 +45,7 @@ export const Route = createFileRoute("/plugins/$id")({
 })
 
 const HEALTH_LABELS: Record<keyof PluginHealth, string> = {
-  manifestValid: "Valid paseo-plugin.json manifest",
+  manifestValid: "Manifest ID matches registry",
   hasReadme: "Has a README",
   hasLicense: "Has a license",
   hasTests: "Has tests",

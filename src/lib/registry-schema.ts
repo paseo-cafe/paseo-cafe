@@ -15,6 +15,15 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   windows: "Windows",
 }
 
+export const registryIdSchema = z
+  .string()
+  .min(2)
+  .max(64)
+  .regex(
+    /^[a-z0-9]+(-[a-z0-9]+)*$/,
+    "registry filename must be lowercase kebab-case, e.g. 'subagent-activity.json'"
+  )
+
 /**
  * A registry entry is the *only* thing a plugin author writes by hand. It is
  * a pointer at a repo (and optional subpath, since several authors publish a
@@ -24,15 +33,8 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
  */
 export const registryEntrySchema = z
   .object({
-    /** Kebab-case slug. Must match the filename: registry/<id>.json */
-    id: z
-      .string()
-      .min(2)
-      .max(64)
-      .regex(
-        /^[a-z0-9]+(-[a-z0-9]+)*$/,
-        "id must be lowercase kebab-case, e.g. 'subagent-activity'"
-      ),
+    /** Transitional compatibility for registry entries created before filename-derived IDs. */
+    id: registryIdSchema.optional(),
     /** GitHub "owner/repo". Just the repo, not a full URL. */
     repo: z
       .string()

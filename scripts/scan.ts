@@ -36,6 +36,7 @@ import {
 import {
   PLATFORM_LABELS,
   registryEntrySchema,
+  registryIdSchema,
 } from "../src/lib/registry-schema.ts"
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../src/lib/site.ts"
 import { extractVideos, resolveGitHubAssetVideos } from "../src/lib/videos.ts"
@@ -60,7 +61,6 @@ const OG_DIR = join(PUBLIC_DIR, "og")
 const RECENT_DAYS = 180
 
 interface PackageJson {
-  name?: string
   description?: string
   version?: string
   author?: string | { name?: string }
@@ -80,6 +80,7 @@ function isRecent(iso: string): boolean {
 }
 
 async function scanOne(entryFile: string): Promise<PluginRecord> {
+  const id = registryIdSchema.parse(entryFile.slice(0, -".json".length))
   const raw = JSON.parse(readFileSync(join(REGISTRY_DIR, entryFile), "utf8"))
   const entry = registryEntrySchema.parse(raw)
   const [owner, repo] = entry.repo.split("/")
@@ -88,11 +89,11 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
   const fallbackUrl = `https://github.com/${entry.repo}${entry.path ? `/tree/HEAD/${entry.path}` : ""}`
 
   const base: PluginRecord = {
-    id: entry.id,
+    id,
     repo: entry.repo,
     path: entry.path,
     url: fallbackUrl,
-    name: entry.id,
+    name: id,
     description: "",
     categories: entry.categories,
     platforms: entry.platforms,
@@ -144,8 +145,6 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
 
     const manifestId =
       typeof manifest?.id === "string" ? manifest.id : undefined
-    const manifestName =
-      typeof manifest?.name === "string" ? manifest.name : undefined
     const manifestDescription =
       typeof manifest?.description === "string"
         ? manifest.description
@@ -224,11 +223,11 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
     )
 
     const record: PluginRecord = {
-      id: entry.id,
+      id,
       repo: entry.repo,
       path: entry.path,
       url: `https://github.com/${entry.repo}${entry.path ? `/tree/${branch}/${entry.path}` : ""}`,
-      name: pkg?.name ?? manifestName ?? entry.id,
+      name: id,
       description:
         pkg?.description ??
         manifestDescription ??
@@ -264,7 +263,7 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
         license: repoMeta.license?.spdx_id ?? null,
       },
       health: {
-        manifestValid: Boolean(manifestId),
+        manifestValid: manifestId === id,
         hasReadme: Boolean(readme),
         hasLicense: hasLicenseFile || Boolean(repoMeta.license),
         hasTests:
@@ -280,6 +279,8 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
 
     if (!manifestId) {
       record.scanError = "paseo-plugin.json missing or missing an 'id' field"
+    } else if (manifestId !== id) {
+      record.scanError = `paseo-plugin.json id "${manifestId}" must match registry ID "${id}"`
     }
 
     return pluginRecordSchema.parse(record)

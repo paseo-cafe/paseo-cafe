@@ -28,23 +28,17 @@ describe("selectTargets", () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
     const registry = join(root, "registry")
     mkdirSync(registry)
-    writeFileSync(
-      join(registry, "one.json"),
-      JSON.stringify({ id: "one", repo: "o/r" })
-    )
+    writeFileSync(join(registry, "one.json"), JSON.stringify({ repo: "o/r" }))
     expect(await selectTargets({ registryRoot: registry })).toEqual([
       { id: "one", repo: "o/r", ref: "HEAD", commit: "HEAD", path: undefined },
     ])
   })
 
-  it("selects only changed PR entries", async () => {
+  it("selects a renamed registry entry with unchanged contents", async () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
     const registry = join(root, "registry")
     mkdirSync(registry)
-    writeFileSync(
-      join(registry, "one.json"),
-      JSON.stringify({ id: "one", repo: "o/r" })
-    )
+    writeFileSync(join(registry, "one.json"), JSON.stringify({ repo: "o/r" }))
     const eventPath = join(root, "event.json")
     writeFileSync(
       eventPath,
@@ -58,26 +52,33 @@ describe("selectTargets", () => {
     )
     responses.set(
       "https://api.github.com/repos/a/base/contents/registry?ref=base-sha",
-      [{ name: "one.json", path: "registry/one.json", type: "file" }]
+      [
+        { name: "one.json", path: "registry/one.json", type: "file" },
+        { name: "stable.json", path: "registry/stable.json", type: "file" },
+      ]
     )
     responses.set(
       "https://api.github.com/repos/a/head/contents/registry?ref=head-sha",
       [
-        { name: "one.json", path: "registry/one.json", type: "file" },
-        { name: "two.json", path: "registry/two.json", type: "file" },
+        { name: "renamed.json", path: "registry/renamed.json", type: "file" },
+        { name: "stable.json", path: "registry/stable.json", type: "file" },
       ]
     )
     responses.set(
       "https://raw.githubusercontent.com/a/base/base-sha/registry/one.json",
-      JSON.stringify({ id: "one", repo: "o/r", path: "src" })
+      JSON.stringify({ repo: "o/r", path: "src" })
     )
     responses.set(
-      "https://raw.githubusercontent.com/a/head/head-sha/registry/one.json",
-      JSON.stringify({ id: "one", repo: "o/r", path: "src" })
+      "https://raw.githubusercontent.com/a/head/head-sha/registry/renamed.json",
+      JSON.stringify({ repo: "o/r", path: "src" })
     )
     responses.set(
-      "https://raw.githubusercontent.com/a/head/head-sha/registry/two.json",
-      JSON.stringify({ id: "two", repo: "o/r2" })
+      "https://raw.githubusercontent.com/a/base/base-sha/registry/stable.json",
+      JSON.stringify({ repo: "o/stable" })
+    )
+    responses.set(
+      "https://raw.githubusercontent.com/a/head/head-sha/registry/stable.json",
+      JSON.stringify({ repo: "o/stable" })
     )
     responses.set("https://api.github.com/repos/o/r", {
       default_branch: "main",
@@ -85,22 +86,22 @@ describe("selectTargets", () => {
     responses.set("https://api.github.com/repos/o/r/git/ref/heads/main", {
       object: { sha: "commit-one" },
     })
-    responses.set("https://api.github.com/repos/o/r2", {
+    responses.set("https://api.github.com/repos/o/stable", {
       default_branch: "main",
     })
-    responses.set("https://api.github.com/repos/o/r2/git/ref/heads/main", {
-      object: { sha: "commit-two" },
+    responses.set("https://api.github.com/repos/o/stable/git/ref/heads/main", {
+      object: { sha: "commit-stable" },
     })
 
     await expect(
       selectTargets({ registryRoot: registry, eventPath, githubToken: "token" })
     ).resolves.toEqual([
       {
-        id: "two",
-        repo: "o/r2",
-        path: undefined,
-        ref: "commit-two",
-        commit: "commit-two",
+        id: "renamed",
+        repo: "o/r",
+        path: "src",
+        ref: "commit-one",
+        commit: "commit-one",
       },
     ])
   })
