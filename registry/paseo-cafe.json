@@ -4,7 +4,7 @@
   "categories": ["productivity"],
   "caveats": [
     "Installs plugins by running the paseo CLI on the daemon host",
-    "Browsing the catalog requires the daemon to reach paseo.cafe"
+    "Browsing the catalog requires the daemon to reach the configured catalog URL"
   ],
   "submittedBy": "omercnet"
 }
