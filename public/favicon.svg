@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="paseo.cafe">
+  <rect width="512" height="512" fill="#090b0c"/>
+  <rect x="50.1" y="50.1" width="17.8" height="17.8" rx="3.3" fill="#00bba7"/>
+  <g transform="translate(63.92 63.92) scale(16.004)" fill="none" stroke="#f9fbfb" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 7h3a1 1 0 0 0 1 -1v-1a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h3a1 1 0 0 1 1 1v3a1 1 0 0 0 1 1h1a2 2 0 0 1 0 4h-1a1 1 0 0 0 -1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-1a2 2 0 0 0 -4 0v1a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h1a2 2 0 0 0 0 -4h-1a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1"/>
+  </g>
+</svg>

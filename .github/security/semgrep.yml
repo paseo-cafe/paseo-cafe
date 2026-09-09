@@ -1,0 +1,7 @@
+rules:
+  - id: paseo-plugin-dangerous-shell
+    message: Dangerous shell execution in plugin sources
+    severity: ERROR
+    languages: [ts, tsx, js, jsx]
+    patterns:
+      - pattern-regex: '(execSync|spawnSync|bash -c|sh -c|curl |wget )'
