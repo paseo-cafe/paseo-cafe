@@ -5,7 +5,8 @@
     "plugin": {
       "release-type": "node",
       "include-component-in-tag": false,
-      "initial-version": "0.1.0"
+      "initial-version": "0.1.0",
+      "pull-request-title-pattern": "chore(plugin): release ${component} ${version}"
     }
   }
 }
