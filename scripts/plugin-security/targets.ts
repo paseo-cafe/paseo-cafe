@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { z } from "zod"
 import { registryEntrySchema } from "../../src/lib/registry-schema.ts"
@@ -22,12 +22,7 @@ const eventSchema = z.object({
 })
 
 type ContentsEntry = { name: string; path: string; type: string }
-type RegistrySnapshotEntry = {
-  id: string
-  repo: string
-  path?: string
-  fingerprint: string
-}
+type RegistrySnapshotEntry = { id: string; repo: string; path?: string; fingerprint: string; commit: string }
 
 export async function selectTargets(opts: {
   registryRoot: string
@@ -36,14 +31,9 @@ export async function selectTargets(opts: {
 }): Promise<SecurityTarget[]> {
   const local = readLocalRegistry(opts.registryRoot)
   if (!opts.eventPath) return local.map((entry) => toTarget(entry, "HEAD"))
-  const event = eventSchema.parse(
-    JSON.parse(readFileSync(opts.eventPath, "utf8"))
-  )
+  const event = eventSchema.parse(JSON.parse(readFileSync(opts.eventPath, "utf8")))
   const pr = event.pull_request
-  if (
-    !pr ||
-    !["opened", "synchronize", "reopened"].includes(event.action ?? "")
-  ) {
+  if (!pr || !["opened", "synchronize", "reopened"].includes(event.action ?? "")) {
     return local.map((entry) => toTarget(entry, "HEAD"))
   }
   return selectPullRequestTargets(
@@ -70,7 +60,7 @@ async function selectPullRequestTargets(
   for (const entry of local) out.set(key(entry), toTarget(entry, "HEAD"))
   for (const [identity, entry] of head.entries()) {
     if (base.get(identity)?.fingerprint !== entry.fingerprint) {
-      out.set(identity, toTarget(entry, headSha))
+      out.set(identity, toTarget(entry, entry.commit))
     }
   }
   const targets = [...out.values()]
@@ -83,18 +73,12 @@ function readLocalRegistry(root: string) {
     .filter((file) => file.endsWith(".json"))
     .map((file) =>
       validateRegistryEntry(
-        registryEntrySchema.parse(
-          JSON.parse(readFileSync(join(root, file), "utf8"))
-        )
+        registryEntrySchema.parse(JSON.parse(readFileSync(join(root, file), "utf8")))
       )
     )
 }
 
-async function readRegistrySnapshot(
-  repoFullName: string,
-  sha: string,
-  token?: string
-) {
+async function readRegistrySnapshot(repoFullName: string, sha: string, token?: string) {
   const [owner, repo] = repoFullName.split("/")
   const entries = z
     .array(z.object({ name: z.string(), path: z.string(), type: z.string() }))
@@ -106,23 +90,31 @@ async function readRegistrySnapshot(
     ) as ContentsEntry[]
   const out = new Map<string, RegistrySnapshotEntry>()
   for (const entry of entries) {
-    if (
-      entry.type !== "file" ||
-      !entry.name.endsWith(".json") ||
-      !safeRegistryPath(entry.path)
-    )
-      continue
+    if (entry.type !== "file" || !entry.name.endsWith(".json") || !safeRegistryPath(entry.path)) continue
     const raw = await fetchText(
       `https://raw.githubusercontent.com/${owner}/${repo}/${sha}/${encodePath(entry.path)}`,
       token
     )
-    const parsed = validateRegistryEntry(
-      registryEntrySchema.parse(JSON.parse(raw))
-    )
+    const parsed = validateRegistryEntry(registryEntrySchema.parse(JSON.parse(raw)))
     const identity = key(parsed)
-    out.set(identity, { ...parsed, fingerprint: raw })
+    const commit = await resolvePluginRepoRevision(parsed.repo, token)
+    out.set(identity, { ...parsed, fingerprint: raw, commit })
   }
   return out
+}
+
+async function resolvePluginRepoRevision(repo: string, token?: string) {
+  const [owner, name] = repo.split("/")
+  const repoInfo = z.object({ default_branch: z.string() }).parse(
+    await fetchJson(`https://api.github.com/repos/${owner}/${name}`, token)
+  )
+  const ref = z.object({ object: z.object({ sha: z.string() }) }).parse(
+    await fetchJson(
+      `https://api.github.com/repos/${owner}/${name}/git/ref/heads/${encodeURIComponent(repoInfo.default_branch)}`,
+      token
+    )
+  )
+  return ref.object.sha
 }
 
 async function fetchJson(url: string, token?: string) {
@@ -141,20 +133,14 @@ async function main() {
   const args = process.argv.slice(2)
   const outputPath = valueFor(args, "--output")
   if (!outputPath) throw new Error("missing --output")
-  const registryRoot = join(
-    process.cwd(),
-    valueFor(args, "--registry") ?? "registry"
-  )
+  const registryRoot = join(process.cwd(), valueFor(args, "--registry") ?? "registry")
   const eventPath = valueFor(args, "--event")
   const local = readLocalRegistry(registryRoot)
   const event = eventPath
-    ? eventSchema.parse(
-        JSON.parse(readFileSync(join(process.cwd(), eventPath), "utf8"))
-      )
+    ? eventSchema.parse(JSON.parse(readFileSync(join(process.cwd(), eventPath), "utf8")))
     : undefined
   const targets =
-    event?.pull_request &&
-    ["opened", "synchronize", "reopened"].includes(event.action ?? "")
+    event?.pull_request && ["opened", "synchronize", "reopened"].includes(event.action ?? "")
       ? await selectPullRequestTargets(
           local,
           event.pull_request.base.repo.full_name,
@@ -164,10 +150,7 @@ async function main() {
           process.env.GITHUB_TOKEN
         )
       : local.map((entry) => toTarget(entry, "HEAD"))
-  writeFileSync(
-    outputPath,
-    `${JSON.stringify({ version: 1, targets }, null, 2)}\n`
-  )
+  writeFileSync(outputPath, `${JSON.stringify({ version: 1, targets }, null, 2)}\n`)
 }
 
 if (import.meta.main) await main()
@@ -180,54 +163,19 @@ function githubHeaders(token?: string) {
     "user-agent": "paseo-security-scanner",
   }
 }
-function validateRegistryEntry(entry: {
-  id: string
-  repo: string
-  path?: string
-}) {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.id))
-    throw new Error(`unsafe registry id ${entry.id}`)
-  if (!/^[\w.-]+\/[\w.-]+$/.test(entry.repo))
-    throw new Error(`unsafe repo ${entry.repo}`)
-  if (entry.path && !safeRegistryPath(entry.path))
-    throw new Error(`unsafe path ${entry.path}`)
+function validateRegistryEntry(entry: { id: string; repo: string; path?: string }) {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.id)) throw new Error(`unsafe registry id ${entry.id}`)
+  if (!/^[\w.-]+\/[\w.-]+$/.test(entry.repo)) throw new Error(`unsafe repo ${entry.repo}`)
+  if (entry.path && !safeRegistryPath(entry.path)) throw new Error(`unsafe path ${entry.path}`)
   return entry
 }
 function safeRegistryPath(path: string) {
-  return path
-    .split("/")
-    .every(
-      (segment) =>
-        segment &&
-        segment !== "." &&
-        segment !== ".." &&
-        !segment.includes("\\") &&
-        !segment.includes(":")
-    )
+  return path.split("/").every(
+    (segment) => segment && segment !== "." && segment !== ".." && !segment.includes("\\") && !segment.includes(":"),
+  )
 }
-function encodePath(path: string) {
-  return path.split("/").map(encodeURIComponent).join("/")
-}
-function toTarget(
-  entry: { id: string; repo: string; path?: string },
-  commit: string
-): SecurityTarget {
-  return {
-    id: entry.id,
-    repo: entry.repo,
-    path: entry.path,
-    ref: commit,
-    commit,
-  }
-}
-function key(target: { repo: string; path?: string }) {
-  return `${target.repo}:${target.path ?? ""}`
-}
-function writeCount(count: number) {
-  if (process.env.GITHUB_OUTPUT)
-    writeFileSync(process.env.GITHUB_OUTPUT, `count=${count}\n`, { flag: "a" })
-}
-function valueFor(argv: string[], flag: string) {
-  const i = argv.indexOf(flag)
-  return i >= 0 ? argv[i + 1] : undefined
-}
+function encodePath(path: string) { return path.split("/").map(encodeURIComponent).join("/") }
+function toTarget(entry: { id: string; repo: string; path?: string }, commit: string): SecurityTarget { return { id: entry.id, repo: entry.repo, path: entry.path, ref: commit, commit } }
+function key(target: { repo: string; path?: string }) { return `${target.repo}:${target.path ?? ""}` }
+function writeCount(count: number) { if (process.env.GITHUB_OUTPUT) writeFileSync(process.env.GITHUB_OUTPUT, `count=${count}\n`, { flag: "a" }) }
+function valueFor(argv: string[], flag: string) { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : undefined }
