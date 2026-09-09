@@ -1,0 +1,10 @@
+{
+  "repo": "xpufx/paseo-top",
+  "categories": ["monitoring", "productivity"],
+  "platforms": ["linux"],
+  "caveats": [
+    "Only tested on Linux and Android; macOS and Windows are untested.",
+    "Requires npm at install time (runs npm install as a build step)."
+  ],
+  "submittedBy": "xpufx"
+}
