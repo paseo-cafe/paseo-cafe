@@ -319,9 +319,11 @@ export function PluginDetailPage({
   const installable =
     isValidRepo(entry.repo) &&
     (entry.path === undefined || isValidInstallPath(entry.path))
+  // The toggle and the clamp share one condition: a short error is never
+  // clamped, so wrapping on a narrow screen cannot hide text with no way back.
   const installErrorIsLong =
     installError !== null &&
-    (installError.length > 500 || installError.split("\n").length > 6)
+    (installError.length > 240 || installError.split("\n").length > 6)
 
   return (
     <View style={styles.screen}>
@@ -570,7 +572,9 @@ export function PluginDetailPage({
           <View accessibilityRole="alert" style={styles.errorBox}>
             <Text style={styles.errorText}>Installation failed</Text>
             <Text
-              numberOfLines={showFullInstallError ? undefined : 6}
+              numberOfLines={
+                installErrorIsLong && !showFullInstallError ? 6 : undefined
+              }
               selectable
               style={styles.errorDetails}
             >

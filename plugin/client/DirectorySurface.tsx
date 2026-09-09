@@ -121,51 +121,62 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     new Set()
   )
   const [installingId, setInstallingId] = useState<string | null>(null)
-  const [installError, setInstallError] = useState<string | null>(null)
+  const [installFailure, setInstallFailure] = useState<{
+    entryId: string
+    message: string
+  } | null>(null)
   const [detailEntry, setDetailEntry] = useState<DirectoryEntry | null>(null)
   const [galleryEntry, setGalleryEntry] = useState<DirectoryEntry | null>(null)
 
+  // Undefined until settings are readable: the handler then falls back to
+  // PASEO_CAFE_DIRECTORY_URL or the default catalog, so an unreadable or
+  // invalid settings document still shows a catalog instead of a blank surface.
   const baseUrl =
     settings.status === "ready" ? settings.values.directoryUrl : undefined
+  const settingsPending = settings.status === "loading"
   const queryKey = [DIRECTORY_QUERY_KEY, baseUrl]
 
   const directoryQuery = useQuery({
     queryKey,
     queryFn: () => listDirectory({ baseUrl, force: false }),
-    enabled: settings.status === "ready",
+    // Only the first read is gated, so the default catalog is never fetched
+    // and then immediately replaced by the configured one.
+    enabled: !settingsPending,
     staleTime: 60_000,
   })
 
   const installMutation = useMutation({
     mutationFn: (entry: DirectoryEntry) => {
       setInstallingId(entry.id)
-      setInstallError(null)
+      setInstallFailure(null)
       return installPlugin({ repo: entry.repo, path: entry.path })
     },
     onSuccess: (result, entry) => {
       if (result.ok) {
-        setInstallError(null)
+        setInstallFailure(null)
         toast.show(`Installed ${entry.name}`, { variant: "success" })
       } else {
-        setInstallError(result.message)
+        setInstallFailure({ entryId: entry.id, message: result.message })
         toast.error(`Couldn't install ${entry.name}. See details below.`)
       }
     },
-    onError: (error) => {
+    onError: (error, entry) => {
       const message = error instanceof Error ? error.message : "Install failed"
-      setInstallError(message)
-      toast.error("Install failed. See details below.")
+      setInstallFailure({ entryId: entry.id, message })
+      toast.error(`Couldn't install ${entry.name}. See details below.`)
     },
     onSettled: () => setInstallingId(null),
   })
 
   const refreshMutation = useMutation({
-    mutationFn: () => {
-      if (!baseUrl) throw new Error("Paseo Cafe settings are not ready.")
-      return listDirectory({ baseUrl, force: true })
+    // The key travels with the request: switching the Catalog URL while a
+    // refresh is in flight must not file the old catalog under the new key.
+    mutationFn: async () => {
+      const key = [DIRECTORY_QUERY_KEY, baseUrl]
+      return { key, result: await listDirectory({ baseUrl, force: true }) }
     },
-    onSuccess: (result) => {
-      queryClient.setQueryData(queryKey, result)
+    onSuccess: ({ key, result }) => {
+      queryClient.setQueryData(key, result)
       toast.show("Paseo Cafe refreshed.", { variant: "success" })
     },
     onError: (error) => {
@@ -274,7 +285,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         theme={theme}
         compact={layout.compact}
         installing={installingId === detailEntry.id}
-        installError={installError}
+        installError={
+          installFailure?.entryId === detailEntry.id
+            ? installFailure.message
+            : null
+        }
         onInstall={() => installMutation.mutate(detailEntry)}
         onOpenGallery={() => setGalleryEntry(detailEntry)}
         onBack={() => setDetailEntry(null)}
@@ -314,31 +329,40 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Refresh Paseo Cafe catalog"
-        accessibilityState={{
-          disabled: refreshMutation.isPending || settings.status !== "ready",
-        }}
-        disabled={refreshMutation.isPending || settings.status !== "ready"}
+        disabled={
+          settingsPending ||
+          refreshMutation.isPending ||
+          directoryQuery.isFetching
+        }
         style={styles.refreshButton}
         onPress={() => refreshMutation.mutate()}
       >
         <Text style={styles.refreshText}>
-          {refreshMutation.isPending ? "Refreshing…" : "Refresh"}
+          {refreshMutation.isPending || directoryQuery.isFetching
+            ? "Refreshing…"
+            : "Refresh"}
         </Text>
       </Pressable>
-      {settings.status === "loading" ? (
+      {settingsPending ? (
         <Text style={styles.emptyText}>Loading Paseo Cafe settings…</Text>
       ) : null}
-      {settings.status === "error" ? (
-        <Text style={styles.emptyText}>
-          Paseo Cafe settings need attention: {settings.error}
+      {settings.status === "error" || settings.status === "invalid" ? (
+        <Text accessibilityRole="alert" style={styles.emptyText}>
+          Paseo Cafe settings need attention, so the default catalog is in use:{" "}
+          {settings.error}
         </Text>
       ) : null}
-      {settings.status === "ready" && directoryQuery.isPending ? (
+      {directoryQuery.isPending && !settingsPending ? (
         <Text style={styles.emptyText}>Loading plugins…</Text>
       ) : null}
       {directoryQuery.isError ? (
-        <Text style={styles.emptyText}>
+        <Text accessibilityRole="alert" style={styles.emptyText}>
           Couldn't reach Paseo Cafe: {directoryQuery.error.message}
+        </Text>
+      ) : null}
+      {directoryQuery.data ? (
+        <Text style={styles.emptyText}>
+          Catalog generated {directoryQuery.data.fetchedAt.slice(0, 10)}.
         </Text>
       ) : null}
       {directoryQuery.isSuccess && sorted.length === 0 ? (

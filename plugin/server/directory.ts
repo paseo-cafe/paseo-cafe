@@ -29,7 +29,7 @@ const ANSI_ESCAPE_PATTERN = new RegExp(
 )
 const directoryResponseSchema = z.object({
   plugins: z.array(directoryEntrySchema),
-  generatedAt: z.iso.datetime().optional(),
+  generatedAt: z.iso.datetime({ offset: true, local: true }).optional(),
 })
 
 // Keyed by resolved URL so switching the directorySettings override (e.g. to
@@ -204,13 +204,16 @@ export async function installDirectoryPlugin(
       stderr?: unknown
       stdout?: unknown
     }
-    const details = [failure.message, failure.stderr, failure.stdout]
-      .filter(
-        (value, index, values): value is string =>
-          typeof value === "string" &&
-          value.trim().length > 0 &&
-          values.indexOf(value) === index
-      )
+    const text = (value: unknown) => (typeof value === "string" ? value : "")
+    // execFile puts "Command failed: <cmd>\n" in front of a copy of stderr, so
+    // only its first line is kept; otherwise every failure prints stderr twice
+    // and eats half of MAX_INSTALL_ERROR_LENGTH.
+    const details = [
+      text(failure.message).split("\n")[0] ?? "",
+      text(failure.stderr),
+      text(failure.stdout),
+    ]
+      .filter((value) => value.trim().length > 0)
       .join("\n\n")
       .replace(ANSI_ESCAPE_PATTERN, "")
       .trim()

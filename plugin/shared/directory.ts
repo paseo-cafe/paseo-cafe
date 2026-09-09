@@ -98,7 +98,7 @@ export const directoryListRpc = defineRpc({
   }),
   output: z.object({
     plugins: z.array(directoryEntrySchema),
-    fetchedAt: z.iso.datetime(),
+    fetchedAt: z.iso.datetime({ offset: true, local: true }),
   }),
 })
 
