@@ -50,6 +50,7 @@ import {
   resolveGitHubAssetContentType,
 } from "./github.ts"
 import { renderOgImage } from "./og-image.tsx"
+import { readRegistryAddedDates } from "./registry-history.ts"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
 const ROOT = process.cwd()
@@ -79,7 +80,10 @@ function isRecent(iso: string): boolean {
   return pushed >= cutoff
 }
 
-async function scanOne(entryFile: string): Promise<PluginRecord> {
+async function scanOne(
+  entryFile: string,
+  addedAt: string | undefined
+): Promise<PluginRecord> {
   const id = registryIdSchema.parse(entryFile.slice(0, -".json".length))
   const raw = JSON.parse(readFileSync(join(REGISTRY_DIR, entryFile), "utf8"))
   const entry = registryEntrySchema.parse(raw)
@@ -108,6 +112,7 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
     },
     images: [],
     videos: [],
+    addedAt,
     scannedAt,
   }
 
@@ -274,6 +279,7 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
       },
       images,
       videos,
+      addedAt,
       scannedAt,
     }
 
@@ -354,10 +360,14 @@ async function main() {
   mkdirSync(OUTPUT_DIR, { recursive: true })
   mkdirSync(OG_DIR, { recursive: true })
 
+  const addedDates = readRegistryAddedDates(ROOT)
   const records: PluginRecord[] = []
   for (const file of files) {
     console.log(`Scanning ${file}...`)
-    const record = await scanOne(file)
+    const record = await scanOne(
+      file,
+      addedDates.get(file.slice(0, -".json".length))
+    )
     if (record.scanError) console.warn(`  ! ${record.scanError}`)
     records.push(record)
     writeFileSync(

@@ -1,4 +1,4 @@
-import { IconSearch } from "@tabler/icons-react"
+import { IconSearch, IconSparkles } from "@tabler/icons-react"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { useMemo, useState } from "react"
 import { PluginCard } from "@/components/plugin-card"
@@ -8,6 +8,8 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { useLastVisit } from "@/hooks/use-last-visit"
+import { selectAddedSince } from "@/lib/new-plugins"
 import { listPlugins } from "@/lib/plugins-data"
 import { seo } from "@/lib/seo"
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
@@ -23,6 +25,16 @@ function App() {
   const plugins = Route.useLoaderData()
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState<string | null>(null)
+  const [onlyNew, setOnlyNew] = useState(false)
+  const { lastVisit, ready } = useLastVisit()
+
+  // Everything the directory gained since this browser's previous visit. Empty
+  // until the storage read lands, so the prerendered markup hydrates cleanly.
+  const newIds = useMemo(
+    () => new Set(selectAddedSince(plugins, lastVisit).map((p) => p.id)),
+    [plugins, lastVisit]
+  )
+  const showNewFilter = ready && newIds.size > 0
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -39,6 +51,7 @@ function App() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return plugins.filter((plugin) => {
+      if (onlyNew && !newIds.has(plugin.id)) return false
       if (category && !plugin.categories.includes(category)) return false
       if (!q) return true
       return (
@@ -47,7 +60,7 @@ function App() {
         plugin.id.toLowerCase().includes(q)
       )
     })
-  }, [plugins, query, category])
+  }, [plugins, query, category, onlyNew, newIds])
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 pb-20">
@@ -70,7 +83,7 @@ function App() {
       </div>
 
       <p className="text-foreground/60 text-sm">
-        {query || category
+        {query || category || onlyNew
           ? `${filtered.length} of ${plugins.length} plugin${plugins.length === 1 ? "" : "s"} found.`
           : `${plugins.length} plugin${plugins.length === 1 ? "" : "s"} generated from their source repos.`}
       </p>
@@ -101,6 +114,20 @@ function App() {
               />
             </InputGroup>
           </div>
+
+          {showNewFilter ? (
+            <Button
+              size={"sm"}
+              onClick={() => setOnlyNew((value) => !value)}
+              aria-pressed={onlyNew}
+              className="h-auto w-full text-sm!"
+              variant={onlyNew ? "default" : "outline"}
+            >
+              <IconSparkles />
+              New since your last visit
+              <span className="text-xs! opacity-70">{newIds.size}</span>
+            </Button>
+          ) : null}
 
           <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
             Categories

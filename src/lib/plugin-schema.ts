@@ -96,6 +96,12 @@ export const pluginRecordSchema = z.object({
   images: z.array(z.string()).default([]),
   videos: z.array(videoEmbedSchema).default([]),
   scanError: z.string().optional(),
+  // When this plugin joined the directory: the commit that added its
+  // registry/<id>.json (see scripts/registry-history.ts). Unlike scannedAt it
+  // is stable across rescans, so the site can tell a visitor what's arrived
+  // since their last visit. Optional — absent when the scan ran without
+  // usable git history.
+  addedAt: z.string().optional(),
   scannedAt: z.string(),
 })
 
