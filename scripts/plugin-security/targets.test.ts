@@ -52,11 +52,17 @@ describe("selectTargets", () => {
     )
     responses.set(
       "https://api.github.com/repos/a/base/contents/registry?ref=base-sha",
-      [{ name: "one.json", path: "registry/one.json", type: "file" }]
+      [
+        { name: "one.json", path: "registry/one.json", type: "file" },
+        { name: "stable.json", path: "registry/stable.json", type: "file" },
+      ]
     )
     responses.set(
       "https://api.github.com/repos/a/head/contents/registry?ref=head-sha",
-      [{ name: "renamed.json", path: "registry/renamed.json", type: "file" }]
+      [
+        { name: "renamed.json", path: "registry/renamed.json", type: "file" },
+        { name: "stable.json", path: "registry/stable.json", type: "file" },
+      ]
     )
     responses.set(
       "https://raw.githubusercontent.com/a/base/base-sha/registry/one.json",
@@ -66,11 +72,25 @@ describe("selectTargets", () => {
       "https://raw.githubusercontent.com/a/head/head-sha/registry/renamed.json",
       JSON.stringify({ repo: "o/r", path: "src" })
     )
+    responses.set(
+      "https://raw.githubusercontent.com/a/base/base-sha/registry/stable.json",
+      JSON.stringify({ repo: "o/stable" })
+    )
+    responses.set(
+      "https://raw.githubusercontent.com/a/head/head-sha/registry/stable.json",
+      JSON.stringify({ repo: "o/stable" })
+    )
     responses.set("https://api.github.com/repos/o/r", {
       default_branch: "main",
     })
     responses.set("https://api.github.com/repos/o/r/git/ref/heads/main", {
       object: { sha: "commit-one" },
+    })
+    responses.set("https://api.github.com/repos/o/stable", {
+      default_branch: "main",
+    })
+    responses.set("https://api.github.com/repos/o/stable/git/ref/heads/main", {
+      object: { sha: "commit-stable" },
     })
 
     await expect(

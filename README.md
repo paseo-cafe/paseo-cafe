@@ -55,7 +55,8 @@ Requirements, checked automatically by CI:
 
 - The registry filename is a lowercase kebab-case plugin ID.
 - Your repo (at `path`, if given) contains a valid `paseo-plugin.json` with the same `id`.
-The plugin name comes from the validated manifest ID. Description, version, license, screenshots,
+
+The plugin name comes from the registry filename after it is validated against the manifest ID. Description, version, license, screenshots,
 stars, and the best-effort limitations excerpt are read from the plugin repository automatically.
 A `README.md`, `LICENSE`, and an `images/` folder with screenshots all make a listing better; none
 are required to get in.

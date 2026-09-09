@@ -3,8 +3,8 @@
  * CI gate run on every PR that touches registry/*.json. Checks are ordered
  * cheapest-first so a malformed entry fails fast without spending API calls:
  *
- *   1. JSON parses and matches registryEntrySchema
- *   2. filename is a valid registry ID
+ *   1. filename is a valid registry ID
+ *   2. JSON parses and matches registryEntrySchema
  *   3. the repo/path actually exists on GitHub
  *   4. paseo-plugin.json exists and its ID matches the filename
  *
@@ -105,7 +105,7 @@ async function main() {
       } else if (manifest.id !== expectedId) {
         problems.push({
           file,
-          message: `paseo-plugin.json id "${manifest.id}" must match registry filename "${file}"`,
+          message: `paseo-plugin.json id "${manifest.id}" must match registry ID "${expectedId}"`,
         })
       }
     } catch (err) {

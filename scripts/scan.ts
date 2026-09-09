@@ -280,7 +280,7 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
     if (!manifestId) {
       record.scanError = "paseo-plugin.json missing or missing an 'id' field"
     } else if (manifestId !== id) {
-      record.scanError = `paseo-plugin.json id "${manifestId}" must match registry filename "${entryFile}"`
+      record.scanError = `paseo-plugin.json id "${manifestId}" must match registry ID "${id}"`
     }
 
     return pluginRecordSchema.parse(record)
