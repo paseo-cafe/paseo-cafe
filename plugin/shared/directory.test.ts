@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   getInstallCommand,
   getSiteUrl,
+  isTrustedCatalogUrl,
   isValidInstallPath,
   isValidRepo,
   stripHtml,
@@ -25,6 +26,31 @@ describe("plugin install targets", () => {
     expect(isValidInstallPath("../plugin")).toBe(false)
     expect(isValidInstallPath("plugin/../../outside")).toBe(false)
     expect(isValidInstallPath("plugin name")).toBe(false)
+  })
+})
+
+describe("catalog URL transport policy", () => {
+  it.each([
+    "https://paseo.cafe/api/plugins",
+    "https://catalog.internal/api/plugins",
+    "http://localhost:3000/api/plugins",
+    "http://dev.localhost:3000/api/plugins",
+    "http://127.0.0.1:3000/api/plugins",
+    "http://127.255.255.255/api/plugins",
+    "http://[::1]:3000/api/plugins",
+  ])("accepts trusted catalog URL %s", (url) => {
+    expect(isTrustedCatalogUrl(url)).toBe(true)
+  })
+
+  it.each([
+    "http://catalog.internal/api/plugins",
+    "http://192.168.1.10/api/plugins",
+    "http://127.0.0.1.evil.example/api/plugins",
+    "http://[::2]/api/plugins",
+    "ftp://paseo.cafe/api/plugins",
+    "not a URL",
+  ])("rejects untrusted catalog URL %s", (url) => {
+    expect(isTrustedCatalogUrl(url)).toBe(false)
   })
 })
 

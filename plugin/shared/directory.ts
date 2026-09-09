@@ -36,7 +36,6 @@ export function isTrustedCatalogUrl(value: string): boolean {
     host === "localhost" ||
     host.endsWith(".localhost") ||
     host === "[::1]" ||
-    host === "::1" ||
     /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
   )
 }
@@ -49,7 +48,7 @@ const catalogUrlSchema = httpUrlSchema.refine(
 /**
  * Which paseo.cafe deployment to read from — host-scoped so it's one setting
  * per daemon, editable from Settings → Plugins → Paseo Cafe without a
- * reload. Exists for local development (point at `npm run dev`) and for
+ * reload. Exists for local development (point at `bun run dev`) and for
  * anyone running a self-hosted fork of the directory.
  */
 export const directorySettings = defineSettings({

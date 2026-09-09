@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { InstalledPlugin } from "../shared/directory"
-import { findInstallations, installedPluginSchema } from "../shared/directory"
+import {
+  DEFAULT_DIRECTORY_URL,
+  findInstallations,
+  installedPluginSchema,
+} from "../shared/directory"
 import {
   buildPaseoInvocation,
   inspectUpdateStatus,
@@ -12,6 +16,7 @@ import {
 } from "./directory"
 
 const originalFetch = globalThis.fetch
+const originalDirectoryUrl = process.env.PASEO_CAFE_DIRECTORY_URL
 
 function plugin(overrides: Record<string, unknown> = {}) {
   return {
@@ -51,6 +56,11 @@ function gitInstallation(
 afterEach(() => {
   globalThis.fetch = originalFetch
   vi.restoreAllMocks()
+  if (originalDirectoryUrl === undefined) {
+    delete process.env.PASEO_CAFE_DIRECTORY_URL
+  } else {
+    process.env.PASEO_CAFE_DIRECTORY_URL = originalDirectoryUrl
+  }
 })
 
 describe("listDirectory", () => {
@@ -77,6 +87,7 @@ describe("listDirectory", () => {
     expect(fetcher).toHaveBeenCalledWith(baseUrl, {
       signal: expect.any(AbortSignal),
       headers: { accept: "application/json" },
+      redirect: "error",
     })
   })
 
@@ -97,6 +108,66 @@ describe("listDirectory", () => {
     ).rejects.toThrow(
       "https://unavailable.example.test/plugins returned 503 Service Unavailable"
     )
+  })
+})
+
+describe("catalog transport policy", () => {
+  it("fails closed when fetching a catalog encounters a redirect", async () => {
+    const trustedUrl = "https://catalog.example/api/plugins"
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(
+        new TypeError(`UnexpectedRedirect fetching ${trustedUrl}`)
+      )
+
+    await expect(
+      listDirectory({ baseUrl: trustedUrl, force: true })
+    ).rejects.toThrow("UnexpectedRedirect")
+    expect(fetchSpy).toHaveBeenCalledWith(
+      trustedUrl,
+      expect.objectContaining({ redirect: "error" })
+    )
+  })
+
+  it("redacts and warns once about a rejected environment URL", async () => {
+    const username = "catalog-user"
+    const password = "catalog-credential"
+    const token = "signed-query-value"
+    const rejectedUrl = new URL("http://catalog.example/api/plugins")
+    rejectedUrl.username = username
+    rejectedUrl.password = password
+    rejectedUrl.searchParams.set("token", token)
+    rejectedUrl.hash = "private"
+    process.env.PASEO_CAFE_DIRECTORY_URL = rejectedUrl.href
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, {
+        status: 503,
+        statusText: "Service Unavailable",
+      })
+    )
+
+    await expect(listDirectory({ force: true })).rejects.toThrow(
+      `${DEFAULT_DIRECTORY_URL} returned 503 Service Unavailable`
+    )
+    await expect(listDirectory({ force: true })).rejects.toThrow(
+      `${DEFAULT_DIRECTORY_URL} returned 503 Service Unavailable`
+    )
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      DEFAULT_DIRECTORY_URL,
+      expect.any(Object)
+    )
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Ignoring PASEO_CAFE_DIRECTORY_URL: catalog URL must use HTTPS, or HTTP on localhost."
+    )
+    expect(errorSpy).toHaveBeenCalledTimes(1)
+    const logged = JSON.stringify(errorSpy.mock.calls)
+    expect(logged).not.toContain(username)
+    expect(logged).not.toContain(password)
+    expect(logged).not.toContain(token)
+    expect(logged).not.toContain("catalog.example")
   })
 })
 

@@ -283,6 +283,7 @@ const cache = new Map<
     plugins: z.infer<typeof directoryEntrySchema>[]
   }
 >()
+let warnedAboutRejectedDirectoryUrl = false
 
 function resolveDirectoryUrl(baseUrl: string | undefined): string {
   // PASEO_CAFE_DIRECTORY_URL is a lower-priority escape hatch for contexts that
@@ -295,9 +296,12 @@ function resolveDirectoryUrl(baseUrl: string | undefined): string {
   // transport check here; a rejected value falls back instead of silently
   // pointing the install button at an unauthenticated catalog.
   if (isTrustedCatalogUrl(fromEnv)) return fromEnv
-  console.error(
-    `Ignoring PASEO_CAFE_DIRECTORY_URL: ${fromEnv} must use HTTPS, or HTTP on localhost.`
-  )
+  if (!warnedAboutRejectedDirectoryUrl) {
+    console.error(
+      "Ignoring PASEO_CAFE_DIRECTORY_URL: catalog URL must use HTTPS, or HTTP on localhost."
+    )
+    warnedAboutRejectedDirectoryUrl = true
+  }
   return DEFAULT_DIRECTORY_URL
 }
 
@@ -315,6 +319,7 @@ async function fetchDirectory(baseUrl: string | undefined, force = false) {
   try {
     response = await fetch(url, {
       signal: controller.signal,
+      redirect: "error",
       headers: { accept: "application/json" },
     })
   } finally {
