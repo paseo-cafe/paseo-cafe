@@ -23,6 +23,10 @@ Plugins → Paseo Cafe** at another deployment (a local `bun run dev`, a staging
 self-hosted fork) that serves the same shape. `PASEO_CAFE_DIRECTORY_URL` on the daemon is a
 lower-priority fallback for hosts that cannot persist plugin settings.
 
+A custom catalog must use HTTPS, or HTTP on loopback (`localhost`, `127.0.0.0/8`, `[::1]`).
+The catalog picks which repositories the install button hands to the `paseo` CLI, so anyone
+able to rewrite a plaintext response chooses what gets installed on the daemon host.
+
 ## Limitations
 
 - Plugins listed here are community-submitted and are not vetted by paseo.cafe. They are
