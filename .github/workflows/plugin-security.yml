@@ -1,0 +1,80 @@
+name: Plugin security
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "registry/*.json"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: plugin-security-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Scan changed plugins
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out trusted scanner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install trusted dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Select changed registry targets
+        id: targets
+        run: >-
+          bun run security:targets
+          --event "$GITHUB_EVENT_PATH"
+          --output "$RUNNER_TEMP/plugin-security-targets.json"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Scan changed plugins
+        id: scan
+        if: steps.targets.outputs.count != '0'
+        continue-on-error: true
+        run: >-
+          bun run security:scan
+          --targets "$RUNNER_TEMP/plugin-security-targets.json"
+          --report "$RUNNER_TEMP/plugin-security-report.md"
+          --json "$RUNNER_TEMP/plugin-security-results.json"
+
+      - name: Write empty report
+        if: steps.targets.outputs.count == '0'
+        run: printf '# Security Scan\n\nNo added or changed registry entries.\n' > "$RUNNER_TEMP/plugin-security-report.md"
+
+      - name: Publish report
+        id: publish
+        if: always() && steps.targets.outcome == 'success'
+        run: >-
+          bun run security:publish
+          "$RUNNER_TEMP/plugin-security-report.md"
+          "$GITHUB_EVENT_PATH"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Enforce scan result
+        if: always()
+        env:
+          TARGETS_OUTCOME: ${{ steps.targets.outcome }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+        run: |
+          test "$TARGETS_OUTCOME" = success
+          test "$SCAN_OUTCOME" = success -o "$SCAN_OUTCOME" = skipped
+          test "$PUBLISH_OUTCOME" = success

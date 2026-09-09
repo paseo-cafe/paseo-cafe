@@ -20,7 +20,12 @@
     "registry:validate": "bun run scripts/validate-registry.ts",
     "registry:scan": "bun run scripts/scan.ts",
     "registry:ensure": "bun run scripts/scan.ts --if-missing",
-    "build:generated": "vite build"
+    "icons:build": "bun run scripts/build-icons.ts",
+    "build:generated": "vite build",
+    "security:targets": "bun run scripts/plugin-security/targets.ts",
+    "security:scan": "bun run scripts/plugin-security/scan.ts",
+    "security:publish": "bun run scripts/plugin-security/publish.ts",
+    "security:test": "vitest run scripts/plugin-security"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -44,6 +49,7 @@
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
+    "semver": "^7.7.3",
     "shadcn": "^4.19.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4",
@@ -58,6 +64,7 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22",
+    "@types/semver": "^7.7.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6",
