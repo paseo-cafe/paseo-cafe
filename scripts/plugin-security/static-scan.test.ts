@@ -29,9 +29,16 @@ describe("scanStaticFiles", () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
     const plugin = join(root, "plugin")
     mkdirSync(join(plugin, "src"), { recursive: true })
-    writeFileSync(join(plugin, "paseo-plugin.json"), JSON.stringify({ id: "plugin" }))
+    writeFileSync(
+      join(plugin, "paseo-plugin.json"),
+      JSON.stringify({ id: "plugin" })
+    )
     writeFileSync(join(plugin, "src", "index.ts"), "export {}")
-    const result = scanStaticFiles({ root, pluginPath: "plugin", registryId: "plugin" })
+    const result = scanStaticFiles({
+      root,
+      pluginPath: "plugin",
+      registryId: "plugin",
+    })
     expect(result.findings.some((f) => f.ruleId === "legacy-index")).toBe(false)
   })
 

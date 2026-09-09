@@ -33,8 +33,8 @@ export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
         "high",
         true,
         ".",
-        "scan exceeded limits or encountered unsupported filesystem state",
-      ),
+        "scan exceeded limits or encountered unsupported filesystem state"
+      )
     )
   return { files: state.files, bytes: state.bytes, findings, buildCommands }
 }
@@ -46,7 +46,7 @@ function walk(
   state: { files: number; bytes: number; incomplete: boolean },
   findings: SecurityFinding[],
   buildCommands: string[][],
-  registryId?: string,
+  registryId?: string
 ) {
   if (depth > MAX_DEPTH) {
     state.incomplete = true
@@ -58,7 +58,7 @@ function walk(
     if (entry.isSymbolicLink()) {
       state.incomplete = true
       findings.push(
-        finding("scanner", "symlink", "high", true, rel, "symlink rejected"),
+        finding("scanner", "symlink", "high", true, rel, "symlink rejected")
       )
       continue
     }
@@ -72,8 +72,8 @@ function walk(
           "high",
           true,
           rel,
-          "file exceeds size budget",
-        ),
+          "file exceeds size budget"
+        )
       )
       continue
     }
@@ -100,7 +100,7 @@ function validateManifest(
   path: string,
   registryId: string | undefined,
   findings: SecurityFinding[],
-  buildCommands: string[][],
+  buildCommands: string[][]
 ) {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
@@ -115,8 +115,8 @@ function validateManifest(
           "high",
           true,
           path,
-          "manifest id must match registry id",
-        ),
+          "manifest id must match registry id"
+        )
       )
     const req = parsed.requirements
     if (req !== undefined) {
@@ -128,8 +128,8 @@ function validateManifest(
             "high",
             true,
             path,
-            "requirements must be an object",
-          ),
+            "requirements must be an object"
+          )
         )
       else {
         const paseo = (req as { paseo?: unknown }).paseo
@@ -145,8 +145,8 @@ function validateManifest(
               "high",
               true,
               path,
-              "invalid requirements.paseo semver range",
-            ),
+              "invalid requirements.paseo semver range"
+            )
           )
       }
     }
@@ -158,7 +158,7 @@ function validateManifest(
           (cmd) =>
             Array.isArray(cmd) &&
             cmd.length > 0 &&
-            cmd.every((arg) => typeof arg === "string" && arg.length > 0),
+            cmd.every((arg) => typeof arg === "string" && arg.length > 0)
         )
       )
         findings.push(
@@ -168,11 +168,10 @@ function validateManifest(
             "high",
             true,
             path,
-            "build must be nonempty argv arrays",
-          ),
+            "build must be nonempty argv arrays"
+          )
         )
-      else
-        for (const cmd of parsed.build as string[][]) buildCommands.push(cmd)
+      else for (const cmd of parsed.build as string[][]) buildCommands.push(cmd)
     }
     for (const key of Object.keys(parsed))
       if (!["id", "requirements", "build"].includes(key))
@@ -183,19 +182,19 @@ function validateManifest(
             "medium",
             false,
             path,
-            `unknown manifest key ${key}`,
-          ),
+            `unknown manifest key ${key}`
+          )
         )
   } catch {
     findings.push(
-      finding("manifest", "json", "high", true, path, "invalid JSON manifest"),
+      finding("manifest", "json", "high", true, path, "invalid JSON manifest")
     )
   }
 }
 function validateEntrypoint(
   name: string,
   path: string,
-  findings: SecurityFinding[],
+  findings: SecurityFinding[]
 ) {
   if (name === "index.ts")
     findings.push(
@@ -205,14 +204,14 @@ function validateEntrypoint(
         "high",
         true,
         path,
-        "legacy-only index.ts is rejected",
-      ),
+        "legacy-only index.ts is rejected"
+      )
     )
 }
 function scanBoundaries(
   content: string,
   path: string,
-  findings: SecurityFinding[],
+  findings: SecurityFinding[]
 ) {
   if (
     /from\s+["']\.\.\/(client|server|shared)\//.test(content) ||
@@ -225,8 +224,8 @@ function scanBoundaries(
         "high",
         true,
         path,
-        "cross-runtime import boundary violated",
-      ),
+        "cross-runtime import boundary violated"
+      )
     )
 }
 function finding(
@@ -235,7 +234,7 @@ function finding(
   severity: string,
   blocking: boolean,
   path: string,
-  message: string,
+  message: string
 ): SecurityFinding {
   return { tool, ruleId, severity, blocking, path, message }
 }
