@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 import { lstatSync, readdirSync, readFileSync } from "node:fs"
-import { join, relative, resolve } from "node:path"
+import { dirname, join, normalize, relative, resolve } from "node:path"
 import * as semver from "semver"
+import * as ts from "typescript"
 import type { SecurityFinding } from "./shared.ts"
 
 export type StaticScanInput = {
@@ -208,14 +209,63 @@ function validateEntrypoint(
       )
     )
 }
+type PluginRuntime = "client" | "server" | "shared"
+
+function runtimeForPath(path: string): PluginRuntime | null {
+  const parts = path.split(/[\\/]/)
+  const directory = parts.length > 1 ? parts[0] : undefined
+  if (
+    directory === "client" ||
+    directory === "server" ||
+    directory === "shared"
+  )
+    return directory
+
+  const filename = parts.at(-1)
+  if (/^index\.client\.(?:ts|tsx)$/.test(filename ?? "")) return "client"
+  if (/^index\.server\.(?:ts|tsx)$/.test(filename ?? "")) return "server"
+  return null
+}
+
+function importedRuntime(
+  path: string,
+  specifier: string
+): PluginRuntime | null {
+  if (specifier.startsWith("."))
+    return runtimeForPath(normalize(join(dirname(path), specifier)))
+
+  const directory = specifier.split("/")[0]
+  return directory === "client" ||
+    directory === "server" ||
+    directory === "shared"
+    ? directory
+    : null
+}
+
+function crossesRuntimeBoundary(
+  source: PluginRuntime,
+  target: PluginRuntime
+): boolean {
+  if (source === "shared") return target !== "shared"
+  if (source === "client") return target === "server"
+  return target === "client"
+}
+
 function scanBoundaries(
   content: string,
   path: string,
   findings: SecurityFinding[]
 ) {
+  if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(path)) return
+  const source = runtimeForPath(path)
+  if (!source) return
+
+  const imports = ts.preProcessFile(content, true, true).importedFiles
   if (
-    /from\s+["']\.\.\/(client|server|shared)\//.test(content) ||
-    /from\s+["'](?:client|server|shared)\//.test(content)
+    imports.some(({ fileName }) => {
+      const target = importedRuntime(path, fileName)
+      return target !== null && crossesRuntimeBoundary(source, target)
+    })
   )
     findings.push(
       finding(
