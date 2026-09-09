@@ -9,7 +9,7 @@ from the plugin's own repo — authors don't fill out a form, they just point us
 registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
                          →  scripts/scan.ts              (build, dev, deployment, nightly)
                          →  ignored data/plugins/*.json + public assets
-                         →  src/routes/plugins.*.tsx (build imports data/plugins.json)
+                         →  Nitro prerender              (.output/public)
 ```
 
 1. **`registry/*.json`** is the only thing a human writes — a pointer at a repo (see
@@ -25,15 +25,12 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
    reads `paseo-plugin.json`, `package.json`, `README.md`, `LICENSE`, and `images/` straight from
    each plugin's repo, plus GitHub API metadata (stars, last commit, topics, license), and writes
    ignored, never-hand-edited records and public assets. See
-   `.github/workflows/enrich-and-deploy.yml`.
-4. The build imports the generated `data/plugins.json` via `src/lib/plugins-data.ts`; the running
-   site never talks to GitHub directly.
-
-5. **`.github/workflows/enrich-and-deploy.yml`** refreshes and verifies `data/` + `public/og` +
-   `public/sitemap.xml` + `public/robots.txt` in its working tree, then deploys that exact tree to
-   [Zerops](https://zerops.io) (`zerops.yaml`). Generated outputs are ignored rather than kept stale
-   on protected `main`. Zerops runs a persistent Bun server (via [Nitro](https://nitro.build), wired
-   up in `vite.config.ts`), so Vite/Nitro can inline `data/plugins.json` into the server bundle.
+   `.github/workflows/deploy-pages.yml`.
+4. The build imports the generated `data/plugins.json` via `src/lib/plugins-data.ts`, prerenders
+   every public page, and emits the directory API as the static `/api/plugins` asset.
+5. **`.github/workflows/deploy-pages.yml`** refreshes and verifies the generated data and assets,
+   builds `.output/public`, and publishes that artifact to GitHub Pages. The deployed site has no
+   application server or runtime GitHub API access.
 
 ## Submitting a plugin
 
@@ -71,9 +68,9 @@ bun run registry:validate   # check registry/*.json against live GitHub repos
 bun run dev                 # regenerate the listing, then serve http://localhost:3000
 ```
 
-`bun run build` ensures the generated listing exists before producing a deployable bundle. Run
-`bun run registry:scan` explicitly to refresh it. Other useful scripts: `bun run typecheck`,
-`bun run lint`, `bun run test`.
+`bun run build` ensures the generated listing exists before producing the static site in
+`.output/public`. Run `bun run registry:scan` explicitly to refresh it. Other useful scripts:
+`bun run typecheck`, `bun run lint`, `bun run test`.
 
 ## Stack
 

@@ -8,7 +8,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { getPlugins } from "@/lib/plugins-data"
+import { listPlugins } from "@/lib/plugins-data"
 import { seo } from "@/lib/seo"
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
 
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
   head: () =>
     seo({ title: SITE_NAME, description: SITE_DESCRIPTION, path: "/" }),
   component: App,
-  loader: () => getPlugins(),
+  loader: () => listPlugins(),
 })
 
 function App() {

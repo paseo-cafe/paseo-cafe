@@ -7,7 +7,6 @@
     "dev": "bun run registry:ensure && vite dev --port 3000",
     "build": "bun run registry:ensure && bun run build:generated",
     "preview": "vite preview",
-    "start": "bun run .output/server/index.mjs",
     "test": "bun run registry:ensure && vitest run",
     "lint": "biome lint --error-on-warnings .",
     "lint:app": "biome lint --error-on-warnings src scripts registry public/manifest.json *.ts *.json .cta.json",

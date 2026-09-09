@@ -47,9 +47,8 @@ jobs:
               - "tsconfig.json"
               - "vite.config.ts"
               - "vitest.config.ts"
-              - "zerops.yaml"
               - ".github/workflows/ci.yml"
-              - ".github/workflows/enrich-and-deploy.yml"
+              - ".github/workflows/deploy-pages.yml"
             plugin:
               - "plugin/**"
               - "package.json"

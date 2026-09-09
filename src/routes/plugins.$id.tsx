@@ -18,15 +18,15 @@ import { formatDate, formatDateTime } from "@/lib/format-date"
 import { getInstallCommand } from "@/lib/install-command"
 import { serializePluginJsonLd } from "@/lib/json-ld"
 import type { PluginHealth } from "@/lib/plugin-schema"
-import { getPlugins } from "@/lib/plugins-data"
+import { listPlugins } from "@/lib/plugins-data"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
 import { SITE_NAME } from "@/lib/site"
 
 export const Route = createFileRoute("/plugins/$id")({
   component: PluginDetail,
-  loader: async ({ params }) => {
-    const plugins = await getPlugins()
+  loader: ({ params }) => {
+    const plugins = listPlugins()
     const plugin = plugins.find((p) => p.id === params.id)
     if (!plugin) throw notFound()
     return plugin

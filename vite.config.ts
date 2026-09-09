@@ -12,10 +12,19 @@ const config = defineConfig({
     tailwindcss(),
     tanstackStart(),
     viteReact(),
-    // Bundles the SSR build into a single self-contained server at
-    // .output/server/index.mjs (deps inlined, no node_modules needed at
-    // runtime) — what Zerops actually deploys and runs. See zerops.yaml.
-    nitro(),
+    // GitHub Pages serves only files. Nitro prerenders the linked catalog
+    // pages and fixed routes into .output/public and fails the build if any
+    // route cannot be rendered.
+    nitro({
+      preset: "github_pages",
+      static: true,
+      prerender: {
+        crawlLinks: true,
+        failOnError: true,
+        ignore: ["/404.html"],
+        routes: ["/", "/submit", "/api/plugins"],
+      },
+    }),
   ],
 })
 
