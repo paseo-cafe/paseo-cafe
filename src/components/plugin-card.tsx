@@ -1,6 +1,7 @@
 import {
   IconPhotoOff,
   IconPlayerPlayFilled,
+  IconSparkles,
   IconStar,
   IconVersions,
 } from "@tabler/icons-react"
@@ -16,7 +17,18 @@ import {
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 
-export function PluginCard({ plugin }: { plugin: PluginRecord }) {
+/**
+ * `isNew` marks a plugin the directory gained since this visitor's previous
+ * visit (see src/lib/new-plugins.ts). It's per-browser, so it only ever
+ * arrives from a client-side caller — never from the record itself.
+ */
+export function PluginCard({
+  plugin,
+  isNew = false,
+}: {
+  plugin: PluginRecord
+  isNew?: boolean
+}) {
   return (
     <Link to="/plugins/$id" params={{ id: plugin.id }} className="block">
       <Card className="h-full pt-0 transition-shadow hover:shadow-md">
@@ -33,6 +45,11 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
               <IconPhotoOff className="size-6 text-foreground/20" />
             </div>
           )}
+          {isNew ? (
+            <Badge variant="default" className="absolute top-2 left-2 shadow">
+              <IconSparkles /> new
+            </Badge>
+          ) : null}
           {plugin.videos.length > 0 ? (
             <div
               className="absolute inset-0 flex items-center justify-center bg-black/20"

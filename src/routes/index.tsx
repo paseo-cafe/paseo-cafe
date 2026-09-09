@@ -96,7 +96,11 @@ function App() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filtered.map((plugin) => (
-                <PluginCard key={plugin.id} plugin={plugin} />
+                <PluginCard
+                  key={plugin.id}
+                  plugin={plugin}
+                  isNew={newIds.has(plugin.id)}
+                />
               ))}
             </div>
           )}
