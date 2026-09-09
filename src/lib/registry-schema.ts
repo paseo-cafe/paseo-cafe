@@ -33,8 +33,6 @@ export const registryIdSchema = z
  */
 export const registryEntrySchema = z
   .object({
-    /** Transitional compatibility for registry entries created before filename-derived IDs. */
-    id: registryIdSchema.optional(),
     /** GitHub "owner/repo". Just the repo, not a full URL. */
     repo: z
       .string()

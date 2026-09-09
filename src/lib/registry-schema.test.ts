@@ -69,11 +69,11 @@ describe("registryEntrySchema", () => {
     expect(result.success).toBe(false)
   })
 
-  it("accepts a legacy registry id during migration", () => {
+  it("rejects a redundant registry id field", () => {
     const result = registryEntrySchema.safeParse({
       id: "plugin",
       repo: "owner/repo",
     })
-    expect(result.success).toBe(true)
+    expect(result.success).toBe(false)
   })
 })

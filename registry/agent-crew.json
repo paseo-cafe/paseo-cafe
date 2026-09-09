@@ -1,5 +1,4 @@
 {
-  "id": "agent-crew",
   "repo": "omercnet/paseo-agent-crew",
   "categories": ["monitoring", "productivity", "orchestration"],
   "caveats": ["Requires Paseo 0.7.2 or newer"],
