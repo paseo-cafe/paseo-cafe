@@ -1,13 +1,14 @@
-import { VideoEmbedPlayer } from "@/components/video-embed"
-import type { PluginRecord } from "@/lib/plugin-schema"
+import { VideoEmbedPlayer } from "@/components/video-embed";
+import type { PluginRecord } from "@/lib/plugin-schema";
+import { ImageZoom } from "./kibo-ui/image-zoom";
 
 /** Combined screenshots + demo videos for a plugin's detail page. Videos first — they're the richer asset when present. */
 export function MediaGallery({
   plugin,
 }: {
-  plugin: Pick<PluginRecord, "name" | "images" | "videos">
+  plugin: Pick<PluginRecord, "name" | "images" | "videos">;
 }) {
-  if (plugin.images.length === 0 && plugin.videos.length === 0) return null
+  if (plugin.images.length === 0 && plugin.videos.length === 0) return null;
 
   return (
     <div>
@@ -22,14 +23,16 @@ export function MediaGallery({
           </div>
         ))}
         {plugin.images.map((src) => (
-          <img
-            key={src}
-            src={src}
-            alt={`${plugin.name} screenshot`}
-            className="w-full rounded-none ring-1 ring-foreground/10"
-          />
+          <ImageZoom>
+            <img
+              key={src}
+              src={src}
+              alt={`${plugin.name} screenshot`}
+              className="w-full rounded-none ring-1 ring-foreground/10"
+            />
+          </ImageZoom>
         ))}
       </div>
     </div>
-  )
+  );
 }

@@ -43,6 +43,7 @@
     "cn": "^0.2.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-medium-image-zoom": "^5.4.9",
     "rehype-sanitize": "^6.0.0",
     "rehype-stringify": "^10.0.1",
     "remark-gfm": "^4.0.1",
