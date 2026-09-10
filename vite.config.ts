@@ -11,7 +11,6 @@ const config = defineConfig({
     devtools(),
     tailwindcss(),
     tanstackStart(),
-    viteReact(),
     // GitHub Pages serves only files. Nitro prerenders the linked catalog
     // pages and fixed routes into .output/public and fails the build if any
     // route cannot be rendered.
@@ -25,6 +24,7 @@ const config = defineConfig({
         routes: ["/", "/submit", "/api/plugins"],
       },
     }),
+    viteReact(),
   ],
 })
 

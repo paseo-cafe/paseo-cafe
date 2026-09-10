@@ -37,20 +37,34 @@ function normalizeCategoryFilter(category: string): Category | "" {
     : ""
 }
 
-const searchSchema = z.object({
-  q: z.string().catch(HOME_SEARCH_DEFAULT.q),
+const routeSearchSchema = z.object({
+  q: z.string().optional().catch(undefined),
   category: z
     .string()
-    .catch(HOME_SEARCH_DEFAULT.category)
-    .transform(normalizeCategoryFilter),
-  sort: z.enum(sortValues).catch(HOME_SEARCH_DEFAULT.sort),
-  page: z.coerce.number().int().positive().catch(HOME_SEARCH_DEFAULT.page),
+    .optional()
+    .catch(undefined)
+    .transform((category) =>
+      category === undefined ? undefined : normalizeCategoryFilter(category)
+    ),
+  sort: z.enum(sortValues).optional().catch(undefined),
+  page: z.coerce.number().int().positive().optional().catch(undefined),
 })
 
-export type CatalogSearch = z.output<typeof searchSchema>
+export interface CatalogSearch {
+  q: string
+  category: Category | ""
+  sort: SortValue
+  page: number
+}
 
 export function parseCatalogSearch(search: unknown): CatalogSearch {
-  return searchSchema.parse(search)
+  const parsed = routeSearchSchema.parse(search)
+  return {
+    q: parsed.q ?? HOME_SEARCH_DEFAULT.q,
+    category: parsed.category ?? HOME_SEARCH_DEFAULT.category,
+    sort: parsed.sort ?? HOME_SEARCH_DEFAULT.sort,
+    page: parsed.page ?? HOME_SEARCH_DEFAULT.page,
+  }
 }
 
 export function clampCatalogPage(page: number, totalPages: number): number {
@@ -65,7 +79,7 @@ const collator = new Intl.Collator(undefined, {
 })
 
 export const Route = createFileRoute("/")({
-  validateSearch: parseCatalogSearch,
+  validateSearch: routeSearchSchema,
   head: () =>
     seo({ title: SITE_NAME, description: SITE_DESCRIPTION, path: "/" }),
   component: App,
@@ -74,7 +88,7 @@ export const Route = createFileRoute("/")({
 
 function App() {
   const plugins = Route.useLoaderData()
-  const search = Route.useSearch()
+  const search = parseCatalogSearch(Route.useSearch())
   const navigate = Route.useNavigate()
 
   const categoryCounts = useMemo(() => {
