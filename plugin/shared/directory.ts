@@ -11,6 +11,16 @@ export const DEFAULT_DIRECTORY_URL = "https://paseo.cafe/api/plugins"
 // Always the real site, independent of directorySettings.directoryUrl above —
 // "View on paseo.cafe" should never point at a local/staging override.
 const SITE_URL = "https://paseo.cafe"
+
+// The GitHub org that publishes official paseo.cafe plugins. Mirrors
+// src/lib/site.ts's OFFICIAL_GITHUB_ORG/isOfficialPlugin — kept as a local
+// copy since this package doesn't import from the web app's src/ tree.
+export const OFFICIAL_GITHUB_ORG = "paseo-cafe"
+export function isOfficialPlugin(entry: {
+  owner?: { login?: string }
+}): boolean {
+  return entry.owner?.login?.toLowerCase() === OFFICIAL_GITHUB_ORG.toLowerCase()
+}
 const MAX_HTTP_URL_LENGTH = 2_048
 const httpUrlSchema = z
   .url()

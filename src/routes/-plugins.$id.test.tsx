@@ -2,8 +2,9 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
+import { PluginSecurityScan } from "@/components/plugin-security-scan"
 import type { PluginSecurity } from "@/lib/plugin-schema"
-import { PluginSecurityScan, sanitizeReadmeHtmlForDisplay } from "./plugins.$id"
+import { sanitizeReadmeHtmlForDisplay } from "@/lib/sanitize-readme-html"
 
 const staleUnknownSecurity: PluginSecurity = {
   status: "unknown",

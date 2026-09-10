@@ -11,3 +11,10 @@ const catalog = z.array(pluginRecordSchema).parse(plugins)
 export function listPlugins(): PluginRecord[] {
   return catalog
 }
+
+export function listPluginsByOwner(login: string): PluginRecord[] {
+  const normalized = login.toLowerCase()
+  return catalog.filter(
+    (plugin) => plugin.owner?.login.toLowerCase() === normalized
+  )
+}

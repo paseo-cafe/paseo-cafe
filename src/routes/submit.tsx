@@ -8,9 +8,9 @@ import { createFileRoute, Link } from "@tanstack/react-router"
 import { CopyBlock } from "@/components/copy-block"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
 import { seo } from "@/lib/seo"
 import { SITE_REPO } from "@/lib/site"
-import { HOME_SEARCH_DEFAULT } from "@/routes/index"
 
 export const Route = createFileRoute("/submit")({
   head: () =>

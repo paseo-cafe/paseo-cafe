@@ -5,3 +5,15 @@ export const SITE_DESCRIPTION =
   "An independent, community-run directory of paseo.sh plugins, generated straight from each plugin's own GitHub repo."
 export const SITE_REPO = "paseo-cafe/paseo-cafe"
 export const SITE_URL = "https://paseo.cafe"
+
+/** The GitHub org that publishes official paseo.cafe plugins. */
+export const OFFICIAL_GITHUB_ORG = SITE_REPO.split("/")[0]
+
+/** Whether a plugin is published by the official paseo.cafe org, not a third party. */
+export function isOfficialPlugin(plugin: {
+  owner?: { login?: string }
+}): boolean {
+  return (
+    plugin.owner?.login?.toLowerCase() === OFFICIAL_GITHUB_ORG.toLowerCase()
+  )
+}

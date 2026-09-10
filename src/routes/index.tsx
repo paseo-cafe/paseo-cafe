@@ -1,82 +1,29 @@
-import { IconSearch } from "@tabler/icons-react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import { useEffect, useMemo } from "react"
-import { z } from "zod"
-import { PluginCard } from "@/components/plugin-card"
-import { Button } from "@/components/ui/button"
+import { CatalogResults } from "@/components/catalog-results"
+import { CatalogSidebar } from "@/components/catalog-sidebar"
+import { FeaturedSection } from "@/components/featured-section"
+import { InstallCallout } from "@/components/install-callout"
 import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group"
-import type { PluginRecord } from "@/lib/plugin-schema"
+  clampCatalogPage,
+  matchesPluginQuery,
+  parseCatalogSearch,
+  routeSearchSchema,
+  sortPlugins,
+} from "@/lib/catalog-search"
 import { listPlugins } from "@/lib/plugins-data"
 import {
   CATEGORIES,
-  CATEGORY_LABELS,
   type Category,
   normalizeCategory,
+  PLATFORMS,
+  type Platform,
 } from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
 
-export const HOME_SEARCH_DEFAULT = {
-  q: "",
-  category: "",
-  sort: "popular",
-  page: 1,
-} as const
-
-const sortValues = ["popular", "updated", "az"] as const
-type SortValue = (typeof sortValues)[number]
-
-function normalizeCategoryFilter(category: string): Category | "" {
-  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
-  return Object.hasOwn(CATEGORY_LABELS, normalized)
-    ? (normalized as Category)
-    : ""
-}
-
-const routeSearchSchema = z.object({
-  q: z.string().optional().catch(undefined),
-  category: z
-    .string()
-    .optional()
-    .catch(undefined)
-    .transform((category) =>
-      category === undefined ? undefined : normalizeCategoryFilter(category)
-    ),
-  sort: z.enum(sortValues).optional().catch(undefined),
-  page: z.coerce.number().int().positive().optional().catch(undefined),
-})
-
-export interface CatalogSearch {
-  q: string
-  category: Category | ""
-  sort: SortValue
-  page: number
-}
-
-export function parseCatalogSearch(search: unknown): CatalogSearch {
-  const parsed = routeSearchSchema.parse(search)
-  return {
-    q: parsed.q ?? HOME_SEARCH_DEFAULT.q,
-    category: parsed.category ?? HOME_SEARCH_DEFAULT.category,
-    sort: parsed.sort ?? HOME_SEARCH_DEFAULT.sort,
-    page: parsed.page ?? HOME_SEARCH_DEFAULT.page,
-  }
-}
-
-export function clampCatalogPage(page: number, totalPages: number): number {
-  return Math.min(page, Math.max(1, totalPages))
-}
-
 const SECTION_LIMIT = 6
 const PAGE_SIZE = 12
-const collator = new Intl.Collator(undefined, {
-  numeric: true,
-  sensitivity: "base",
-})
 
 export const Route = createFileRoute("/")({
   validateSearch: routeSearchSchema,
@@ -107,11 +54,34 @@ function App() {
   const categories = CATEGORIES.filter(
     (category) => categoryCounts[category] > 0
   )
+
+  const platformCounts = useMemo(() => {
+    const counts = Object.fromEntries(
+      PLATFORMS.map((platform) => [platform, 0])
+    ) as Record<Platform, number>
+
+    for (const plugin of plugins) {
+      for (const platform of new Set(plugin.platforms)) counts[platform] += 1
+    }
+
+    return counts
+  }, [plugins])
+
+  const platformsWithResults = PLATFORMS.filter(
+    (platform) => platformCounts[platform] > 0
+  )
+
+  const paseoCafePlugin = useMemo(
+    () => plugins.find((p) => p.id === "paseo-cafe"),
+    [plugins]
+  )
+
   const query = search.q.trim()
-  const hasFilters = query.length > 0 || search.category.length > 0
+  const hasFilters =
+    query.length > 0 || search.category.length > 0 || search.platform.length > 0
 
   const filtered = useMemo(() => {
-    if (!query && !search.category) return plugins
+    if (!query && !search.category && !search.platform) return plugins
 
     return plugins.filter((plugin) => {
       if (
@@ -121,10 +91,12 @@ function App() {
         )
       )
         return false
+      if (search.platform && !plugin.platforms.includes(search.platform))
+        return false
       if (!query) return true
       return matchesPluginQuery(plugin, query)
     })
-  }, [plugins, query, search.category])
+  }, [plugins, query, search.category, search.platform])
 
   const sorted = useMemo(
     () => sortPlugins(filtered, search.sort),
@@ -180,10 +152,10 @@ function App() {
           plugins. Every listing is generated straight from each plugin&apos;s
           own repo — no forms to fill out, just point us at the code.
         </p>
+        {paseoCafePlugin ? <InstallCallout plugin={paseoCafePlugin} /> : null}
       </div>
 
       <p className="text-foreground/60 text-sm">{summary}</p>
-
       <div className="mx-auto flex w-full flex-col gap-8 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1">
           {showFeatured ? (
@@ -201,266 +173,41 @@ function App() {
             </div>
           ) : null}
 
-          {sorted.length === 0 ? (
-            <p className="py-12 text-center text-foreground/50 text-sm">
-              No plugins match your filters.
-            </p>
-          ) : (
-            <section
-              className="mt-8 flex flex-col gap-3"
-              aria-labelledby="all-results-heading"
-            >
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h2
-                    id="all-results-heading"
-                    className="font-medium text-lg tracking-tight"
-                  >
-                    All plugins
-                  </h2>
-                  <p className="text-foreground/50 text-sm">
-                    Sorted by {sortLabels[search.sort]}.
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {pagePlugins.map((plugin) => (
-                  <PluginCard key={plugin.id} plugin={plugin} />
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <p className="text-foreground/50 text-sm" aria-live="polite">
-                  Showing {pageStart + 1}–{pageEnd} of {sorted.length} · Page{" "}
-                  {page} of {totalPages}
-                </p>
-                <nav className="flex gap-2" aria-label="Catalog pagination">
-                  {page === 1 ? (
-                    <Button type="button" variant="outline" disabled>
-                      Previous
-                    </Button>
-                  ) : (
-                    <Button
-                      nativeButton={false}
-                      variant="outline"
-                      render={
-                        <Link to="/" search={{ ...search, page: page - 1 }} />
-                      }
-                    >
-                      Previous
-                    </Button>
-                  )}
-                  {page === totalPages ? (
-                    <Button type="button" variant="outline" disabled>
-                      Next
-                    </Button>
-                  ) : (
-                    <Button
-                      nativeButton={false}
-                      variant="outline"
-                      render={
-                        <Link to="/" search={{ ...search, page: page + 1 }} />
-                      }
-                    >
-                      Next
-                    </Button>
-                  )}
-                </nav>
-              </div>
-            </section>
-          )}
+          <CatalogResults
+            plugins={pagePlugins}
+            search={search}
+            page={page}
+            totalPages={totalPages}
+            pageStart={pageStart}
+            pageEnd={pageEnd}
+            totalCount={sorted.length}
+          />
         </div>
 
-        <aside className="flex flex-col gap-3 bg-card p-3 lg:sticky lg:top-20 lg:w-64 lg:shrink-0 lg:self-start">
-          <div className="relative">
-            <InputGroup>
-              <InputGroupAddon align="inline-start">
-                <IconSearch />
-              </InputGroupAddon>
-              <InputGroupInput
-                value={search.q}
-                onChange={(e) => {
-                  const q = e.target.value
-                  navigate({
-                    search: (prev) => ({ ...prev, q, page: 1 }),
-                    replace: true,
-                  })
-                }}
-                placeholder="Search name, repo, owner…"
-                aria-label="Search plugins"
-              />
-            </InputGroup>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
-              Sort
-            </span>
-            <div className="flex flex-wrap gap-1">
-              {sortOptions.map((option) => (
-                <Button
-                  key={option}
-                  size="sm"
-                  onClick={() =>
-                    navigate({
-                      search: (prev) => ({ ...prev, sort: option, page: 1 }),
-                    })
-                  }
-                  aria-pressed={search.sort === option}
-                  className="h-auto w-fit text-sm!"
-                  variant={search.sort === option ? "default" : "outline"}
-                >
-                  {sortLabels[option]}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
-            Categories
-          </span>
-          <div className="flex flex-wrap gap-1">
-            <Button
-              size="sm"
-              onClick={() =>
-                navigate({
-                  search: (prev) => ({ ...prev, category: "", page: 1 }),
-                })
-              }
-              aria-pressed={search.category === ""}
-              className="h-auto w-fit text-sm!"
-              variant={search.category === "" ? "default" : "outline"}
-            >
-              All
-              <span className="text-xs! opacity-70">{plugins.length}</span>
-            </Button>
-            {categories.map((c) => (
-              <Button
-                key={c}
-                size="sm"
-                onClick={() =>
-                  navigate({
-                    search: (prev) => ({ ...prev, category: c, page: 1 }),
-                  })
-                }
-                aria-pressed={search.category === c}
-                className="h-auto w-fit text-sm!"
-                variant={search.category === c ? "default" : "outline"}
-              >
-                {CATEGORY_LABELS[c]}
-                <span className="text-xs! opacity-70">{categoryCounts[c]}</span>
-              </Button>
-            ))}
-          </div>
-
-          <Button
-            nativeButton={false}
-            variant="outline"
-            className="w-full"
-            render={<Link to="/submit" />}
-          >
-            Submit your plugin
-          </Button>
-        </aside>
+        <CatalogSidebar
+          search={search}
+          totalCount={plugins.length}
+          categories={categories}
+          categoryCounts={categoryCounts}
+          platforms={platformsWithResults}
+          platformCounts={platformCounts}
+          onQueryChange={(q) =>
+            navigate({
+              search: (prev) => ({ ...prev, q, page: 1 }),
+              replace: true,
+            })
+          }
+          onSortChange={(sort) =>
+            navigate({ search: (prev) => ({ ...prev, sort, page: 1 }) })
+          }
+          onCategoryChange={(category) =>
+            navigate({ search: (prev) => ({ ...prev, category, page: 1 }) })
+          }
+          onPlatformChange={(platform) =>
+            navigate({ search: (prev) => ({ ...prev, platform, page: 1 }) })
+          }
+        />
       </div>
     </div>
   )
 }
-
-function FeaturedSection({
-  title,
-  description,
-  plugins,
-}: {
-  title: string
-  description: string
-  plugins: PluginRecord[]
-}) {
-  if (plugins.length === 0) return null
-
-  return (
-    <section
-      className="flex flex-col gap-3"
-      aria-labelledby={`${title.toLowerCase().replaceAll(" ", "-")}-heading`}
-    >
-      <div>
-        <h2
-          id={`${title.toLowerCase().replaceAll(" ", "-")}-heading`}
-          className="font-medium text-lg tracking-tight"
-        >
-          {title}
-        </h2>
-        <p className="text-foreground/50 text-sm">{description}</p>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {plugins.map((plugin) => (
-          <Link
-            key={plugin.id}
-            to="/plugins/$id"
-            params={{ id: plugin.id }}
-            className="flex min-w-0 items-center justify-between gap-3 border border-border bg-card px-3 py-2 transition-colors hover:bg-muted"
-          >
-            <span className="truncate font-medium text-sm">{plugin.name}</span>
-            <span className="shrink-0 text-foreground/50 text-xs">
-              {plugin.repo}
-            </span>
-          </Link>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function sortPlugins(plugins: PluginRecord[], sort: SortValue): PluginRecord[] {
-  return [...plugins].sort((a, b) => {
-    switch (sort) {
-      case "popular":
-        return (
-          (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0) ||
-          comparePluginsByName(a, b)
-        )
-      case "updated":
-        return (
-          (Date.parse(b.repoMeta?.pushedAt ?? "") || 0) -
-            (Date.parse(a.repoMeta?.pushedAt ?? "") || 0) ||
-          comparePluginsByName(a, b)
-        )
-      case "az":
-        return comparePluginsByName(a, b)
-      default:
-        return 0
-    }
-  })
-}
-
-function comparePluginsByName(a: PluginRecord, b: PluginRecord): number {
-  return collator.compare(a.name, b.name) || collator.compare(a.id, b.id)
-}
-
-function matchesPluginQuery(plugin: PluginRecord, query: string): boolean {
-  const haystack = [
-    plugin.name,
-    plugin.description,
-    plugin.id,
-    plugin.repo,
-    plugin.author,
-    plugin.owner?.login,
-    plugin.categories.join(" "),
-    plugin.platforms.join(" "),
-    plugin.caveats.join(" "),
-    plugin.limitationsNotes,
-    plugin.paseoVersionRequirement,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-
-  return haystack.includes(query.toLowerCase())
-}
-
-const sortLabels: Record<SortValue, string> = {
-  popular: "Popular",
-  updated: "Recently updated",
-  az: "A–Z",
-}
-
-const sortOptions: SortValue[] = ["popular", "updated", "az"]

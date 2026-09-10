@@ -15,6 +15,7 @@ import { Route as SubmitRouteImport } from './routes/submit'
 import { Route as ApiPluginsRouteImport } from './routes/api.plugins'
 import { Route as PluginsIndexRouteImport } from './routes/plugins.index'
 import { Route as PluginsIdRouteImport } from './routes/plugins.$id'
+import { Route as UserUsernameRouteImport } from './routes/user.$username'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,11 @@ const PluginsIdRoute = PluginsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => PluginsRoute,
 } as any)
+const UserUsernameRoute = UserUsernameRouteImport.update({
+  id: '/user/$username',
+  path: '/user/$username',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/submit': typeof SubmitRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
+  '/user/$username': typeof UserUsernameRoute
   '/plugins/': typeof PluginsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/submit': typeof SubmitRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
+  '/user/$username': typeof UserUsernameRoute
   '/plugins': typeof PluginsIndexRoute
 }
 export interface FileRoutesById {
@@ -69,14 +77,27 @@ export interface FileRoutesById {
   '/submit': typeof SubmitRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
+  '/user/$username': typeof UserUsernameRoute
   '/plugins/': typeof PluginsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/plugins' | '/submit' | '/api/plugins' | '/plugins/$id' | '/plugins/'
+    | '/'
+    | '/plugins'
+    | '/submit'
+    | '/api/plugins'
+    | '/plugins/$id'
+    | '/user/$username'
+    | '/plugins/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/submit' | '/api/plugins' | '/plugins/$id' | '/plugins'
+  to:
+    | '/'
+    | '/submit'
+    | '/api/plugins'
+    | '/plugins/$id'
+    | '/user/$username'
+    | '/plugins'
   id:
     | '__root__'
     | '/'
@@ -84,6 +105,7 @@ export interface FileRouteTypes {
     | '/submit'
     | '/api/plugins'
     | '/plugins/$id'
+    | '/user/$username'
     | '/plugins/'
   fileRoutesById: FileRoutesById
 }
@@ -92,6 +114,7 @@ export interface RootRouteChildren {
   PluginsRoute: typeof PluginsRouteWithChildren
   SubmitRoute: typeof SubmitRoute
   ApiPluginsRoute: typeof ApiPluginsRoute
+  UserUsernameRoute: typeof UserUsernameRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -138,6 +161,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PluginsIdRouteImport
       parentRoute: typeof PluginsRoute
     }
+    '/user/$username': {
+      id: '/user/$username'
+      path: '/user/$username'
+      fullPath: '/user/$username'
+      preLoaderRoute: typeof UserUsernameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -159,6 +189,7 @@ const rootRouteChildren: RootRouteChildren = {
   PluginsRoute: PluginsRouteWithChildren,
   SubmitRoute: SubmitRoute,
   ApiPluginsRoute: ApiPluginsRoute,
+  UserUsernameRoute: UserUsernameRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
