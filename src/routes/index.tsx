@@ -13,6 +13,12 @@ import { listPlugins } from "@/lib/plugins-data"
 import { seo } from "@/lib/seo"
 import { selectAddedSince, selectUpdatedSince } from "@/lib/since-last-visit"
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
+import {
+  SORT_KEYS,
+  SORT_LABELS,
+  type SortKey,
+  sortPlugins,
+} from "@/lib/sort-plugins"
 
 export const Route = createFileRoute("/")({
   head: () =>
@@ -60,6 +66,7 @@ function App() {
   // a time: the two sets don't overlap, so combining them would only ever mean
   // "or", which the category filter above doesn't do either.
   const [recency, setRecency] = useState<"new" | "updated" | null>(null)
+  const [sort, setSort] = useState<SortKey>("name")
   const { lastVisit, ready } = useLastVisit()
 
   // What the directory gained and what changed version since this browser's
@@ -88,7 +95,7 @@ function App() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return plugins.filter((plugin) => {
+    const matches = plugins.filter((plugin) => {
       if (recency === "new" && !newIds.has(plugin.id)) return false
       if (recency === "updated" && !updatedIds.has(plugin.id)) return false
       if (category && !plugin.categories.includes(category)) return false
@@ -99,7 +106,8 @@ function App() {
         plugin.id.toLowerCase().includes(q)
       )
     })
-  }, [plugins, query, category, recency, newIds, updatedIds])
+    return sortPlugins(matches, sort)
+  }, [plugins, query, category, recency, newIds, updatedIds, sort])
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 pb-20">
@@ -157,6 +165,24 @@ function App() {
                 placeholder="Search plugins…"
               />
             </InputGroup>
+          </div>
+
+          <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
+            Sort by
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {SORT_KEYS.map((key) => (
+              <Button
+                key={key}
+                size={"sm"}
+                onClick={() => setSort(key)}
+                aria-pressed={sort === key}
+                className="h-auto w-fit text-sm!"
+                variant={sort === key ? "default" : "outline"}
+              >
+                {SORT_LABELS[key]}
+              </Button>
+            ))}
           </div>
 
           {ready && (newIds.size > 0 || updatedIds.size > 0) ? (
