@@ -144,7 +144,7 @@ interface PendingEligibility {
 }
 
 export interface InstallReportManager {
-  begin(pluginId: string): string | undefined
+  begin(pluginId: string): string
   confirm(reportToken: string, installed: boolean): void
   complete(reportToken: string, consent: boolean): boolean
   report(
@@ -212,7 +212,7 @@ export function createInstallReportManager(
 
   return {
     begin(pluginId) {
-      if (disposed || !reportingEnabled) return undefined
+      if (disposed || !reportingEnabled) return nonce()
       const reportToken = nonce()
       pending.set(reportToken, {
         pluginId,
@@ -238,7 +238,8 @@ export function createInstallReportManager(
     },
     complete(reportToken, consent) {
       const eligibility = pending.get(reportToken)
-      if (!reportingEnabled || !eligibility || eligibility.completed) return false
+      if (!reportingEnabled || !eligibility || eligibility.completed)
+        return false
       eligibility.completed = true
       eligibility.consent = consent
       if (!consent) {
@@ -257,7 +258,12 @@ export function createInstallReportManager(
       const generation = cancellationGeneration
       let accepted = 0
       for (const event of events) {
-        if (disposed || !reportingEnabled || generation !== cancellationGeneration) break
+        if (
+          disposed ||
+          !reportingEnabled ||
+          generation !== cancellationGeneration
+        )
+          break
         const reportToken = nonce()
         const controller = new AbortController()
         active.set(reportToken, controller)

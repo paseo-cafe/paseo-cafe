@@ -11,7 +11,6 @@ import {
 } from "./server/directory"
 import { createInstallReportManager } from "./server/telemetry"
 import {
-  directorySetInstallReportingRpc,
   directoryCompleteInstallReportRpc,
   directoryInstallRpc,
   directoryListRpc,
@@ -20,6 +19,7 @@ import {
   directoryReportLifecycleRpc,
   directorySearchRpc,
   directorySecuritySearchRpc,
+  directorySetInstallReportingRpc,
   directorySettings,
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
