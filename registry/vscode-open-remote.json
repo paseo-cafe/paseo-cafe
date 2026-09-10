@@ -1,0 +1,10 @@
+{
+  "repo": "panrafal/paseo-plugins",
+  "path": "vscode-open-remote",
+  "categories": ["productivity"],
+  "caveats": [
+    "Hidden on phones. Tablets need a VS Code tunnel whose name matches the Paseo host",
+    "Install on each remote daemon; a local install also adds pills there"
+  ],
+  "submittedBy": "panrafal"
+}

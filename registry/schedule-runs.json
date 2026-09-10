@@ -1,0 +1,9 @@
+{
+  "repo": "panrafal/paseo-plugins",
+  "path": "schedule-runs",
+  "categories": ["monitoring", "productivity"],
+  "caveats": [
+    "Read-only feed of existing schedule runs; it does not create, pause, or delete schedules"
+  ],
+  "submittedBy": "panrafal"
+}

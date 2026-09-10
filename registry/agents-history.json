@@ -1,0 +1,9 @@
+{
+  "repo": "panrafal/paseo-plugins",
+  "path": "agents-history",
+  "categories": ["monitoring", "productivity"],
+  "caveats": [
+    "Reads on-disk provider transcripts; writes only its own search index under plugin-data"
+  ],
+  "submittedBy": "panrafal"
+}

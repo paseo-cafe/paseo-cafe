@@ -1,0 +1,9 @@
+{
+  "repo": "panrafal/paseo-plugins",
+  "path": "chat-resume",
+  "categories": ["productivity"],
+  "caveats": [
+    "Pills appear only when the latest agent error is a usage-limit / quota exhaustion"
+  ],
+  "submittedBy": "panrafal"
+}

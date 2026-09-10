@@ -1,0 +1,9 @@
+{
+  "repo": "panrafal/paseo-plugins",
+  "path": "agent-heartbeats",
+  "categories": ["productivity"],
+  "caveats": [
+    "Changing a heartbeat prompt or max-run count creates a replacement and resets run history"
+  ],
+  "submittedBy": "panrafal"
+}

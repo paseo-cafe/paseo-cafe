@@ -1,0 +1,9 @@
+{
+  "repo": "panrafal/paseo-plugins",
+  "path": "agents-dash-list",
+  "categories": ["monitoring", "productivity"],
+  "caveats": [
+    "Unread marks stay on the daemon that stored them and do not sync across hosts"
+  ],
+  "submittedBy": "panrafal"
+}

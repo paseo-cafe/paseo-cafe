@@ -1,0 +1,9 @@
+{
+  "repo": "panrafal/paseo-plugins",
+  "path": "session-usage",
+  "categories": ["monitoring", "productivity"],
+  "caveats": [
+    "Reads local Claude and Codex transcripts; does not contact provider billing APIs"
+  ],
+  "submittedBy": "panrafal"
+}

@@ -1,0 +1,9 @@
+{
+  "repo": "panrafal/paseo-plugins",
+  "path": "task-link",
+  "categories": ["productivity"],
+  "caveats": [
+    "Shipped default matches CT-1234 Notion links; change the pattern and URL in settings first"
+  ],
+  "submittedBy": "panrafal"
+}
