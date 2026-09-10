@@ -1,0 +1,11 @@
+{
+  "repo": "mcowger/paseo-plugins",
+  "path": "colorful-agent-activity",
+  "categories": ["productivity"],
+  "caveats": [
+    "Requires Paseo Tool call detail to be set to Detailed",
+    "Disable reasoning-display while this plugin is enabled",
+    "Only public agent tool calls are transformed; internal orchestrator calls remain native"
+  ],
+  "submittedBy": "mcowger"
+}
