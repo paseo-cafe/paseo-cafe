@@ -1,0 +1,9 @@
+{
+  "repo": "mcowger/paseo-plugins",
+  "path": "reasoning-display",
+  "categories": ["productivity"],
+  "caveats": [
+    "Only applies to reasoning entries reported by the active provider."
+  ],
+  "submittedBy": "mcowger"
+}

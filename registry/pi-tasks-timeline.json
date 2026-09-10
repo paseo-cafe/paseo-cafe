@@ -1,0 +1,9 @@
+{
+  "repo": "mcowger/paseo-plugins",
+  "path": "pi-tasks-timeline",
+  "categories": ["productivity", "monitoring"],
+  "caveats": [
+    "Requires a compatible Pi todo producer; only supported completed todo result shapes are recognized."
+  ],
+  "submittedBy": "mcowger"
+}

@@ -1,0 +1,9 @@
+{
+  "repo": "mcowger/paseo-plugins",
+  "path": "session-summary",
+  "categories": ["monitoring", "productivity"],
+  "caveats": [
+    "Older timeline history is capped, and provider-specific usage fields appear only when reported by Paseo."
+  ],
+  "submittedBy": "mcowger"
+}

@@ -1,0 +1,9 @@
+{
+  "repo": "mcowger/paseo-plugins",
+  "path": "opencode-session-overview",
+  "categories": ["monitoring", "productivity"],
+  "caveats": [
+    "Requires an OpenCode agent in Paseo."
+  ],
+  "submittedBy": "mcowger"
+}

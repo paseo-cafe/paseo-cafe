@@ -1,5 +1,9 @@
 {
   "repo": "mcowger/paseo-plugins",
   "path": "subagent-activity",
-  "categories": ["monitoring"]
+  "categories": ["monitoring"],
+  "caveats": [
+    "Provider-native subagent activity is best effort and may omit model, token, or independent lifecycle data."
+  ],
+  "submittedBy": "mcowger"
 }
