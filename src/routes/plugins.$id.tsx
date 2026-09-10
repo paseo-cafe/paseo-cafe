@@ -10,11 +10,11 @@ import {
 } from "@tabler/icons-react"
 import { createFileRoute, Link, notFound } from "@tanstack/react-router"
 import { CopyCommand } from "@/components/copy-command"
+import { LocalDate, LocalDateTime } from "@/components/local-date"
 import { MediaGallery } from "@/components/media-gallery"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { formatDate, formatDateTime } from "@/lib/format-date"
 import { getInstallCommand } from "@/lib/install-command"
 import { serializePluginJsonLd } from "@/lib/json-ld"
 import type { PluginHealth } from "@/lib/plugin-schema"
@@ -135,13 +135,17 @@ function PluginDetail() {
         {plugin.version ? (
           <span>
             Version {plugin.version}
-            {plugin.updatedAt
-              ? `, released ${formatDate(plugin.updatedAt)}`
-              : ""}
+            {plugin.updatedAt ? (
+              <>
+                , released <LocalDate iso={plugin.updatedAt} />
+              </>
+            ) : null}
           </span>
         ) : null}
         {plugin.repoMeta ? (
-          <span>Last commit {formatDate(plugin.repoMeta.pushedAt)}</span>
+          <span>
+            Last commit <LocalDate iso={plugin.repoMeta.pushedAt} />
+          </span>
         ) : null}
         <a
           href={plugin.url}
@@ -274,7 +278,7 @@ function PluginDetail() {
       </div>
 
       <p className="text-foreground/40 text-xs">
-        Scanned {formatDateTime(plugin.scannedAt)} from {plugin.repo}
+        Scanned <LocalDateTime iso={plugin.scannedAt} /> from {plugin.repo}
         {plugin.path ? `/${plugin.path}` : ""}.
       </p>
     </div>

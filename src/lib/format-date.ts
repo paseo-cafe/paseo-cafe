@@ -33,3 +33,60 @@ export function formatDateTime(iso: string): string {
   const d = new Date(iso)
   return `${formatDate(iso)}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`
 }
+
+/**
+ * The same instants in the reader's own date format. Pinned to UTC so the
+ * calendar day matches what the record, the API and the sitemap say — only the
+ * presentation is localized, never which day it lands on.
+ *
+ * These depend on the runtime's locale and so must never run during the
+ * prerender; render them after hydration via <LocalDate> (see
+ * src/components/local-date.tsx), which falls back to the formats above.
+ */
+function localized(
+  iso: string,
+  locales: Intl.LocalesArgument,
+  options: Intl.DateTimeFormatOptions,
+  fallback: (iso: string) => string
+): string {
+  const d = new Date(iso)
+  // Intl throws on an invalid date, and a date we can't read is not worth
+  // breaking a page over.
+  if (Number.isNaN(d.getTime())) return fallback(iso)
+  return new Intl.DateTimeFormat(locales, {
+    ...options,
+    timeZone: "UTC",
+  }).format(d)
+}
+
+export function formatDateLocalized(
+  iso: string,
+  locales?: Intl.LocalesArgument
+): string {
+  return localized(
+    iso,
+    locales,
+    { year: "numeric", month: "short", day: "numeric" },
+    formatDate
+  )
+}
+
+export function formatDateTimeLocalized(
+  iso: string,
+  locales?: Intl.LocalesArgument
+): string {
+  return localized(
+    iso,
+    locales,
+    {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      // Times stay on UTC's clock, so say so rather than let it read as local.
+      timeZoneName: "short",
+    },
+    formatDateTime
+  )
+}

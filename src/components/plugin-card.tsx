@@ -7,6 +7,7 @@ import {
   IconVersions,
 } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
+import { LocalDate } from "@/components/local-date"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -15,7 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { formatDate } from "@/lib/format-date"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 
@@ -23,11 +23,11 @@ import { PLATFORM_LABELS } from "@/lib/registry-schema"
 function sortedDateNote(
   plugin: PluginRecord,
   showDate: "added" | "updated" | undefined
-): string | null {
+): { label: string; iso: string } | null {
   if (showDate === "added" && plugin.addedAt)
-    return `Added ${formatDate(plugin.addedAt)}`
+    return { label: "Added", iso: plugin.addedAt }
   if (showDate === "updated" && plugin.updatedAt)
-    return `Updated ${formatDate(plugin.updatedAt)}`
+    return { label: "Updated", iso: plugin.updatedAt }
   return null
 }
 
@@ -111,7 +111,9 @@ export function PluginCard({
             </div>
           ) : null}
           {dateNote ? (
-            <span className="text-foreground/50 text-xs">{dateNote}</span>
+            <span className="text-foreground/50 text-xs">
+              {dateNote.label} <LocalDate iso={dateNote.iso} />
+            </span>
           ) : null}
         </CardHeader>
         <CardContent className="flex flex-wrap gap-1.5">
