@@ -7,6 +7,7 @@ vi.mock("@getpaseo/plugin/client/react-native", () => ({
   Icon: () => null,
 }))
 vi.mock("react-native", () => ({
+  Platform: { OS: "web" },
   Image: () => null,
   Pressable: () => null,
   Text: () => null,

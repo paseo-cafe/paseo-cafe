@@ -26,8 +26,10 @@ import {
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
   findInstallations,
+  getInstallRef,
   normalizeDirectoryCategories,
 } from "../shared/directory"
+import { filterAccessibilityLabel } from "./accessibility"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
 import { PluginRow } from "./PluginRow"
@@ -48,7 +50,7 @@ interface FilterRowProps<T extends string> {
   options: readonly T[]
   selected: ReadonlySet<T>
   theme: PluginTheme
-  compact: boolean
+  largeTouchTarget: boolean
   allCount?: number
   getCount?: (value: T) => number | undefined
   formatOption?: (value: T) => string
@@ -61,7 +63,7 @@ function FilterRow<T extends string>({
   options,
   selected,
   theme,
-  compact,
+  largeTouchTarget,
   allCount,
   getCount,
   formatOption,
@@ -84,7 +86,7 @@ function FilterRow<T extends string>({
         letterSpacing: 0.8,
       },
       chip: (active: boolean) => ({
-        minHeight: compact ? 44 : 32,
+        minHeight: largeTouchTarget ? 44 : 32,
         justifyContent: "center" as const,
         borderWidth: 1,
         borderColor: active ? theme.colors.accent : theme.colors.border,
@@ -102,7 +104,7 @@ function FilterRow<T extends string>({
           : theme.colors.foregroundMuted,
       }),
     }),
-    [theme, compact]
+    [theme, largeTouchTarget]
   )
 
   if (options.length === 0) return null
@@ -112,7 +114,11 @@ function FilterRow<T extends string>({
       <Text style={styles.label}>{label.toUpperCase()}</Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Clear ${label.toLowerCase()} filter`}
+        accessibilityLabel={filterAccessibilityLabel(
+          "clear",
+          label.toLowerCase(),
+          allCount
+        )}
         accessibilityState={{ selected: selected.size === 0 }}
         style={styles.chip(selected.size === 0)}
         onPress={onClear}
@@ -124,18 +130,23 @@ function FilterRow<T extends string>({
       {options.map((option) => {
         const active = selected.has(option)
         const optionLabel = formatOption?.(option) ?? option
+        const count = getCount?.(option)
         return (
           <Pressable
             key={option}
             accessibilityRole="button"
-            accessibilityLabel={`Filter by ${optionLabel}`}
+            accessibilityLabel={filterAccessibilityLabel(
+              "filter",
+              optionLabel,
+              count
+            )}
             accessibilityState={{ selected: active }}
             style={styles.chip(active)}
             onPress={() => onToggle(option)}
           >
             <Text style={styles.chipText(active)}>
               {optionLabel}
-              {getCount ? ` ${getCount(option) ?? "—"}` : ""}
+              {getCount ? ` ${count ?? "—"}` : ""}
             </Text>
           </Pressable>
         )
@@ -157,13 +168,13 @@ function StatusFilterRow({
   options,
   selected,
   theme,
-  compact,
+  largeTouchTarget,
   onSelect,
 }: {
   options: readonly StatusFilterOption[]
   selected: InstallationStatusFilter
   theme: PluginTheme
-  compact: boolean
+  largeTouchTarget: boolean
   onSelect: (value: InstallationStatusFilter) => void
 }) {
   const styles = useMemo(
@@ -182,7 +193,7 @@ function StatusFilterRow({
         letterSpacing: 0.8,
       },
       chip: (active: boolean) => ({
-        minHeight: compact ? 44 : 32,
+        minHeight: largeTouchTarget ? 44 : 32,
         justifyContent: "center" as const,
         borderWidth: 1,
         borderColor: active ? theme.colors.accent : theme.colors.border,
@@ -200,7 +211,7 @@ function StatusFilterRow({
         fontWeight: "600" as const,
       }),
     }),
-    [theme, compact]
+    [theme, largeTouchTarget]
   )
 
   return (
@@ -386,13 +397,13 @@ function SortRow({
   options,
   selected,
   theme,
-  compact,
+  largeTouchTarget,
   onSelect,
 }: {
   options: readonly SortOption[]
   selected: SortMode
   theme: PluginTheme
-  compact: boolean
+  largeTouchTarget: boolean
   onSelect: (value: SortMode) => void
 }) {
   const styles = useMemo(
@@ -411,7 +422,7 @@ function SortRow({
         letterSpacing: 0.8,
       },
       chip: (active: boolean) => ({
-        minHeight: compact ? 44 : 32,
+        minHeight: largeTouchTarget ? 44 : 32,
         justifyContent: "center" as const,
         borderWidth: 1,
         borderColor: active ? theme.colors.accent : theme.colors.border,
@@ -429,7 +440,7 @@ function SortRow({
         fontWeight: "600" as const,
       }),
     }),
-    [theme, compact]
+    [theme, largeTouchTarget]
   )
 
   return (
@@ -604,9 +615,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     mutationFn: (entry: DirectoryEntry): Promise<InstallResult> => {
       setInstallingId(entry.id)
       setInstallFailure(null)
+      const ref = getInstallRef(entry.repoMeta?.defaultBranch)
       return installPlugin({
         repo: entry.repo,
         path: entry.path,
+        ref,
+        expectedCommit: ref ? entry.security?.commit : undefined,
       }) as Promise<InstallResult>
     },
     onSuccess: async (result: InstallResult, entry: DirectoryEntry) => {
@@ -1111,14 +1125,14 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                 options={SORT_OPTIONS}
                 selected={sortMode}
                 theme={theme}
-                compact={layout.compact}
+                largeTouchTarget={layout.compact || layout.platform !== "web"}
                 onSelect={setSortMode}
               />
               <StatusFilterRow
                 options={statusOptions}
                 selected={effectiveStatusFilter}
                 theme={theme}
-                compact={layout.compact}
+                largeTouchTarget={layout.compact || layout.platform !== "web"}
                 onSelect={setStatusFilter}
               />
               <View style={styles.filtersBlock}>
@@ -1129,7 +1143,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                   options={allCategories}
                   selected={categoryFilter}
                   theme={theme}
-                  compact={layout.compact}
+                  largeTouchTarget={layout.compact || layout.platform !== "web"}
                   formatOption={(category) =>
                     DIRECTORY_CATEGORY_LABELS[category]
                   }
@@ -1145,7 +1159,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                   options={allPlatforms}
                   selected={platformFilter}
                   theme={theme}
-                  compact={layout.compact}
+                  largeTouchTarget={layout.compact || layout.platform !== "web"}
                   formatOption={(platform) =>
                     DIRECTORY_PLATFORM_LABELS[
                       platform as keyof typeof DIRECTORY_PLATFORM_LABELS

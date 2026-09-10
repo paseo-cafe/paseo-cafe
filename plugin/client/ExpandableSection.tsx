@@ -3,6 +3,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native"
 import type { ReactNode } from "react"
 import { useMemo, useState } from "react"
 import { Pressable, Text, View } from "react-native"
+import { expandableAccessibilityLabel } from "./accessibility"
 import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 
 interface ExpandableSectionProps {
@@ -71,7 +72,11 @@ export function ExpandableSection({
     <View style={styles.container}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${title}`}
+        accessibilityLabel={expandableAccessibilityLabel(
+          expanded,
+          title,
+          subtitle
+        )}
         accessibilityState={{ expanded }}
         style={styles.summary}
         onPress={() => setExpanded((current) => !current)}

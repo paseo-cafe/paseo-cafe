@@ -8,11 +8,20 @@ import { z } from "zod"
 import {
   CATALOG_CATEGORIES,
   CATALOG_CATEGORY_LABELS,
+  CATALOG_HEALTH_KEYS,
   CATALOG_HEALTH_LABELS,
   CATALOG_PLATFORM_LABELS,
   type CatalogCategory,
+  type CatalogHealthCheck,
   getCatalogInstallCommand,
+  getCatalogInstallRef,
+  getCatalogRepositoryOwner,
+  getCatalogRepositoryUrl,
   isOfficialCatalogPlugin,
+  isValidCatalogCommit,
+  isValidCatalogPath,
+  isValidCatalogRef,
+  isValidCatalogRepository,
   normalizeCatalogCategories,
   normalizeCatalogCategory,
   normalizeCatalogCategoryFilter,
@@ -336,6 +345,15 @@ const directoryManifestSchema = z
     }
   })
 
+const directoryHealthShape = {
+  manifestValid: z.boolean().optional(),
+  hasReadme: z.boolean().optional(),
+  hasLicense: z.boolean().optional(),
+  hasTests: z.boolean().optional(),
+  hasTypecheckScript: z.boolean().optional(),
+  updatedRecently: z.boolean().optional(),
+} satisfies Record<CatalogHealthCheck, z.ZodType<boolean | undefined>>
+
 /**
  * Trimmed mirror of the PluginRecord shape served by https://paseo.cafe/api/plugins
  * (see src/lib/plugin-schema.ts and src/routes/api.plugins.ts in the site). Keep
@@ -344,8 +362,15 @@ const directoryManifestSchema = z
  */
 export const directoryEntrySchema = z.object({
   id: z.string().max(200),
-  repo: z.string().max(200),
-  path: z.string().max(500).optional(),
+  repo: z
+    .string()
+    .max(200)
+    .refine(isValidCatalogRepository, "Expected a GitHub owner/repository"),
+  path: z
+    .string()
+    .max(500)
+    .refine(isValidCatalogPath, "Expected a safe repository subpath")
+    .optional(),
   url: httpUrlSchema,
   name: z.string().max(200),
   description: z.string().max(4_000).default(""),
@@ -373,16 +398,7 @@ export const directoryEntrySchema = z.object({
   limitationsNotesHtml: z.string().max(100_000).optional(),
   scanError: z.string().max(4_000).optional(),
   scannedAt: z.string().max(100).optional(),
-  health: z
-    .object({
-      manifestValid: z.boolean().optional(),
-      hasReadme: z.boolean().optional(),
-      hasLicense: z.boolean().optional(),
-      hasTests: z.boolean().optional(),
-      hasTypecheckScript: z.boolean().optional(),
-      updatedRecently: z.boolean().optional(),
-    })
-    .optional(),
+  health: z.object(directoryHealthShape).optional(),
   // Mirrors src/lib/plugin-schema.ts's pluginSecuritySchema invariants — a
   // remote catalog is untrusted input, so the consumer must enforce at
   // least as much as the producer: a non-"unknown" verdict must carry a
@@ -435,6 +451,7 @@ export const directoryEntrySchema = z.object({
         .nonnegative()
         .max(Number.MAX_SAFE_INTEGER)
         .optional(),
+      defaultBranch: z.string().max(255).optional(),
       pushedAt: z.string().max(100).optional(),
     })
     .optional(),
@@ -560,6 +577,15 @@ export const directoryInstallRpc = defineRpc({
   input: z.object({
     repo: z.string(),
     path: z.string().optional(),
+    ref: z
+      .string()
+      .max(255)
+      .refine(isValidCatalogRef, "Expected a valid Git branch")
+      .optional(),
+    expectedCommit: z
+      .string()
+      .regex(/^[0-9a-f]{40}$/i)
+      .optional(),
   }),
   output: z.object({
     ok: z.boolean(),
@@ -584,30 +610,34 @@ export const directoryUpdateRpc = defineRpc({
   }),
 })
 
-// GitHub "owner/repo" — one slash, conservative charset. Checked on both sides:
-// the client disables Install for anything that fails this, and the server
-// re-checks it right before exec'ing the CLI, since that's the boundary that
-// actually matters (see server/directory.ts).
-const REPO_PATTERN =
-  /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/
+// These aliases keep the plugin API stable while sharing the exact validation
+// used by official classification and command generation.
+export const isValidRepo = isValidCatalogRepository
+export const isValidInstallPath = isValidCatalogPath
+export const isValidCommit = isValidCatalogCommit
+export const isValidRef = isValidCatalogRef
+export const getInstallRef = getCatalogInstallRef
 
-// Relative subpath within a repo — no leading slash, no ".." segments.
-const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
-
-export function isValidRepo(repo: string): boolean {
-  return REPO_PATTERN.test(repo)
+export const getRepositoryOwner = getCatalogRepositoryOwner
+export function getInstallCommand(
+  entry: Pick<DirectoryEntry, "repo" | "path" | "repoMeta">
+): string | undefined {
+  return getCatalogInstallCommand({
+    repo: entry.repo,
+    path: entry.path,
+    ref: entry.repoMeta?.defaultBranch,
+  })
 }
 
-export function isValidInstallPath(path: string): boolean {
-  const segments = path.split("/")
-  return segments.every(
-    (segment) => segment !== ".." && PATH_SEGMENT_PATTERN.test(segment)
-  )
+export function getRepositoryUrl(
+  entry: Pick<DirectoryEntry, "repo" | "path" | "security">
+): string {
+  return getCatalogRepositoryUrl({
+    repo: entry.repo,
+    path: entry.path,
+    ref: entry.security?.commit,
+  })
 }
-
-export const getInstallCommand: (
-  entry: Pick<DirectoryEntry, "repo" | "path">
-) => string = getCatalogInstallCommand
 
 export function getSiteUrl(entry: Pick<DirectoryEntry, "id">): string {
   return `${SITE_URL}/plugins/${encodeURIComponent(entry.id)}`
@@ -617,7 +647,7 @@ const GITHUB_NEW_ISSUE_URL =
   "https://github.com/paseo-cafe/paseo-cafe/issues/new"
 
 export function getReportPluginIssueUrl(
-  entry: Pick<DirectoryEntry, "id" | "url">
+  entry: Pick<DirectoryEntry, "id" | "repo" | "path" | "security">
 ): string {
   const url = new URL(GITHUB_NEW_ISSUE_URL)
   url.searchParams.set("title", `Report plugin: ${entry.id}`)
@@ -628,7 +658,7 @@ export function getReportPluginIssueUrl(
       "Describe the problem you saw, what you expected, and how to reproduce it.",
       "",
       `- Plugin ID: \`${entry.id}\``,
-      `- Source repository: ${entry.url}`,
+      `- Source repository: ${getRepositoryUrl(entry)}`,
       `- Paseo listing: ${getSiteUrl(entry)}`,
       "",
       "## Additional context",
@@ -704,3 +734,4 @@ export function stripHtml(html: string): string {
 }
 
 export const HEALTH_LABELS: Record<string, string> = CATALOG_HEALTH_LABELS
+export const HEALTH_KEYS = CATALOG_HEALTH_KEYS

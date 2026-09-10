@@ -17,12 +17,14 @@ import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
   getInstallCommand,
+  getInstallRef,
   getReportPluginIssueUrl,
+  getRepositoryOwner,
+  getRepositoryUrl,
   getSiteUrl,
+  HEALTH_KEYS,
   HEALTH_LABELS,
   isOfficialPlugin,
-  isValidInstallPath,
-  isValidRepo,
   stripHtml,
 } from "../shared/directory"
 import { ExpandableSection } from "./ExpandableSection"
@@ -446,6 +448,11 @@ export function PluginDetailPage({
   )
 
   const command = getInstallCommand(entry)
+  const installRef = getInstallRef(entry.repoMeta?.defaultBranch)
+  const repositoryUrl = getRepositoryUrl(entry)
+  const repositoryOwner = getRepositoryOwner(entry.repo)
+  const ownerMetadataMatchesRepository =
+    entry.owner?.login?.toLowerCase() === repositoryOwner.toLowerCase()
   const tags = [
     ...entry.categories.map(
       (category) =>
@@ -488,9 +495,7 @@ export function PluginDetailPage({
   const securityFindingsSummary = securityAttestation
     ? `${securityAttestation.blockingFindings} blocking · ${securityAttestation.advisoryFindings} advisory`
     : undefined
-  const healthValues = Object.keys(HEALTH_LABELS).map(
-    (key) => health?.[key as keyof NonNullable<DirectoryEntry["health"]>]
-  )
+  const healthValues = HEALTH_KEYS.map((key) => health?.[key])
   const knownHealthChecks = healthValues.filter(
     (value) => value !== undefined
   ).length
@@ -511,9 +516,7 @@ export function PluginDetailPage({
   const catalogScannedDate = formatDate(entry.scannedAt)
   const securityScannedDate = formatDate(securityAttestation?.scannedAt)
   const securityReportUrl = securityAttestation?.reportUrl
-  const installable =
-    isValidRepo(entry.repo) &&
-    (entry.path === undefined || isValidInstallPath(entry.path))
+  const installable = command !== undefined
   const actionPending = installing || updatingId !== null
   const reportPluginUrl = getReportPluginIssueUrl(entry)
   const actionError = installations.length > 0 ? updateError : installError
@@ -545,7 +548,7 @@ export function PluginDetailPage({
           ) : null}
         </View>
         <View style={styles.ownerRow}>
-          {entry.owner?.avatarUrl ? (
+          {ownerMetadataMatchesRepository && entry.owner?.avatarUrl ? (
             <Image
               accessible={false}
               source={{ uri: entry.owner.avatarUrl }}
@@ -558,9 +561,7 @@ export function PluginDetailPage({
               color={theme.colors.foregroundMuted}
             />
           )}
-          <Text style={styles.ownerText}>
-            by {entry.owner?.login ?? entry.repo.split("/")[0]}
-          </Text>
+          <Text style={styles.ownerText}>by {repositoryOwner}</Text>
         </View>
 
         {entry.description ? (
@@ -608,7 +609,8 @@ export function PluginDetailPage({
           ) : null}
           <Pressable
             accessibilityRole="link"
-            onPress={() => openExternal(entry.url)}
+            accessibilityLabel={`Open ${entry.name} repository`}
+            onPress={() => openExternal(repositoryUrl)}
           >
             <Text style={styles.linkText}>{entry.repo} ↗</Text>
           </Pressable>
@@ -771,18 +773,22 @@ export function PluginDetailPage({
         <View style={styles.section}>
           <Text style={styles.label}>Install</Text>
           <View style={styles.commandRow}>
-            <Text style={styles.command}>{command}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Copy install command"
-              style={styles.copyButton}
-              onPress={async () => {
-                await copyText(command)
-                toast.show("Copied install command")
-              }}
-            >
-              <Icon name="Copy" size={16} color={theme.colors.foreground} />
-            </Pressable>
+            <Text style={styles.command}>
+              {command ?? "Unavailable: invalid repository or plugin path"}
+            </Text>
+            {command ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Copy install command"
+                style={styles.copyButton}
+                onPress={async () => {
+                  await copyText(command)
+                  toast.show("Copied install command")
+                }}
+              >
+                <Icon name="Copy" size={16} color={theme.colors.foreground} />
+              </Pressable>
+            ) : null}
           </View>
           {installNotesText ? (
             <>
@@ -914,7 +920,7 @@ export function PluginDetailPage({
             accessibilityRole="link"
             accessibilityLabel={`Open ${entry.name} repository`}
             style={styles.secondaryButton}
-            onPress={() => openExternal(entry.url)}
+            onPress={() => openExternal(repositoryUrl)}
           >
             <Text style={styles.secondaryButtonText}>View repository</Text>
           </Pressable>
@@ -1057,8 +1063,9 @@ export function PluginDetailPage({
             theme={theme}
           >
             <View style={styles.healthGrid}>
-              {Object.entries(HEALTH_LABELS).map(([key, label]) => {
-                const ok = health[key as keyof typeof health] === true
+              {HEALTH_KEYS.map((key) => {
+                const label = HEALTH_LABELS[key]
+                const ok = health[key] === true
                 return (
                   <View key={key} style={styles.healthItem}>
                     <Icon
@@ -1106,19 +1113,26 @@ export function PluginDetailPage({
           <View style={styles.section}>
             <Text style={styles.label}>Source repository</Text>
             <Text selectable style={styles.modalText}>
-              {entry.url}
+              {repositoryUrl}
             </Text>
           </View>
           <View style={styles.section}>
             <Text style={styles.label}>Install command</Text>
             <View style={styles.commandRow}>
               <Text selectable style={styles.command}>
-                {command}
+                {command ?? "Unavailable: invalid catalog target"}
               </Text>
             </View>
           </View>
           <View style={styles.section}>
             <Text style={styles.label}>Freshness and status</Text>
+            {securityAttestation?.commit && installRef ? (
+              <Text style={styles.modalText}>
+                Before installation, Paseo Cafe verifies that {installRef} still
+                points to scanned commit{" "}
+                {securityAttestation.commit.slice(0, 12)}.
+              </Text>
+            ) : null}
             {sourceUpdatedDate ? (
               <Text style={styles.modalText}>
                 Repository updated: {sourceUpdatedDate}
@@ -1185,7 +1199,7 @@ export function PluginDetailPage({
               accessibilityRole="link"
               accessibilityLabel={`Open ${entry.name} repository`}
               style={styles.secondaryButton}
-              onPress={() => openExternal(entry.url)}
+              onPress={() => openExternal(repositoryUrl)}
             >
               <Text style={styles.secondaryButtonText}>View repository</Text>
             </Pressable>
@@ -1241,8 +1255,9 @@ export function PluginDetailPage({
           <View style={styles.actionsRow}>
             <Pressable
               accessibilityRole="link"
+              accessibilityLabel={`Open ${entry.name} repository`}
               style={styles.secondaryButton}
-              onPress={() => openExternal(entry.url)}
+              onPress={() => openExternal(repositoryUrl)}
             >
               <Text style={styles.secondaryButtonText}>View repository</Text>
             </Pressable>

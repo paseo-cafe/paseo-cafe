@@ -6,6 +6,8 @@ import {
   CATALOG_PLATFORMS,
   type CatalogCategory,
   type CatalogPlatform,
+  isValidCatalogPath,
+  isValidCatalogRepository,
   normalizeCatalogCategory,
 } from "../../plugin/shared/catalog"
 
@@ -49,12 +51,18 @@ export const registryEntrySchema = z
     /** GitHub "owner/repo". Just the repo, not a full URL. */
     repo: z
       .string()
-      .regex(/^[\w.-]+\/[\w.-]+$/, "repo must be in the form 'owner/repo'"),
+      .refine(
+        isValidCatalogRepository,
+        "repo must be a valid GitHub owner/repo"
+      ),
     /**
      * Subpath within the repo containing paseo-plugin.json, for authors who
      * publish several plugins from one repo. Omit for single-plugin repos.
      */
-    path: z.string().optional(),
+    path: z
+      .string()
+      .refine(isValidCatalogPath, "path must be a safe repository subpath")
+      .optional(),
     /** Optional curator/author-assigned categories, refined over time. */
     categories: z.array(z.string().min(1)).default([]),
     /**

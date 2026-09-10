@@ -8,6 +8,14 @@ import { getCatalogInstallCommand } from "../../plugin/shared/catalog"
  * This never depends on README parsing, so it's always correct even when
  * an author's own install instructions are missing, stale, or inconsistent.
  */
-export const getInstallCommand: (
-  plugin: Pick<PluginRecord, "repo" | "path">
-) => string = getCatalogInstallCommand
+export function getInstallCommand(
+  plugin: Pick<PluginRecord, "repo" | "path" | "repoMeta">
+): string {
+  const command = getCatalogInstallCommand({
+    repo: plugin.repo,
+    path: plugin.path,
+    ref: plugin.repoMeta?.defaultBranch,
+  })
+  if (!command) throw new Error("Invalid plugin install target")
+  return command
+}

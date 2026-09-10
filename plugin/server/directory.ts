@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import { promisify } from "node:util"
 import type { RpcInput, RpcOutput } from "@getpaseo/plugin"
 import { z } from "zod"
+import { getCatalogInstallArgs } from "../shared/catalog"
 import type {
   DirectoryEntry,
   directoryInstallRpc,
@@ -20,11 +21,15 @@ import {
   directoryEntrySchema,
   findInstallations,
   getInstallCommand,
+  getRepositoryUrl,
   getSiteUrl,
+  HEALTH_KEYS,
   HEALTH_LABELS,
   installedPluginSchema,
   isTrustedCatalogUrl,
+  isValidCommit,
   isValidInstallPath,
+  isValidRef,
   isValidRepo,
   stripHtml,
 } from "../shared/directory"
@@ -39,7 +44,7 @@ const ANSI_ESCAPE_PATTERN = new RegExp(
   "g"
 )
 const directoryResponseSchema = z.object({
-  plugins: z.array(directoryEntrySchema).max(500),
+  plugins: z.array(z.unknown()).max(500),
   generatedAt: z
     .string()
     .max(100)
@@ -393,10 +398,14 @@ async function fetchDirectoryFromNetwork(url: string) {
   }
 
   const body = directoryResponseSchema.parse(JSON.parse(bodyText))
+  const plugins = body.plugins.flatMap((candidate) => {
+    const parsed = directoryEntrySchema.safeParse(candidate)
+    return parsed.success ? [parsed.data] : []
+  })
   const result: DirectoryCacheEntry = {
     receivedAt,
     fetchedAt: body.generatedAt ?? new Date(receivedAt).toISOString(),
-    plugins: body.plugins,
+    plugins,
   }
   cache.set(url, result)
   return result
@@ -499,19 +508,16 @@ function untrustedAttachmentText(text: string): string {
 
 function listingAttachmentText(entry: DirectoryEntry): string {
   const healthText = entry.health
-    ? Object.entries(HEALTH_LABELS)
-        .map(
-          ([key, label]) =>
-            `- ${entry.health?.[key as keyof NonNullable<DirectoryEntry["health"]>] === true ? "Pass" : "Missing"}: ${label}`
-        )
-        .join("\n")
+    ? HEALTH_KEYS.map(
+        (key) =>
+          `- ${entry.health?.[key] === true ? "Pass" : "Missing"}: ${HEALTH_LABELS[key]}`
+      ).join("\n")
     : "Not reported"
   const content = [
     `# ${entry.name}`,
     entry.description,
-    `Repository: ${entry.repo}`,
-    `Repository URL: ${entry.url}`,
-    `Install: ${getInstallCommand(entry)}`,
+    `Repository URL: ${getRepositoryUrl(entry)}`,
+    `Install: ${getInstallCommand(entry) ?? "Unavailable: invalid catalog target"}`,
     entry.paseoVersionRequirement
       ? `Paseo requirement: ${entry.paseoVersionRequirement}`
       : null,
@@ -680,10 +686,41 @@ export async function searchDirectorySecurity(
   )
 }
 
+export function buildInstallArgs(input: {
+  repo: string
+  path?: string
+  ref?: string
+}): string[] {
+  const args = getCatalogInstallArgs(input)
+  if (!args) throw new Error("Invalid plugin install target")
+  return ["plugin", "add", ...args]
+}
+
+export async function remoteBranchMatchesCommit(
+  repo: string,
+  ref: string,
+  expectedCommit: string,
+  runGit: GitRunner = execGit
+): Promise<boolean> {
+  const remoteRef = `refs/heads/${ref}`
+  const result = await runGit(
+    process.cwd(),
+    ["ls-remote", "--exit-code", `https://github.com/${repo}.git`, remoteRef],
+    30_000
+  )
+  if (result.exitCode !== 0) return false
+
+  const [commit, resolvedRef] = result.stdout.trim().split(/\s+/)
+  return (
+    resolvedRef === remoteRef &&
+    commit?.toLowerCase() === expectedCommit.toLowerCase()
+  )
+}
+
 export async function installDirectoryPlugin(
   input: RpcInput<typeof directoryInstallRpc>
 ): Promise<RpcOutput<typeof directoryInstallRpc>> {
-  const { repo, path } = input
+  const { repo, path, ref, expectedCommit } = input
 
   // Re-validated here even though the client only ever sends entries straight
   // from fetchDirectory(): this is the boundary that actually shells out, and
@@ -697,9 +734,36 @@ export async function installDirectoryPlugin(
   if (path !== undefined && !isValidInstallPath(path)) {
     return { ok: false, message: `"${path}" isn't a valid plugin subpath.` }
   }
+  if (ref !== undefined && !isValidRef(ref)) {
+    return { ok: false, message: `"${ref}" isn't a valid Git branch.` }
+  }
+  if (expectedCommit !== undefined && !isValidCommit(expectedCommit)) {
+    return {
+      ok: false,
+      message: `"${expectedCommit}" isn't a valid scanned commit.`,
+    }
+  }
+  if (expectedCommit !== undefined && ref === undefined) {
+    return {
+      ok: false,
+      message: "The scanned commit cannot be verified without a branch name.",
+    }
+  }
 
-  const args = ["plugin", "add", repo, ...(path ? ["--path", path] : [])]
+  const args = buildInstallArgs({ repo, path, ref })
   try {
+    if (
+      expectedCommit !== undefined &&
+      ref !== undefined &&
+      !(await remoteBranchMatchesCommit(repo, ref, expectedCommit))
+    ) {
+      return {
+        ok: false,
+        message:
+          "The repository changed since this catalog scan. Refresh Paseo Cafe before installing.",
+      }
+    }
+
     // Arguments are passed as an array on Unix and strictly quoted through
     // cmd.exe for npm's paseo.cmd shim on Windows.
     const { stdout } = await execPaseo(args, 120_000)

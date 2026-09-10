@@ -19,10 +19,66 @@ export const CATALOG_PLATFORM_LABELS: Record<CatalogPlatform, string> = {
 
 export const OFFICIAL_GITHUB_ORG = "paseo-cafe"
 
-export function isOfficialCatalogPlugin(entry: {
-  owner?: { login?: string }
-}): boolean {
-  return entry.owner?.login?.toLowerCase() === OFFICIAL_GITHUB_ORG
+const REPOSITORY_PATTERN =
+  /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/
+const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
+const GIT_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/
+const GIT_COMMIT_PATTERN = /^[0-9a-f]{40}$/i
+
+export function isValidCatalogRepository(repo: string): boolean {
+  return REPOSITORY_PATTERN.test(repo)
+}
+
+export function isValidCatalogPath(path: string): boolean {
+  const segments = path.split("/")
+  return segments.every(
+    (segment) => segment !== ".." && PATH_SEGMENT_PATTERN.test(segment)
+  )
+}
+
+export function isValidCatalogCommit(commit: string): boolean {
+  return GIT_COMMIT_PATTERN.test(commit)
+}
+
+export function isValidCatalogRef(ref: string): boolean {
+  return (
+    GIT_REF_PATTERN.test(ref) &&
+    !ref.includes("..") &&
+    !ref.includes("@{") &&
+    !ref.includes("//") &&
+    !ref.endsWith("/") &&
+    !ref.endsWith(".") &&
+    !ref.endsWith(".lock")
+  )
+}
+
+export function getCatalogInstallRef(
+  ref: string | undefined
+): string | undefined {
+  return ref !== undefined && isValidCatalogRef(ref) ? ref : undefined
+}
+
+export function getCatalogRepositoryOwner(repo: string): string {
+  return repo.split("/")[0] ?? repo
+}
+
+export function getCatalogRepositoryUrl(entry: {
+  repo: string
+  path?: string
+  ref?: string
+}): string {
+  const base = `https://github.com/${entry.repo}`
+  if (entry.ref) {
+    return `${base}/tree/${entry.ref}${entry.path ? `/${entry.path}` : ""}`
+  }
+  return entry.path ? `${base}/tree/HEAD/${entry.path}` : base
+}
+
+export function isOfficialCatalogPlugin(entry: { repo: string }): boolean {
+  return (
+    isValidCatalogRepository(entry.repo) &&
+    getCatalogRepositoryOwner(entry.repo).toLowerCase() === OFFICIAL_GITHUB_ORG
+  )
 }
 
 export const CATALOG_CATEGORIES = [
@@ -85,22 +141,43 @@ export function normalizeCatalogCategories(
  * depends on README parsing, so it's always correct even when an author's
  * own install instructions are missing, stale, or inconsistent.
  */
+export function getCatalogInstallArgs(entry: {
+  repo: string
+  path?: string
+  ref?: string
+}): string[] | undefined {
+  if (!isValidCatalogRepository(entry.repo)) return undefined
+  if (entry.path !== undefined && !isValidCatalogPath(entry.path)) {
+    return undefined
+  }
+
+  const ref = getCatalogInstallRef(entry.ref)
+  return [
+    entry.repo,
+    ...(ref ? ["--ref", ref] : []),
+    ...(entry.path ? ["--path", entry.path] : []),
+  ]
+}
+
 export function getCatalogInstallCommand(entry: {
   repo: string
   path?: string
-}): string {
-  return entry.path
-    ? `paseo plugin add ${entry.repo} --path ${entry.path}`
-    : `paseo plugin add ${entry.repo}`
+  ref?: string
+}): string | undefined {
+  const args = getCatalogInstallArgs(entry)
+  return args ? ["paseo", "plugin", "add", ...args].join(" ") : undefined
 }
 
-export type CatalogHealthCheck =
-  | "manifestValid"
-  | "hasReadme"
-  | "hasLicense"
-  | "hasTests"
-  | "hasTypecheckScript"
-  | "updatedRecently"
+export const CATALOG_HEALTH_KEYS = [
+  "manifestValid",
+  "hasReadme",
+  "hasLicense",
+  "hasTests",
+  "hasTypecheckScript",
+  "updatedRecently",
+] as const
+
+export type CatalogHealthCheck = (typeof CATALOG_HEALTH_KEYS)[number]
 
 export const CATALOG_HEALTH_LABELS: Record<CatalogHealthCheck, string> = {
   manifestValid: "Manifest ID matches registry",

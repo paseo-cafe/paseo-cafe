@@ -59,6 +59,15 @@ describe("GET /api/plugins", () => {
       caveats: Array.from({ length: 64 }, () => "c".repeat(1_000)),
       installNotesHtml: `<p>${"i".repeat(100_000)}</p>`,
       limitationsNotesHtml: `<p>${"l".repeat(100_000)}</p>`,
+      repoMeta: {
+        stars: 1,
+        openIssues: 0,
+        defaultBranch: "main",
+        pushedAt: "2026-09-10T00:00:00.000Z",
+        topics: [],
+        archived: false,
+        license: null,
+      },
       health: {
         manifestValid: true,
         hasReadme: true,
@@ -85,6 +94,7 @@ describe("GET /api/plugins", () => {
     expect(projected.readmeText).toBe(
       readmeText.slice(0, MAX_API_README_TEXT_LENGTH)
     )
+    expect(projected.repoMeta).toMatchObject({ defaultBranch: "main" })
     expect(
       new TextEncoder().encode(JSON.stringify(projected)).byteLength
     ).toBeLessThanOrEqual(MAX_API_PLUGIN_BYTES)

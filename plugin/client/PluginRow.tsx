@@ -6,7 +6,7 @@ import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
-  HEALTH_LABELS,
+  HEALTH_KEYS,
   normalizeDirectoryCategory,
 } from "../shared/directory"
 import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
@@ -50,9 +50,7 @@ export function getHealthBadge(entry: DirectoryEntry): BadgeTone | null {
   }
   if (!entry.health) return null
 
-  const values = Object.keys(HEALTH_LABELS).map(
-    (key) => entry.health?.[key as keyof NonNullable<DirectoryEntry["health"]>]
-  )
+  const values = HEALTH_KEYS.map((key) => entry.health?.[key])
   const failed = values.filter((value) => value === false).length
   if (failed > 0) {
     return {

@@ -1,12 +1,16 @@
 import { IconCheck, IconX } from "@tabler/icons-react"
 import { ExpandableSection } from "@/components/expandable-section"
 import type { PluginHealth } from "@/lib/plugin-schema"
-import { CATALOG_HEALTH_LABELS } from "../../plugin/shared/catalog"
+import {
+  CATALOG_HEALTH_KEYS,
+  CATALOG_HEALTH_LABELS,
+} from "../../plugin/shared/catalog"
 
 export const HEALTH_LABELS: Record<keyof PluginHealth, string> =
   CATALOG_HEALTH_LABELS
 
-const HEALTH_KEYS = Object.keys(HEALTH_LABELS) as (keyof PluginHealth)[]
+const HEALTH_KEYS =
+  CATALOG_HEALTH_KEYS satisfies readonly (keyof PluginHealth)[]
 
 export function PluginHealthChecks({ health }: { health: PluginHealth }) {
   const passedCount = HEALTH_KEYS.filter((key) => health[key]).length

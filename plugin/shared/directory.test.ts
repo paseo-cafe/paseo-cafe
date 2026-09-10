@@ -14,7 +14,10 @@ import {
   directorySettings,
   directoryUpdateStatusRpc,
   getInstallCommand,
+  getInstallRef,
+  getRepositoryUrl,
   getSiteUrl,
+  isOfficialPlugin,
   isTrustedCatalogUrl,
   isValidInstallPath,
   isValidRepo,
@@ -48,12 +51,70 @@ describe("plugin install targets", () => {
     ).toBe("paseo plugin add paseo-cafe/paseo-cafe --path plugin")
   })
 
+  it("tracks the default branch while repository links pin the scanned commit", () => {
+    const commit = "a".repeat(40)
+    const security = {
+      status: "passed" as const,
+      blockingFindings: 0,
+      advisoryFindings: 0,
+      commit,
+    }
+    expect(
+      getInstallCommand({
+        repo: "paseo-cafe/paseo-cafe",
+        path: "plugin",
+        repoMeta: { defaultBranch: "main" },
+      })
+    ).toBe("paseo plugin add paseo-cafe/paseo-cafe --ref main --path plugin")
+    expect(
+      getRepositoryUrl({
+        repo: "paseo-cafe/paseo-cafe",
+        path: "plugin",
+        security,
+      })
+    ).toBe(`https://github.com/paseo-cafe/paseo-cafe/tree/${commit}/plugin`)
+    expect(
+      getRepositoryUrl({
+        repo: "paseo-cafe/standalone",
+        security,
+      })
+    ).toBe(`https://github.com/paseo-cafe/standalone/tree/${commit}`)
+  })
+
   it("rejects targets that could escape the repository or add CLI arguments", () => {
     expect(isValidRepo("paseo-cafe/paseo-cafe --ref attacker")).toBe(false)
     expect(isValidRepo("https://github.com/paseo-cafe/paseo-cafe")).toBe(false)
     expect(isValidInstallPath("../plugin")).toBe(false)
     expect(isValidInstallPath("plugin/../../outside")).toBe(false)
     expect(isValidInstallPath("plugin name")).toBe(false)
+    expect(
+      getInstallCommand({
+        repo: "paseo-cafe/paseo-cafe",
+        path: "bad; echo pwn",
+      })
+    ).toBeUndefined()
+  })
+
+  it("omits unusable branch metadata instead of rejecting a valid target", () => {
+    expect(getInstallRef("release@{bad")).toBeUndefined()
+    expect(
+      getInstallCommand({
+        repo: "paseo-cafe/paseo-cafe",
+        path: "plugin",
+        repoMeta: { defaultBranch: "release@{bad" },
+      })
+    ).toBe("paseo plugin add paseo-cafe/paseo-cafe --path plugin")
+  })
+
+  it("rejects unsafe targets while parsing an untrusted catalog", () => {
+    expect(
+      directoryEntrySchema.safeParse({ ...validEntry, path: "bad; echo pwn" })
+        .success
+    ).toBe(false)
+    expect(
+      directoryEntrySchema.safeParse({ ...validEntry, repo: "paseo-cafe" })
+        .success
+    ).toBe(false)
   })
 })
 
@@ -240,6 +301,15 @@ describe("directory presentation", () => {
     expect(getSiteUrl({ id: "plugin/name" })).toBe(
       "https://paseo.cafe/plugins/plugin%2Fname"
     )
+  })
+
+  it("derives official status from a complete install repository path", () => {
+    expect(isOfficialPlugin({ repo: "paseo-cafe/paseo-cafe" })).toBe(true)
+    expect(isOfficialPlugin({ repo: "PASEO-CAFE/another-plugin" })).toBe(true)
+    expect(isOfficialPlugin({ repo: "paseo-cafe" })).toBe(false)
+    expect(isOfficialPlugin({ repo: "paseo-cafe/" })).toBe(false)
+    expect(isOfficialPlugin({ repo: "paseo-cafe/plugin/extra" })).toBe(false)
+    expect(isOfficialPlugin({ repo: "attacker/evil" })).toBe(false)
   })
 
   it("converts sanitized README fragments to readable plain text", () => {

@@ -74,6 +74,7 @@ export function projectPluginForDirectory(
     "repoMeta",
     plugin.repoMeta && {
       stars: plugin.repoMeta.stars,
+      defaultBranch: boundedString(plugin.repoMeta.defaultBranch, 255),
       pushedAt: boundedString(plugin.repoMeta.pushedAt, 100),
     }
   )

@@ -73,6 +73,15 @@ describe("registryEntrySchema", () => {
     expect(result.success).toBe(false)
   })
 
+  it.each(["../plugin", "plugin/../../outside", "plugin; echo pwn"])(
+    "rejects unsafe plugin path %s",
+    (path) => {
+      expect(
+        registryEntrySchema.safeParse({ repo: "owner/repo", path }).success
+      ).toBe(false)
+    }
+  )
+
   it("rejects a redundant registry id field", () => {
     const result = registryEntrySchema.safeParse({
       id: "plugin",

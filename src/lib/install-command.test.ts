@@ -11,6 +11,26 @@ describe("getInstallCommand", () => {
     ).toBe("paseo plugin add mcowger/paseo-plugins --path subagent-activity")
   })
 
+  it("tracks the scanned default branch", () => {
+    expect(
+      getInstallCommand({
+        repo: "mcowger/paseo-plugins",
+        path: "subagent-activity",
+        repoMeta: {
+          stars: 1,
+          openIssues: 0,
+          defaultBranch: "main",
+          pushedAt: "2026-09-10T00:00:00Z",
+          topics: [],
+          archived: false,
+          license: null,
+        },
+      })
+    ).toBe(
+      "paseo plugin add mcowger/paseo-plugins --ref main --path subagent-activity"
+    )
+  })
+
   it("omits --path for a single-plugin repo", () => {
     expect(getInstallCommand({ repo: "someone/their-plugin" })).toBe(
       "paseo plugin add someone/their-plugin"
