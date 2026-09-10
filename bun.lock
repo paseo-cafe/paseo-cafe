@@ -21,7 +21,6 @@
         "cn": "^0.2.6",
         "react": "^19.2.6",
         "react-dom": "^19.2.6",
-        "react-medium-image-zoom": "^5.4.9",
         "rehype-sanitize": "^6.0.0",
         "rehype-stringify": "^10.0.1",
         "remark-gfm": "^4.0.1",
@@ -1145,8 +1144,6 @@
     "react-dom": ["react-dom@19.2.8", "", { "dependencies": { "scheduler": "^0.27.0" }, "peerDependencies": { "react": "^19.2.8" } }, "sha512-rVprimfGBG3DR+Tq0IQG2DT5PxKth1WIGDmj5yPmlzr4YBe7uyE+Du4oVqTDXZSHGGGXRtTJEGSSePyQCMBglQ=="],
 
     "react-is": ["react-is@17.0.2", "", {}, "sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w=="],
-
-    "react-medium-image-zoom": ["react-medium-image-zoom@5.4.9", "", { "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-czBdTbJI6JEbqeRIT5M8D3j7TrffBfo00U0P0lzzd19usj8PiR1yPH7PK/vQlwBE/Sv9YFdJGN6XauJPi4jRyg=="],
 
     "readdirp": ["readdirp@5.1.1", "", {}, "sha512-Kko+Y5XQ6fM+Ce3dq3m9YGxnacYZYl9cA1wZjaF3Vbry2L3i1qVg8+CAgNPsXRArPMUMCaOR7oa9Nqntc43JKA=="],
 
