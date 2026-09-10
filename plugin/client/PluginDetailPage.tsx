@@ -8,7 +8,7 @@ import {
 } from "@getpaseo/plugin/client/react-native"
 import { useMemo, useState } from "react"
 import { Image, Pressable, Text, View } from "react-native"
-import type { DirectoryEntry } from "../shared/directory"
+import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   getInstallCommand,
   getSiteUrl,
@@ -23,9 +23,14 @@ interface PluginDetailPageProps {
   entry: DirectoryEntry
   theme: PluginTheme
   compact: boolean
+  installations: readonly InstalledPlugin[]
+  inventoryAvailable: boolean
   installing: boolean
+  updatingId: string | null
   installError: string | null
+  updateError: string | null
   onInstall: () => void
+  onUpdate: (installation: InstalledPlugin) => void
   onOpenGallery: () => void
   onBack: () => void
 }
@@ -35,19 +40,35 @@ function formatDate(iso: string | undefined): string | undefined {
   return iso ? iso.slice(0, 10) : undefined
 }
 
+function installationStateLabel(installation: InstalledPlugin): string {
+  if (installation.source === "directory") return "Installed locally"
+  if (installation.updateState === "available") return "Update available"
+  if (installation.updateState === "current") return "Up to date"
+  if (installation.updateState === "pinned") return "Pinned"
+  if (installation.updateState === "diverged") return "Source diverged"
+  return "Update status unavailable"
+}
+
 export function PluginDetailPage({
   entry,
   theme,
   compact,
+  installations,
+  inventoryAvailable,
   installing,
+  updatingId,
   installError,
+  updateError,
   onInstall,
+  onUpdate,
   onOpenGallery,
   onBack,
 }: PluginDetailPageProps) {
   const toast = useToast()
   const [confirmingInstall, setConfirmingInstall] = useState(false)
-  const [showFullInstallError, setShowFullInstallError] = useState(false)
+  const [confirmingUpdate, setConfirmingUpdate] =
+    useState<InstalledPlugin | null>(null)
+  const [showFullActionError, setShowFullActionError] = useState(false)
 
   const styles = useMemo(
     () => ({
@@ -259,7 +280,7 @@ export function PluginDetailPage({
         paddingVertical: 10,
         borderRadius: 8,
         backgroundColor: theme.colors.accent,
-        opacity: installing ? 0.6 : 1,
+        opacity: installing || updatingId !== null ? 0.6 : 1,
       },
       buttonText: {
         color: theme.colors.accentForeground,
@@ -274,6 +295,20 @@ export function PluginDetailPage({
         borderColor: theme.colors.border,
       },
       secondaryButtonText: { color: theme.colors.foreground, fontSize: 14 },
+      installationList: { gap: 8 },
+      installationCard: {
+        gap: 8,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderRadius: 8,
+        padding: 10,
+        backgroundColor: theme.colors.surface1,
+      },
+      installationTitle: {
+        color: theme.colors.foreground,
+        fontSize: 13,
+        fontWeight: "600" as const,
+      },
       healthGrid: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
@@ -299,7 +334,7 @@ export function PluginDetailPage({
         lineHeight: 19,
       },
     }),
-    [theme, compact, installing]
+    [theme, compact, installing, updatingId]
   )
 
   const command = getInstallCommand(entry)
@@ -319,11 +354,13 @@ export function PluginDetailPage({
   const installable =
     isValidRepo(entry.repo) &&
     (entry.path === undefined || isValidInstallPath(entry.path))
+  const actionPending = installing || updatingId !== null
+  const actionError = installations.length > 0 ? updateError : installError
   // The toggle and the clamp share one condition: a short error is never
   // clamped, so wrapping on a narrow screen cannot hide text with no way back.
-  const installErrorIsLong =
-    installError !== null &&
-    (installError.length > 240 || installError.split("\n").length > 6)
+  const actionErrorIsLong =
+    actionError !== null &&
+    (actionError.length > 240 || actionError.split("\n").length > 6)
 
   return (
     <View style={styles.screen}>
@@ -536,19 +573,96 @@ export function PluginDetailPage({
           ) : null}
         </View>
 
-        <View style={styles.actionsRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Install ${entry.name}`}
-            accessibilityState={{ disabled: installing || !installable }}
-            style={[styles.button, !installable ? { opacity: 0.5 } : null]}
-            disabled={installing || !installable}
-            onPress={() => setConfirmingInstall(true)}
-          >
-            <Text style={styles.buttonText}>
-              {installing ? "Installing…" : "Install"}
+        {!inventoryAvailable ? (
+          <View accessibilityRole="alert" style={styles.errorBox}>
+            <Text style={styles.errorText}>
+              Installed plugin status unavailable
             </Text>
-          </Pressable>
+            <Text style={styles.alertBody}>
+              Install and update actions are disabled until Paseo can read this
+              host's plugin inventory.
+            </Text>
+          </View>
+        ) : null}
+
+        {installations.length > 0 ? (
+          <View style={styles.installationList}>
+            <Text style={styles.label}>Installations</Text>
+            {installations.map((installation) => {
+              const updateCommand = `paseo plugin update ${installation.id}`
+              return (
+                <View key={installation.id} style={styles.installationCard}>
+                  <Text style={styles.installationTitle}>
+                    {installationStateLabel(installation)} · {installation.id}
+                  </Text>
+                  <Text selectable style={styles.metaText}>
+                    {installation.remote ?? installation.path}
+                    {installation.ref ? ` · ${installation.ref}` : ""}
+                    {installation.commit
+                      ? ` · ${installation.commit.slice(0, 12)}`
+                      : ""}
+                    {installation.latestCommit
+                      ? ` → ${installation.latestCommit.slice(0, 12)}`
+                      : ""}
+                  </Text>
+                  {installation.updateError ? (
+                    <Text style={styles.errorText}>
+                      {installation.updateError}
+                    </Text>
+                  ) : null}
+                  {installation.updateState === "available" ? (
+                    entry.id === "paseo-cafe" ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Copy update command for ${installation.id}`}
+                        style={styles.secondaryButton}
+                        onPress={async () => {
+                          await copyText(updateCommand)
+                          toast.show("Copied update command")
+                        }}
+                      >
+                        <Text style={styles.secondaryButtonText}>
+                          Copy update command
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Update ${entry.name} installation ${installation.id}`}
+                        accessibilityState={{ disabled: actionPending }}
+                        style={styles.button}
+                        disabled={actionPending}
+                        onPress={() => setConfirmingUpdate(installation)}
+                      >
+                        <Text style={styles.buttonText}>
+                          {updatingId === installation.id
+                            ? "Updating…"
+                            : "Update"}
+                        </Text>
+                      </Pressable>
+                    )
+                  ) : null}
+                </View>
+              )
+            })}
+          </View>
+        ) : null}
+
+        <View style={styles.actionsRow}>
+          {inventoryAvailable && installations.length === 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Install ${entry.name}`}
+              accessibilityState={{ disabled: actionPending || !installable }}
+              style={[styles.button, !installable ? { opacity: 0.5 } : null]}
+              disabled={actionPending || !installable}
+              onPress={() => setConfirmingInstall(true)}
+            >
+              <Text style={styles.buttonText}>
+                {installing ? "Installing…" : "Install"}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="link"
             accessibilityLabel={`Open ${entry.name} on GitHub`}
@@ -559,7 +673,7 @@ export function PluginDetailPage({
           </Pressable>
         </View>
 
-        {!installable ? (
+        {inventoryAvailable && installations.length === 0 && !installable ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
             <Text style={styles.errorText}>
               This listing has an invalid repository or plugin subpath and
@@ -568,46 +682,50 @@ export function PluginDetailPage({
           </View>
         ) : null}
 
-        {installError ? (
+        {actionError ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
-            <Text style={styles.errorText}>Installation failed</Text>
+            <Text style={styles.errorText}>
+              {installations.length > 0
+                ? "Update failed"
+                : "Installation failed"}
+            </Text>
             <Text
               numberOfLines={
-                installErrorIsLong && !showFullInstallError ? 6 : undefined
+                actionErrorIsLong && !showFullActionError ? 6 : undefined
               }
               selectable
               style={styles.errorDetails}
             >
-              {installError}
+              {actionError}
             </Text>
             <View style={styles.errorActions}>
-              {installErrorIsLong ? (
+              {actionErrorIsLong ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={
-                    showFullInstallError
-                      ? "Show less installation error output"
-                      : "View full installation error output"
+                    showFullActionError
+                      ? "Show less action error output"
+                      : "View full action error output"
                   }
-                  onPress={() => setShowFullInstallError((current) => !current)}
+                  onPress={() => setShowFullActionError((current) => !current)}
                   style={styles.errorAction}
                 >
                   <Icon
-                    name={showFullInstallError ? "ChevronUp" : "ChevronDown"}
+                    name={showFullActionError ? "ChevronUp" : "ChevronDown"}
                     size={14}
                     color={theme.colors.accent}
                   />
                   <Text style={styles.errorActionText}>
-                    {showFullInstallError ? "Show less" : "View more…"}
+                    {showFullActionError ? "Show less" : "View more…"}
                   </Text>
                 </Pressable>
               ) : null}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Copy installation error output"
+                accessibilityLabel="Copy action error output"
                 onPress={async () => {
-                  await copyText(installError)
-                  toast.show("Copied installation error output")
+                  await copyText(actionError)
+                  toast.show("Copied action error output")
                 }}
                 style={styles.errorAction}
               >
@@ -701,6 +819,56 @@ export function PluginDetailPage({
               }}
             >
               <Text style={styles.buttonText}>Install</Text>
+            </Pressable>
+          </View>
+        </Modal.Content>
+      </Modal>
+      <Modal
+        title={`Update ${entry.name}?`}
+        icon={<Icon name="RefreshCw" size={18} color={theme.colors.accent} />}
+        open={confirmingUpdate !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingUpdate(null)
+        }}
+      >
+        <Modal.Content contentContainerStyle={styles.modalBody}>
+          <Text style={styles.modalTitle}>{confirmingUpdate?.id}</Text>
+          <Text selectable style={styles.modalText}>
+            {confirmingUpdate?.remote}
+            {confirmingUpdate?.ref ? ` · ${confirmingUpdate.ref}` : ""}
+          </Text>
+          <Text selectable style={styles.modalText}>
+            {confirmingUpdate?.commit?.slice(0, 12)} →{" "}
+            {confirmingUpdate?.latestCommit?.slice(0, 12)}
+          </Text>
+          <Text style={styles.modalText}>
+            Updating replaces trusted, unsandboxed plugin code on this Paseo
+            host. Review the source before continuing.
+          </Text>
+          <View style={styles.actionsRow}>
+            <Pressable
+              accessibilityRole="link"
+              style={styles.secondaryButton}
+              onPress={() => openExternal(entry.url)}
+            >
+              <Text style={styles.secondaryButtonText}>View repo</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.secondaryButton}
+              onPress={() => setConfirmingUpdate(null)}
+            >
+              <Text style={styles.secondaryButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.button}
+              onPress={() => {
+                if (confirmingUpdate) onUpdate(confirmingUpdate)
+                setConfirmingUpdate(null)
+              }}
+            >
+              <Text style={styles.buttonText}>Update</Text>
             </Pressable>
           </View>
         </Modal.Content>

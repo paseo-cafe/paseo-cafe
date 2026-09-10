@@ -1,0 +1,6 @@
+{
+  "repo": "mentalfl0w/review-deck",
+  "categories": ["productivity", "code-review", "git"],
+  "caveats": ["Requires Paseo 0.8.x (currently beta)."],
+  "submittedBy": "mentalfl0w"
+}

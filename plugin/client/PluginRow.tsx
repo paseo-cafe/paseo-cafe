@@ -2,19 +2,26 @@ import type { PluginTheme } from "@getpaseo/plugin"
 import { Icon } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Image, Pressable, Text, View } from "react-native"
-import type { DirectoryEntry } from "../shared/directory"
+import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 
 interface PluginRowProps {
   entry: DirectoryEntry
   theme: PluginTheme
   compact: boolean
+  installations: readonly InstalledPlugin[]
   onPress: () => void
 }
 
 // Deliberately no per-row Install button: with the whole card opening the
 // detail page (see onPress below), a nested button here fights the card's
 // own press target. Install lives on the detail page instead.
-export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
+export function PluginRow({
+  entry,
+  theme,
+  compact,
+  installations,
+  onPress,
+}: PluginRowProps) {
   const styles = useMemo(
     () => ({
       row: {
@@ -29,6 +36,7 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
         flexDirection: "row" as const,
         alignItems: "center" as const,
         gap: 8,
+        flexWrap: "wrap" as const,
       },
       starsRow: {
         flexDirection: "row" as const,
@@ -43,6 +51,19 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
         fontWeight: "600" as const,
         flexShrink: 1,
       },
+      statusBadge: {
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        backgroundColor: theme.colors.surface2,
+      },
+      statusText: (updateAvailable: boolean) => ({
+        color: updateAvailable
+          ? theme.colors.statusWarning
+          : theme.colors.statusSuccess,
+        fontSize: 11,
+        fontWeight: "600" as const,
+      }),
       meta: { color: theme.colors.foregroundMuted, fontSize: 12 },
       description: { color: theme.colors.foregroundMuted, fontSize: 13 },
       tagsRow: {
@@ -75,10 +96,24 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
   const tags = [...entry.categories, ...entry.platforms]
   const hasTagsRow = tags.length > 0 || !!entry.paseoVersionRequirement
 
+  const updateCount = installations.filter(
+    (installation) => installation.updateState === "available"
+  ).length
+  const statusLabel =
+    updateCount > 0
+      ? updateCount === 1
+        ? "Update available"
+        : `${updateCount} updates available`
+      : installations.length > 0
+        ? installations.length === 1
+          ? "Installed"
+          : `${installations.length} installations`
+        : undefined
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`View details for ${entry.name}`}
+      accessibilityLabel={`View details for ${entry.name}${statusLabel ? `, ${statusLabel}` : ""}`}
       style={styles.row}
       onPress={onPress}
     >
@@ -91,6 +126,13 @@ export function PluginRow({ entry, theme, compact, onPress }: PluginRowProps) {
           />
         ) : null}
         <Text style={styles.name}>{entry.name}</Text>
+        {statusLabel ? (
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusText(updateCount > 0)}>
+              {statusLabel}
+            </Text>
+          </View>
+        ) : null}
         {entry.repoMeta?.stars !== undefined ? (
           <View style={styles.starsRow}>
             <Icon name="Star" size={12} color={theme.colors.foregroundMuted} />

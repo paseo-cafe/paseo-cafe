@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import {
+  directoryListRpc,
+  directorySettings,
+  directoryUpdateStatusRpc,
   getInstallCommand,
   getSiteUrl,
+  isTrustedCatalogUrl,
   isValidInstallPath,
   isValidRepo,
   stripHtml,
@@ -25,6 +29,81 @@ describe("plugin install targets", () => {
     expect(isValidInstallPath("../plugin")).toBe(false)
     expect(isValidInstallPath("plugin/../../outside")).toBe(false)
     expect(isValidInstallPath("plugin name")).toBe(false)
+  })
+})
+
+describe("catalog URL transport policy", () => {
+  it.each([
+    "https://paseo.cafe/api/plugins",
+    "https://catalog.internal/api/plugins",
+    "http://localhost:3000/api/plugins",
+    "http://LOCALHOST:3000/api/plugins",
+    "http://dev.localhost:3000/api/plugins",
+    "http://127.0.0.1:3000/api/plugins",
+    "http://127.255.255.255/api/plugins",
+    "http://[::1]:3000/api/plugins",
+  ])("accepts trusted catalog URL %s", (url) => {
+    expect(isTrustedCatalogUrl(url)).toBe(true)
+  })
+
+  it.each([
+    "http://catalog.internal/api/plugins",
+    "http://192.168.1.10/api/plugins",
+    "http://127.0.0.1.evil.example/api/plugins",
+    "http://[::2]/api/plugins",
+    "ftp://paseo.cafe/api/plugins",
+    "https://[:::]/api/plugins",
+    "not a URL",
+  ])("rejects untrusted catalog URL %s", (url) => {
+    expect(isTrustedCatalogUrl(url)).toBe(false)
+  })
+
+  it("keeps RPC validation independent of the runtime URL parser", () => {
+    class ReactNativeUrl {
+      readonly href: string
+
+      constructor(value: string) {
+        this.href = value
+      }
+
+      get protocol() {
+        return `${this.href.split(":", 1)[0]}:`
+      }
+
+      get hostname() {
+        return this.href.includes("[") ? "[" : "LOCALHOST"
+      }
+    }
+
+    vi.stubGlobal("URL", ReactNativeUrl)
+    try {
+      expect(
+        directoryListRpc.input.safeParse({
+          baseUrl: "http://[::1]:3000/api/plugins",
+        }).success
+      ).toBe(true)
+      expect(
+        directoryUpdateStatusRpc.input.safeParse({
+          baseUrl: "http://LOCALHOST:3000/api/plugins",
+        }).success
+      ).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("rejects untrusted URLs at every caller-controlled catalog schema", () => {
+    const url = "http://catalog.internal/api/plugins"
+
+    expect(
+      directorySettings.schema.safeParse({ directoryUrl: url }).success
+    ).toBe(false)
+    expect(directoryListRpc.input.safeParse({ baseUrl: url }).success).toBe(
+      false
+    )
+    expect(
+      directoryUpdateStatusRpc.input.safeParse({ baseUrl: url }).success
+    ).toBe(false)
   })
 })
 
