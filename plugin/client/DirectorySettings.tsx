@@ -47,7 +47,7 @@ export function DirectorySettings() {
   const dirty = currentUrl !== values.directoryUrl
 
   async function apply(url: string) {
-    const ok = await saveSettings({ directoryUrl: url }, revision)
+    const ok = await saveSettings({ ...values, directoryUrl: url }, revision)
     if (ok) {
       setDraft(null)
       inputRef.current?.replaceText(url)

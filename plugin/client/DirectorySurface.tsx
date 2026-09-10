@@ -7,16 +7,25 @@ import {
   useToast,
 } from "@getpaseo/plugin/client/react-native"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Pressable, Text, View } from "react-native"
-import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
+import type {
+  DirectoryBrowseSettings,
+  DirectoryCategory,
+  DirectoryEntry,
+  InstalledPlugin,
+} from "../shared/directory"
 import {
+  DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+  DIRECTORY_CATEGORIES,
+  DIRECTORY_CATEGORY_LABELS,
   directoryInstallRpc,
   directoryListRpc,
   directorySettings,
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
   findInstallations,
+  normalizeDirectoryCategory,
 } from "../shared/directory"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
@@ -37,6 +46,7 @@ interface FilterRowProps {
   options: string[]
   selected: ReadonlySet<string>
   theme: PluginTheme
+  formatOption?: (value: string) => string
   onToggle: (value: string) => void
   onClear: () => void
 }
@@ -46,6 +56,7 @@ function FilterRow({
   options,
   selected,
   theme,
+  formatOption,
   onToggle,
   onClear,
 }: FilterRowProps) {
@@ -94,16 +105,17 @@ function FilterRow({
       </Pressable>
       {options.map((option) => {
         const active = selected.has(option)
+        const optionLabel = formatOption?.(option) ?? option
         return (
           <Pressable
             key={option}
             accessibilityRole="button"
-            accessibilityLabel={`Filter by ${option}`}
+            accessibilityLabel={`Filter by ${optionLabel}`}
             accessibilityState={{ selected: active }}
             style={styles.chip(active)}
             onPress={() => onToggle(option)}
           >
-            <Text style={styles.chipText(active)}>{option}</Text>
+            <Text style={styles.chipText(active)}>{optionLabel}</Text>
           </Pressable>
         )
       })}
@@ -111,11 +123,7 @@ function FilterRow({
   )
 }
 
-type InstallationStatusFilter =
-  | "all"
-  | "installed"
-  | "updates"
-  | "not-installed"
+type InstallationStatusFilter = DirectoryBrowseSettings["status"]
 
 interface StatusFilterOption {
   value: InstallationStatusFilter
@@ -224,7 +232,7 @@ type UpdateResult = {
   updated?: boolean
 }
 
-type SortMode = "updates-first" | "popular" | "recent" | "a-z"
+type SortMode = DirectoryBrowseSettings["sort"]
 
 interface SortOption {
   value: SortMode
@@ -425,9 +433,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState<ReadonlySet<string>>(
-    new Set()
-  )
+  const [categoryFilter, setCategoryFilter] = useState<
+    ReadonlySet<DirectoryCategory>
+  >(new Set())
   const [platformFilter, setPlatformFilter] = useState<ReadonlySet<string>>(
     new Set()
   )
@@ -440,13 +448,97 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   } | null>(null)
   const [sortMode, setSortMode] = useState<SortMode>("updates-first")
   const [updatingId, setUpdatingId] = useState<string | null>(null)
-
   const [updateFailure, setUpdateFailure] = useState<{
     entryId: string
     message: string
   } | null>(null)
   const [detailEntry, setDetailEntry] = useState<DirectoryEntry | null>(null)
   const [galleryEntry, setGalleryEntry] = useState<DirectoryEntry | null>(null)
+  const [lastOpenedPluginId, setLastOpenedPluginId] = useState<string | null>(
+    null
+  )
+  const [settingsHydrated, setSettingsHydrated] = useState(false)
+  const hasHydratedSettings = useRef(false)
+  const hasRestoredLastOpened = useRef(false)
+
+  const settingsValues = settings.status === "ready" ? settings.values : null
+  const settingsRevision =
+    settings.status === "ready" ? settings.revision : null
+  const {
+    saving: settingsSaving,
+    save: saveSettings,
+    reload: reloadSettings,
+  } = settings
+  const storedBrowse = settingsValues
+    ? (settingsValues.browse ?? DEFAULT_DIRECTORY_BROWSE_SETTINGS)
+    : null
+  const storedBrowseKey = storedBrowse ? JSON.stringify(storedBrowse) : null
+  const browseSettings = useMemo<DirectoryBrowseSettings>(
+    () => ({
+      query: search,
+      categories: DIRECTORY_CATEGORIES.filter((category) =>
+        categoryFilter.has(category)
+      ),
+      platforms: Array.from(platformFilter).sort(),
+      status: statusFilter,
+      sort: sortMode,
+      lastOpenedPluginId,
+    }),
+    [
+      search,
+      categoryFilter,
+      platformFilter,
+      statusFilter,
+      sortMode,
+      lastOpenedPluginId,
+    ]
+  )
+
+  useEffect(() => {
+    if (hasHydratedSettings.current || storedBrowse === null) return
+
+    hasHydratedSettings.current = true
+    setSearch(storedBrowse.query)
+    setCategoryFilter(new Set(storedBrowse.categories))
+    setPlatformFilter(new Set(storedBrowse.platforms))
+    setStatusFilter(storedBrowse.status)
+    setSortMode(storedBrowse.sort)
+    setLastOpenedPluginId(storedBrowse.lastOpenedPluginId)
+    setSettingsHydrated(true)
+  }, [storedBrowse])
+
+  useEffect(() => {
+    if (
+      !settingsHydrated ||
+      settingsValues === null ||
+      settingsRevision === null ||
+      settingsSaving ||
+      storedBrowseKey === JSON.stringify(browseSettings)
+    ) {
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      void saveSettings(
+        { ...settingsValues, browse: browseSettings },
+        settingsRevision
+      )
+        .then((saved) => {
+          if (!saved) return reloadSettings()
+        })
+        .catch(() => undefined)
+    }, 250)
+    return () => clearTimeout(timeout)
+  }, [
+    browseSettings,
+    reloadSettings,
+    saveSettings,
+    settingsHydrated,
+    settingsRevision,
+    settingsSaving,
+    settingsValues,
+    storedBrowseKey,
+  ])
 
   // Undefined until settings are readable: the handler then falls back to
   // PASEO_CAFE_DIRECTORY_URL or the default catalog, so an unreadable or
@@ -591,7 +683,36 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     },
   })
 
-  const plugins = directoryQuery.data?.plugins ?? []
+  const catalogPlugins = directoryQuery.data?.plugins ?? []
+  const plugins = useMemo(
+    () =>
+      catalogPlugins.map((entry) => ({
+        ...entry,
+        categories: Array.from(
+          new Set(
+            entry.categories.map(
+              (category) =>
+                DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(category)]
+            )
+          )
+        ),
+      })),
+    [catalogPlugins]
+  )
+  useEffect(() => {
+    if (
+      !settingsHydrated ||
+      hasRestoredLastOpened.current ||
+      !directoryQuery.isSuccess
+    ) {
+      return
+    }
+
+    hasRestoredLastOpened.current = true
+    if (!lastOpenedPluginId) return
+    const lastOpened = plugins.find((entry) => entry.id === lastOpenedPluginId)
+    if (lastOpened) setDetailEntry(lastOpened)
+  }, [directoryQuery.isSuccess, lastOpenedPluginId, plugins, settingsHydrated])
   const installations = inventoryAvailable
     ? (updateStatusQuery.data?.installations ??
       directoryQuery.data?.installations ??
@@ -611,13 +732,14 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     ? (installationByEntryId.get(detailEntry.id) ?? [])
     : []
 
-  const allCategories = useMemo(
-    (): string[] =>
-      Array.from(
-        new Set(plugins.flatMap((entry: DirectoryEntry) => entry.categories))
-      ).sort(),
-    [plugins]
-  )
+  const allCategories = useMemo((): DirectoryCategory[] => {
+    const present = new Set(
+      plugins.flatMap((entry) =>
+        entry.categories.map(normalizeDirectoryCategory)
+      )
+    )
+    return DIRECTORY_CATEGORIES.filter((category) => present.has(category))
+  }, [plugins])
   const allPlatforms = useMemo(
     (): string[] =>
       Array.from(
@@ -649,7 +771,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       }
       if (
         categoryFilter.size > 0 &&
-        !entry.categories.some((category) => categoryFilter.has(category))
+        !entry.categories.some((category) =>
+          categoryFilter.has(normalizeDirectoryCategory(category))
+        )
       )
         return false
       if (
@@ -742,6 +866,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     [defaultBrowseState, filtered, installationByEntryId]
   )
 
+  function openPlugin(entry: DirectoryEntry) {
+    setDetailEntry(entry)
+    setLastOpenedPluginId(entry.id)
+  }
+
   const styles = useMemo(
     () => ({
       screen: {
@@ -832,7 +961,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       <TextInput
         placeholder="Search plugins…"
         value={search}
-        onChangeText={setSearch}
+        onChangeText={(value) => setSearch(value.slice(0, 200))}
         style={styles.searchInput}
         placeholderTextColor={theme.colors.foregroundMuted}
       />
@@ -855,7 +984,14 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           options={allCategories}
           selected={categoryFilter}
           theme={theme}
-          onToggle={(value) => setCategoryFilter((prev) => toggle(prev, value))}
+          formatOption={(value) =>
+            DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(value)]
+          }
+          onToggle={(value) =>
+            setCategoryFilter((prev) =>
+              toggle(prev, normalizeDirectoryCategory(value))
+            )
+          }
           onClear={() => setCategoryFilter(new Set())}
         />
         <FilterRow
@@ -947,7 +1083,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                     theme={theme}
                     installations={installationByEntryId.get(item.id) ?? []}
                     compact={layout.compact}
-                    onPress={() => setDetailEntry(item)}
+                    onPress={() => openPlugin(item)}
                   />
                 ))}
               </View>
@@ -966,7 +1102,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                     theme={theme}
                     installations={installationByEntryId.get(item.id) ?? []}
                     compact={layout.compact}
-                    onPress={() => setDetailEntry(item)}
+                    onPress={() => openPlugin(item)}
                   />
                 ))}
               </View>
@@ -985,7 +1121,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
             theme={theme}
             installations={installationByEntryId.get(item.id) ?? []}
             compact={layout.compact}
-            onPress={() => setDetailEntry(item)}
+            onPress={() => openPlugin(item)}
           />
         )}
       />

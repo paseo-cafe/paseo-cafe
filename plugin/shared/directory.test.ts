@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from "vitest"
 import {
+  DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+  DIRECTORY_CATEGORIES,
+  directoryAttachments,
+  directoryBrowseSettingsSchema,
   directoryEntrySchema,
   directoryListRpc,
+  directoryManifestAttachments,
+  directoryReadmeAttachments,
+  directorySecurityAttachments,
   directorySettings,
   directoryUpdateStatusRpc,
   getInstallCommand,
@@ -9,6 +16,8 @@ import {
   isTrustedCatalogUrl,
   isValidInstallPath,
   isValidRepo,
+  migrateDirectorySettings,
+  normalizeDirectoryCategory,
   stripHtml,
 } from "./directory"
 
@@ -120,6 +129,75 @@ describe("catalog URL transport policy", () => {
   })
 })
 
+describe("directory taxonomy and browse settings", () => {
+  it("uses the canonical taxonomy and maps free-form categories to Other", () => {
+    expect(DIRECTORY_CATEGORIES).toEqual([
+      "automation",
+      "browser",
+      "code-review",
+      "git",
+      "github",
+      "monitoring",
+      "orchestration",
+      "productivity",
+      "provider",
+      "theme",
+      "other",
+    ])
+    expect(normalizeDirectoryCategory(" Code Review ")).toBe("code-review")
+    expect(normalizeDirectoryCategory("unrecognized-category")).toBe("other")
+    expect(normalizeDirectoryCategory("")).toBe("other")
+  })
+
+  it("fills missing browse fields with durable defaults", () => {
+    expect(directoryBrowseSettingsSchema.parse({ query: "git" })).toEqual({
+      ...DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      query: "git",
+    })
+  })
+
+  it("migrates version 1 settings without losing the directory URL", () => {
+    const directoryUrl = "https://catalog.internal/api/plugins"
+    const migrated = migrateDirectorySettings({ directoryUrl }, 1)
+
+    expect(directorySettings.version).toBe(2)
+    expect(directorySettings.schema.parse(migrated)).toEqual({
+      directoryUrl,
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+    })
+  })
+})
+
+describe("directory attachment sources", () => {
+  it("offers distinct listing, manifest, README, and security choices", () => {
+    const sources = [
+      directoryAttachments,
+      directoryManifestAttachments,
+      directoryReadmeAttachments,
+      directorySecurityAttachments,
+    ]
+
+    expect(sources.map((source) => source.id)).toEqual([
+      "paseo-plugins",
+      "paseo-plugin-manifests",
+      "paseo-plugin-readmes",
+      "paseo-plugin-security",
+    ])
+    expect(sources.map((source) => source.title)).toEqual([
+      "Paseo plugin",
+      "Paseo plugin manifest",
+      "Paseo plugin README",
+      "Paseo plugin security",
+    ])
+    expect(sources.map((source) => source.search.name)).toEqual([
+      "directory.search",
+      "directory.search-manifests",
+      "directory.search-readmes",
+      "directory.search-security",
+    ])
+  })
+})
+
 describe("directory presentation", () => {
   it("builds an encoded canonical directory URL", () => {
     expect(getSiteUrl({ id: "plugin/name" })).toBe(
@@ -176,6 +254,46 @@ describe("directory README content", () => {
   })
 })
 
+describe("directory security summaries", () => {
+  it.each(["passed", "failed", "unknown"] as const)(
+    "retains a populated %s security summary",
+    (status) => {
+      const security = {
+        status,
+        blockingFindings: status === "failed" ? 2 : 0,
+        advisoryFindings: 1,
+        scannedAt: "2026-09-09T00:00:00.000Z",
+        commit: "abc123",
+        reportUrl: "https://example.com/security-report",
+      }
+
+      const result = directoryEntrySchema.parse({ ...validEntry, security })
+
+      expect(result.security).toEqual(security)
+    }
+  )
+
+  it("rejects non-HTTP security report URLs", () => {
+    const result = directoryEntrySchema.safeParse({
+      ...validEntry,
+      security: {
+        status: "unknown",
+        blockingFindings: 0,
+        advisoryFindings: 0,
+        reportUrl: "javascript:alert(1)",
+      },
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it("allows entries without a security summary", () => {
+    const result = directoryEntrySchema.parse(validEntry)
+
+    expect(result.security).toBeUndefined()
+  })
+})
+
 describe("directory catalog manifests", () => {
   it("retains nested JSON-compatible manifest data", () => {
     const manifest = {
@@ -203,5 +321,44 @@ describe("directory catalog manifests", () => {
     }
 
     expect(result.data.manifest).toBeUndefined()
+  })
+
+  it("rejects manifests beyond the depth limit", () => {
+    let manifest: Record<string, unknown> = { leaf: true }
+    for (let depth = 0; depth < 16; depth += 1) {
+      manifest = { nested: manifest }
+    }
+
+    expect(
+      directoryEntrySchema.safeParse({ ...validEntry, manifest }).success
+    ).toBe(false)
+  })
+
+  it("rejects manifests beyond the serialized byte limit", () => {
+    const manifest = Object.fromEntries(
+      Array.from({ length: 7 }, (_, index) => [
+        `field-${index}`,
+        "x".repeat(10_000),
+      ])
+    )
+
+    expect(
+      directoryEntrySchema.safeParse({ ...validEntry, manifest }).success
+    ).toBe(false)
+  })
+
+  it("rejects oversized catalog fields and arrays", () => {
+    expect(
+      directoryEntrySchema.safeParse({
+        ...validEntry,
+        description: "x".repeat(4_001),
+      }).success
+    ).toBe(false)
+    expect(
+      directoryEntrySchema.safeParse({
+        ...validEntry,
+        categories: Array.from({ length: 33 }, () => "productivity"),
+      }).success
+    ).toBe(false)
   })
 })

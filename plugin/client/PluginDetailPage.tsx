@@ -395,6 +395,45 @@ export function PluginDetailPage({
     entry.caveats.length > 0 ||
     !!limitationsText
   const health = entry.health
+  const securityStatus = entry.security?.status ?? "unknown"
+  const securityStatusLabel =
+    securityStatus === "passed"
+      ? "Passed"
+      : securityStatus === "failed"
+        ? "Failed"
+        : "Unknown"
+  const securityStatusColor =
+    securityStatus === "passed"
+      ? theme.colors.statusSuccess
+      : securityStatus === "failed"
+        ? theme.colors.statusDanger
+        : theme.colors.statusWarning
+  const securityFindingsSummary = entry.security
+    ? `${entry.security.blockingFindings} blocking · ${entry.security.advisoryFindings} advisory`
+    : "Finding counts unavailable"
+  const healthValues = Object.keys(HEALTH_LABELS).map(
+    (key) => health?.[key as keyof NonNullable<DirectoryEntry["health"]>]
+  )
+  const knownHealthChecks = healthValues.filter(
+    (value) => value !== undefined
+  ).length
+  const passedHealthChecks = healthValues.filter(
+    (value) => value === true
+  ).length
+  const failedHealthChecks = healthValues.filter(
+    (value) => value === false
+  ).length
+  const unknownHealthChecks = healthValues.length - knownHealthChecks
+  const healthSummary =
+    knownHealthChecks === 0
+      ? "Unknown"
+      : `${passedHealthChecks} passed · ${failedHealthChecks} not passed${
+          unknownHealthChecks > 0 ? ` · ${unknownHealthChecks} unknown` : ""
+        }`
+  const sourceUpdatedDate = formatDate(entry.repoMeta?.pushedAt)
+  const catalogScannedDate = formatDate(entry.scannedAt)
+  const securityScannedDate = formatDate(entry.security?.scannedAt)
+  const securityReportUrl = entry.security?.reportUrl
   const installable =
     isValidRepo(entry.repo) &&
     (entry.path === undefined || isValidInstallPath(entry.path))
@@ -781,14 +820,14 @@ export function PluginDetailPage({
           {inventoryAvailable && installations.length === 0 ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Install ${entry.name}`}
+              accessibilityLabel={`Review ${entry.name} before installing`}
               accessibilityState={{ disabled: actionPending || !installable }}
               style={[styles.button, !installable ? { opacity: 0.5 } : null]}
               disabled={actionPending || !installable}
               onPress={() => setConfirmingInstall(true)}
             >
               <Text style={styles.buttonText}>
-                {installing ? "Installing…" : "Install"}
+                {installing ? "Installing…" : "Review & install"}
               </Text>
             </Pressable>
           ) : null}
@@ -873,6 +912,68 @@ export function PluginDetailPage({
           </View>
         ) : null}
 
+        <View style={styles.section}>
+          <Text style={styles.label}>Security</Text>
+          <View style={styles.alert}>
+            <View style={styles.alertTitleRow}>
+              <Icon
+                name={
+                  securityStatus === "passed"
+                    ? "Check"
+                    : securityStatus === "failed"
+                      ? "X"
+                      : "AlertTriangle"
+                }
+                size={14}
+                color={securityStatusColor}
+              />
+              <Text style={[styles.alertTitle, { color: securityStatusColor }]}>
+                Security scan: {securityStatusLabel}
+              </Text>
+            </View>
+            {!entry.security ? (
+              <Text style={styles.alertBody}>
+                No published security scan is available. Finding counts and the
+                scan date are unknown.
+              </Text>
+            ) : (
+              <>
+                {securityStatus === "unknown" ? (
+                  <Text style={styles.alertBody}>
+                    The published scan does not report a pass or fail result.
+                  </Text>
+                ) : null}
+                <Text style={styles.alertBody}>
+                  Blocking findings: {entry.security.blockingFindings} ·
+                  Advisory findings: {entry.security.advisoryFindings}
+                </Text>
+                <Text selectable style={styles.alertBody}>
+                  Scanned {securityScannedDate ?? "Unknown"}
+                  {entry.security.commit
+                    ? ` at commit ${entry.security.commit}`
+                    : ""}
+                  .
+                </Text>
+                {securityReportUrl ? (
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open security report for ${entry.name}`}
+                    style={styles.errorAction}
+                    onPress={() => openExternal(securityReportUrl)}
+                  >
+                    <Icon
+                      name="ExternalLink"
+                      size={14}
+                      color={theme.colors.accent}
+                    />
+                    <Text style={styles.errorActionText}>Open report</Text>
+                  </Pressable>
+                ) : null}
+              </>
+            )}
+          </View>
+        </View>
+
         {health ? (
           <View style={styles.section}>
             <Text style={styles.label}>Health checks</Text>
@@ -917,24 +1018,86 @@ export function PluginDetailPage({
         ) : null}
       </ScrollView>
       <Modal
-        title={`Install ${entry.name}?`}
+        title={`Review ${entry.name} installation`}
         icon={<Icon name="Download" size={18} color={theme.colors.accent} />}
         open={confirmingInstall}
         onOpenChange={setConfirmingInstall}
       >
         <Modal.Content contentContainerStyle={styles.modalBody}>
-          <Text style={styles.modalTitle}>
-            {entry.repo}
-            {entry.path ? `/${entry.path}` : ""}
-          </Text>
-          <Text style={styles.modalText}>
-            Plugin server code, build commands, dependencies, and future updates
-            run as trusted code on the Paseo host. Review the repository before
-            installing.
-          </Text>
+          <View style={styles.section}>
+            <Text style={styles.label}>Source repository</Text>
+            <Text selectable style={styles.modalText}>
+              {entry.url}
+            </Text>
+          </View>
+          <View style={styles.section}>
+            <Text style={styles.label}>Install command</Text>
+            <View style={styles.commandRow}>
+              <Text selectable style={styles.command}>
+                {command}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.section}>
+            <Text style={styles.label}>Freshness and status</Text>
+            {sourceUpdatedDate ? (
+              <Text style={styles.modalText}>
+                Repository updated: {sourceUpdatedDate}
+              </Text>
+            ) : null}
+            {catalogScannedDate ? (
+              <Text style={styles.modalText}>
+                Catalog scanned: {catalogScannedDate}
+              </Text>
+            ) : null}
+            <Text style={styles.modalText}>Health: {healthSummary}</Text>
+            <Text style={styles.modalText}>
+              Security: {securityStatusLabel} · {securityFindingsSummary}
+            </Text>
+          </View>
+          <View style={styles.alert}>
+            <View style={styles.alertTitleRow}>
+              <Icon
+                name="AlertTriangle"
+                size={14}
+                color={theme.colors.statusWarning}
+              />
+              <Text style={styles.alertTitle}>Trusted, unsandboxed code</Text>
+            </View>
+            <Text style={styles.alertBody}>
+              Plugin server code, build commands, dependencies, and future
+              updates run as trusted code on the Paseo host. Review the source
+              before installing.
+            </Text>
+          </View>
+          <View style={styles.section}>
+            <Text style={styles.label}>Caveats</Text>
+            {entry.paseoVersionRequirement ? (
+              <Text style={styles.alertBody}>
+                Requires Paseo {entry.paseoVersionRequirement}.
+              </Text>
+            ) : null}
+            {entry.platforms.length > 0 ? (
+              <Text style={styles.alertBody}>
+                Supported platforms: {entry.platforms.join(", ")}.
+              </Text>
+            ) : null}
+            {entry.caveats.map((caveat) => (
+              <Text key={caveat} style={styles.caveatLine}>
+                ⚠ {caveat}
+              </Text>
+            ))}
+            {limitationsText ? (
+              <Text style={styles.readmeText}>{limitationsText}</Text>
+            ) : null}
+            {!hasCaveatsSection ? (
+              <Text style={styles.modalText}>No catalog caveats reported.</Text>
+            ) : null}
+          </View>
           <View style={styles.actionsRow}>
             <Pressable
               accessibilityRole="link"
+              accessibilityLabel={`Open ${entry.name} repository`}
               style={styles.secondaryButton}
               onPress={() => openExternal(entry.url)}
             >
@@ -942,6 +1105,7 @@ export function PluginDetailPage({
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Cancel installation"
               style={styles.secondaryButton}
               onPress={() => setConfirmingInstall(false)}
             >
@@ -949,13 +1113,19 @@ export function PluginDetailPage({
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              style={styles.button}
+              accessibilityLabel={`Confirm installation of ${entry.name}`}
+              accessibilityState={{ disabled: actionPending || !installable }}
+              style={[styles.button, !installable ? { opacity: 0.5 } : null]}
+              disabled={actionPending || !installable}
               onPress={() => {
+                if (actionPending || !installable) return
                 setConfirmingInstall(false)
                 onInstall()
               }}
             >
-              <Text style={styles.buttonText}>Install</Text>
+              <Text style={styles.buttonText}>
+                {installing ? "Installing…" : "Install"}
+              </Text>
             </Pressable>
           </View>
         </Modal.Content>

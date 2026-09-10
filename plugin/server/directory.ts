@@ -6,7 +6,10 @@ import type {
   DirectoryEntry,
   directoryInstallRpc,
   directoryListRpc,
+  directoryManifestSearchRpc,
+  directoryReadmeSearchRpc,
   directorySearchRpc,
+  directorySecuritySearchRpc,
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
   InstalledPlugin,
@@ -29,13 +32,18 @@ const execFileAsync = promisify(execFile)
 
 const CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_INSTALL_ERROR_LENGTH = 32_000
+const MAX_DIRECTORY_RESPONSE_BYTES = 16 * 1_024 * 1_024
 const ANSI_ESCAPE_PATTERN = new RegExp(
   `${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`,
   "g"
 )
 const directoryResponseSchema = z.object({
   plugins: z.array(directoryEntrySchema).max(500),
-  generatedAt: z.iso.datetime({ offset: true, local: true }).optional(),
+  generatedAt: z
+    .string()
+    .max(100)
+    .pipe(z.iso.datetime({ offset: true, local: true }))
+    .optional(),
 })
 const pluginUpdateResponseSchema = z.array(
   z.object({
@@ -322,6 +330,40 @@ function resolveDirectoryUrl(baseUrl: string | undefined): string {
   return DEFAULT_DIRECTORY_URL
 }
 
+async function readBoundedCatalogBody(response: Response): Promise<string> {
+  const contentLength = response.headers.get("content-length")
+  if (
+    contentLength &&
+    /^\d+$/.test(contentLength) &&
+    Number(contentLength) > MAX_DIRECTORY_RESPONSE_BYTES
+  ) {
+    throw new Error(
+      `Catalog response exceeds ${MAX_DIRECTORY_RESPONSE_BYTES} byte limit`
+    )
+  }
+  if (!response.body) return ""
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let receivedBytes = 0
+  let parts: string[] = []
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    receivedBytes += value.byteLength
+    if (receivedBytes > MAX_DIRECTORY_RESPONSE_BYTES) {
+      await reader.cancel().catch(() => {})
+      throw new Error(
+        `Catalog response exceeds ${MAX_DIRECTORY_RESPONSE_BYTES} byte limit`
+      )
+    }
+    parts.push(decoder.decode(value, { stream: true }))
+    if (parts.length >= 1_024) parts = [parts.join("")]
+  }
+  parts.push(decoder.decode())
+  return parts.join("")
+}
+
 async function fetchDirectory(baseUrl: string | undefined, force = false) {
   const url = resolveDirectoryUrl(baseUrl)
   const now = Date.now()
@@ -332,20 +374,24 @@ async function fetchDirectory(baseUrl: string | undefined, force = false) {
   // typechecks without the DOM lib, which is where that static lives.
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 10_000)
-  let response: Response
+  let bodyText: string
   try {
-    response = await fetch(url, {
+    const response = await fetch(url, {
       signal: controller.signal,
       redirect: "error",
       headers: { accept: "application/json" },
     })
+    if (!response.ok) {
+      throw new Error(
+        `${url} returned ${response.status} ${response.statusText}`
+      )
+    }
+    bodyText = await readBoundedCatalogBody(response)
   } finally {
     clearTimeout(timeout)
   }
-  if (!response.ok) {
-    throw new Error(`${url} returned ${response.status} ${response.statusText}`)
-  }
-  const body = directoryResponseSchema.parse(await response.json())
+
+  const body = directoryResponseSchema.parse(JSON.parse(bodyText))
   const result = {
     receivedAt: now,
     fetchedAt: body.generatedAt ?? new Date(now).toISOString(),
@@ -384,7 +430,18 @@ export async function listDirectoryUpdateStatus(
   }
 }
 
-function attachmentText(entry: DirectoryEntry): string {
+const MAX_ATTACHMENT_TEXT_LENGTH = 32_000
+const ATTACHMENT_TRUNCATION_NOTICE = "\n\n[Attachment truncated by Paseo Cafe]"
+
+function boundAttachmentText(text: string): string {
+  if (text.length <= MAX_ATTACHMENT_TEXT_LENGTH) return text
+  return `${text.slice(
+    0,
+    MAX_ATTACHMENT_TEXT_LENGTH - ATTACHMENT_TRUNCATION_NOTICE.length
+  )}${ATTACHMENT_TRUNCATION_NOTICE}`
+}
+
+function listingAttachmentText(entry: DirectoryEntry): string {
   const healthText = entry.health
     ? Object.entries(HEALTH_LABELS)
         .map(
@@ -393,45 +450,101 @@ function attachmentText(entry: DirectoryEntry): string {
         )
         .join("\n")
     : "Not reported"
-  return [
-    `# ${entry.name}`,
-    entry.description,
-    `Repository: ${entry.repo}`,
-    `Repository URL: ${entry.url}`,
-    `Install: ${getInstallCommand(entry)}`,
-    entry.paseoVersionRequirement
-      ? `Paseo requirement: ${entry.paseoVersionRequirement}`
-      : null,
-    entry.platforms.length ? `Platforms: ${entry.platforms.join(", ")}` : null,
-    entry.categories.length
-      ? `Categories: ${entry.categories.join(", ")}`
-      : null,
-    entry.caveats.length
-      ? `Caveats:\n${entry.caveats.map((item) => `- ${item}`).join("\n")}`
-      : null,
-    entry.limitationsNotesHtml
-      ? `Limitations from README: ${stripHtml(entry.limitationsNotesHtml)}`
-      : null,
-    entry.installNotesHtml
-      ? `Install notes from README: ${stripHtml(entry.installNotesHtml)}`
-      : null,
-    entry.scanError ? `Directory scan error: ${entry.scanError}` : null,
-    `Health checks:\n${healthText}`,
-    `Directory page: ${getSiteUrl(entry)}`,
-    "Paseo plugins are trusted, unsandboxed code. Review the source before installing.",
-  ]
-    .filter((line): line is string => Boolean(line))
-    .join("\n\n")
+  return boundAttachmentText(
+    [
+      `# ${entry.name}`,
+      entry.description,
+      `Repository: ${entry.repo}`,
+      `Repository URL: ${entry.url}`,
+      `Install: ${getInstallCommand(entry)}`,
+      entry.paseoVersionRequirement
+        ? `Paseo requirement: ${entry.paseoVersionRequirement}`
+        : null,
+      entry.platforms.length
+        ? `Platforms: ${entry.platforms.join(", ")}`
+        : null,
+      entry.categories.length
+        ? `Categories: ${entry.categories.join(", ")}`
+        : null,
+      entry.caveats.length
+        ? `Caveats:\n${entry.caveats.map((item) => `- ${item}`).join("\n")}`
+        : null,
+      entry.limitationsNotesHtml
+        ? `Limitations from README: ${stripHtml(entry.limitationsNotesHtml)}`
+        : null,
+      entry.installNotesHtml
+        ? `Install notes from README: ${stripHtml(entry.installNotesHtml)}`
+        : null,
+      entry.scanError ? `Directory scan error: ${entry.scanError}` : null,
+      `Health checks:\n${healthText}`,
+      `Directory page: ${getSiteUrl(entry)}`,
+      "Paseo plugins are trusted, unsandboxed code. Review the source before installing.",
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join("\n\n")
+  )
 }
 
-export async function searchDirectory(
-  input: RpcInput<typeof directorySearchRpc>
-): Promise<RpcOutput<typeof directorySearchRpc>> {
-  const { plugins } = await fetchDirectory(undefined)
-  const query = input.query.trim().toLowerCase()
-  const matches = plugins
+function manifestAttachmentText(entry: DirectoryEntry): string {
+  const manifest = entry.manifest
+  return boundAttachmentText(
+    [
+      `# ${entry.name} manifest`,
+      `Repository: ${entry.repo}`,
+      manifest
+        ? `Manifest JSON:\n${JSON.stringify(manifest, null, 2)}`
+        : "Manifest unavailable: the catalog did not provide manifest JSON for this plugin.",
+      `Directory page: ${getSiteUrl(entry)}`,
+    ].join("\n\n")
+  )
+}
+
+function readmeAttachmentText(entry: DirectoryEntry): string {
+  const readmeLength = entry.readmeText?.trim() ? entry.readmeText.length : null
+  return boundAttachmentText(
+    [
+      `# ${entry.name} README`,
+      `Repository: ${entry.repo}`,
+      readmeLength === null
+        ? "README availability: unavailable (the catalog did not provide README source text for this plugin)."
+        : `README availability: available (${readmeLength} characters). Review it manually in the Paseo Cafe directory UI; README content is intentionally excluded from agent attachments.`,
+      `Directory page: ${getSiteUrl(entry)}`,
+    ].join("\n\n")
+  )
+}
+
+function securityAttachmentText(entry: DirectoryEntry): string {
+  const security = entry.security
+  const summary = security
+    ? [
+        `Security status: ${security.status}`,
+        `Blocking findings: ${security.blockingFindings}`,
+        `Advisory findings: ${security.advisoryFindings}`,
+        security.scannedAt ? `Scanned at: ${security.scannedAt}` : null,
+        security.commit ? `Scanned commit: ${security.commit}` : null,
+        security.reportUrl ? `Security report: ${security.reportUrl}` : null,
+      ]
+    : [
+        "Security status: unknown",
+        "Security summary unavailable: the catalog did not provide a security scan for this plugin.",
+      ]
+  return boundAttachmentText(
+    [
+      `# ${entry.name} security summary`,
+      `Repository: ${entry.repo}`,
+      ...summary,
+      `Directory page: ${getSiteUrl(entry)}`,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join("\n\n")
+  )
+}
+
+function attachmentMatches(plugins: readonly DirectoryEntry[], query: string) {
+  const normalizedQuery = query.trim().toLowerCase()
+  return plugins
     .filter((entry) => {
-      if (!query) return true
+      if (!normalizedQuery) return true
       return [
         entry.id,
         entry.name,
@@ -444,22 +557,73 @@ export async function searchDirectory(
         .filter((value): value is string => Boolean(value))
         .join(" ")
         .toLowerCase()
-        .includes(query)
+        .includes(normalizedQuery)
     })
     .sort((a, b) => (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0))
     .slice(0, 20)
+}
 
+async function searchDirectoryAttachments(
+  query: string,
+  resourceType: string,
+  text: (entry: DirectoryEntry) => string,
+  idSuffix?: string
+) {
+  const { plugins } = await fetchDirectory(undefined)
   return {
-    items: matches.map((entry) => ({
-      id: entry.id,
+    items: attachmentMatches(plugins, query).map((entry) => ({
+      id: idSuffix ? `${entry.id}:${idSuffix}` : entry.id,
       identifier: entry.id,
       title: entry.name,
       subtitle: entry.repo,
       url: getSiteUrl(entry),
-      text: attachmentText(entry),
-      resourceType: "Paseo plugin",
+      text: text(entry),
+      resourceType,
     })),
   }
+}
+
+export async function searchDirectory(
+  input: RpcInput<typeof directorySearchRpc>
+): Promise<RpcOutput<typeof directorySearchRpc>> {
+  return searchDirectoryAttachments(
+    input.query,
+    "Paseo plugin",
+    listingAttachmentText
+  )
+}
+
+export async function searchDirectoryManifests(
+  input: RpcInput<typeof directoryManifestSearchRpc>
+): Promise<RpcOutput<typeof directoryManifestSearchRpc>> {
+  return searchDirectoryAttachments(
+    input.query,
+    "Paseo plugin manifest",
+    manifestAttachmentText,
+    "manifest"
+  )
+}
+
+export async function searchDirectoryReadmes(
+  input: RpcInput<typeof directoryReadmeSearchRpc>
+): Promise<RpcOutput<typeof directoryReadmeSearchRpc>> {
+  return searchDirectoryAttachments(
+    input.query,
+    "Paseo plugin README",
+    readmeAttachmentText,
+    "readme"
+  )
+}
+
+export async function searchDirectorySecurity(
+  input: RpcInput<typeof directorySecuritySearchRpc>
+): Promise<RpcOutput<typeof directorySecuritySearchRpc>> {
+  return searchDirectoryAttachments(
+    input.query,
+    "Paseo plugin security summary",
+    securityAttachmentText,
+    "security"
+  )
 }
 
 export async function installDirectoryPlugin(
