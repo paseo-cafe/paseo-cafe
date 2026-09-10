@@ -15,24 +15,42 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { formatDate } from "@/lib/format-date"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
+
+/** The date the listing is currently ordered by, so the ordering is legible on the card itself. */
+function sortedDateNote(
+  plugin: PluginRecord,
+  showDate: "added" | "updated" | undefined
+): string | null {
+  if (showDate === "added" && plugin.addedAt)
+    return `Added ${formatDate(plugin.addedAt)}`
+  if (showDate === "updated" && plugin.updatedAt)
+    return `Updated ${formatDate(plugin.updatedAt)}`
+  return null
+}
 
 /**
  * `isNew` and `isUpdated` mark what the directory gained, and what changed
  * version, since this visitor's previous visit (see src/lib/since-last-visit.ts).
  * Both are per-browser, so they only ever arrive from a client-side caller —
- * never from the record itself.
+ * never from the record itself. `showDate` surfaces whichever date the grid is
+ * sorted by, and is omitted for the orderings that aren't dates.
  */
 export function PluginCard({
   plugin,
   isNew = false,
   isUpdated = false,
+  showDate,
 }: {
   plugin: PluginRecord
   isNew?: boolean
   isUpdated?: boolean
+  showDate?: "added" | "updated"
 }) {
+  const dateNote = sortedDateNote(plugin, showDate)
+
   return (
     <Link to="/plugins/$id" params={{ id: plugin.id }} className="block">
       <Card className="h-full pt-0 transition-shadow hover:shadow-md">
@@ -91,6 +109,9 @@ export function PluginCard({
               />
               {plugin.owner.login}
             </div>
+          ) : null}
+          {dateNote ? (
+            <span className="text-foreground/50 text-xs">{dateNote}</span>
           ) : null}
         </CardHeader>
         <CardContent className="flex flex-wrap gap-1.5">

@@ -148,6 +148,9 @@ function App() {
                   plugin={plugin}
                   isNew={newIds.has(plugin.id)}
                   isUpdated={updatedIds.has(plugin.id)}
+                  showDate={
+                    sort === "added" || sort === "updated" ? sort : undefined
+                  }
                 />
               ))}
             </div>
