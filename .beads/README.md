@@ -24,7 +24,7 @@ bd show <issue-id>
 
 # Update issue status
 bd update <issue-id> --claim
-bd update <issue-id> --status done
+bd close <issue-id> --reason "Completed"
 
 # Sync with Dolt remote
 bd dolt push
@@ -60,8 +60,9 @@ Issues in Beads are:
 Try Beads in your own projects:
 
 ```bash
-# Install Beads
-curl -sSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
+# Install Beads (pinned releases, no piping remote scripts to a shell)
+brew install beads          # macOS / Linux
+npm install -g @beads/bd    # Node.js
 
 # Initialize in your repo
 bd init
