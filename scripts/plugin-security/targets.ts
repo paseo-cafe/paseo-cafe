@@ -39,7 +39,7 @@ export async function selectTargets(opts: {
   githubToken?: string
 }): Promise<SecurityTarget[]> {
   const local = readLocalRegistry(opts.registryRoot)
-  if (!opts.eventPath) return local.map((entry) => toTarget(entry, "HEAD"))
+  if (!opts.eventPath) return await resolveLocalTargets(local, opts.githubToken)
   const event = eventSchema.parse(
     JSON.parse(readFileSync(opts.eventPath, "utf8"))
   )
@@ -48,7 +48,7 @@ export async function selectTargets(opts: {
     !pr ||
     !["opened", "synchronize", "reopened"].includes(event.action ?? "")
   ) {
-    return local.map((entry) => toTarget(entry, "HEAD"))
+    return await resolveLocalTargets(local, opts.githubToken)
   }
   return selectPullRequestTargets(
     pr.base.repo.full_name,
@@ -57,6 +57,27 @@ export async function selectTargets(opts: {
     pr.head.sha,
     opts.githubToken
   )
+}
+
+/**
+ * Every registry entry checked out locally, each pinned to its repo's
+ * current default-branch commit. This is the full-registry scan mode used
+ * by the nightly/deploy pipeline (see deploy-pages.yml) — as opposed to
+ * selectPullRequestTargets, which only re-scans entries a PR actually
+ * changed. Resolving a real commit here (rather than a placeholder) keeps
+ * every emitted SecurityPluginResult.commit a valid Git SHA even on a
+ * clone failure, where scanTarget falls back to target.commit verbatim.
+ */
+async function resolveLocalTargets(
+  entries: { id: string; repo: string; path?: string }[],
+  token?: string
+): Promise<SecurityTarget[]> {
+  const targets: SecurityTarget[] = []
+  for (const entry of entries) {
+    const commit = await resolvePluginRepoRevision(entry.repo, token)
+    targets.push(toTarget(entry, commit))
+  }
+  return targets
 }
 
 async function selectPullRequestTargets(
