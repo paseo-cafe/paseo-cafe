@@ -149,8 +149,8 @@ function App() {
     : `${plugins.length} plugin${plugins.length === 1 ? "" : "s"} generated from their source repos.`
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 pb-20">
-      <div className="mx-auto flex max-w-2xl flex-col gap-4 px-6 pt-16 pb-2 text-center">
+    <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 pb-20 sm:px-6">
+      <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-4 px-0 pt-16 pb-2 text-center sm:px-6">
         <div className="mx-auto flex items-center gap-1.5 text-foreground/50 text-xs">
           <span className="size-1.5 rounded-full bg-primary" />
           Community-run unofficial directory
@@ -171,6 +171,29 @@ function App() {
 
       <p className="text-foreground/60 text-sm">{summary}</p>
       <div className="mx-auto flex w-full flex-col gap-8 lg:flex-row lg:items-start">
+        <CatalogSidebar
+          search={search}
+          totalCount={plugins.length}
+          categories={categories}
+          categoryCounts={categoryCounts}
+          platforms={platformsWithResults}
+          platformCounts={platformCounts}
+          onQueryChange={(q) =>
+            navigate({
+              search: (prev) => ({ ...prev, q, page: 1 }),
+              replace: true,
+            })
+          }
+          onSortChange={(sort) =>
+            navigate({ search: (prev) => ({ ...prev, sort, page: 1 }) })
+          }
+          onCategoryChange={(category) =>
+            navigate({ search: (prev) => ({ ...prev, category, page: 1 }) })
+          }
+          onPlatformChange={(platform) =>
+            navigate({ search: (prev) => ({ ...prev, platform, page: 1 }) })
+          }
+        />
         <div className="min-w-0 flex-1">
           {showFeatured ? (
             <div className="flex flex-col gap-8">
@@ -197,30 +220,6 @@ function App() {
             totalCount={sorted.length}
           />
         </div>
-
-        <CatalogSidebar
-          search={search}
-          totalCount={plugins.length}
-          categories={categories}
-          categoryCounts={categoryCounts}
-          platforms={platformsWithResults}
-          platformCounts={platformCounts}
-          onQueryChange={(q) =>
-            navigate({
-              search: (prev) => ({ ...prev, q, page: 1 }),
-              replace: true,
-            })
-          }
-          onSortChange={(sort) =>
-            navigate({ search: (prev) => ({ ...prev, sort, page: 1 }) })
-          }
-          onCategoryChange={(category) =>
-            navigate({ search: (prev) => ({ ...prev, category, page: 1 }) })
-          }
-          onPlatformChange={(platform) =>
-            navigate({ search: (prev) => ({ ...prev, platform, page: 1 }) })
-          }
-        />
       </div>
     </div>
   )

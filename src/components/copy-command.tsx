@@ -15,11 +15,13 @@ export function CopyCommand({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 border border-border bg-muted px-4 py-3",
+        "flex min-w-0 max-w-full items-center justify-between gap-3 border border-border bg-muted px-4 py-3",
         className
       )}
     >
-      <code className="overflow-x-auto whitespace-pre text-sm">{command}</code>
+      <code className="min-w-0 flex-1 overflow-x-auto whitespace-pre text-sm">
+        {command}
+      </code>
       <Button
         variant="outline"
         size="icon-sm"
