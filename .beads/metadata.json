@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "paseo_cafe",
+  "project_id": "48870e6b-1879-475a-926a-cdad1d3411c6"
+}
