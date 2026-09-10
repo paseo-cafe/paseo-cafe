@@ -405,7 +405,7 @@ async function writeOgImage(
   }
 }
 
-function writeSitemap(records: PluginRecord[]) {
+export function writeSitemap(records: PluginRecord[]) {
   const staticPages = [
     { path: "/", changefreq: "daily" },
     { path: "/submit", changefreq: "monthly" },
