@@ -12,6 +12,7 @@
  * safest defaults, so the listing can surface it as "needs attention"
  * instead of the whole build breaking.
  */
+import { execFileSync } from "node:child_process"
 import {
   existsSync,
   mkdirSync,
@@ -79,12 +80,38 @@ function isRecent(iso: string): boolean {
   return pushed >= cutoff
 }
 
+/**
+ * When a registry entry first landed in the repo, i.e. when the plugin
+ * joined the directory — the earliest commit that added `relPath`. This is
+ * the only durable "date added" we have, since data/plugins.json itself is
+ * regenerated from scratch on every run (gitignored, never committed back to
+ * main) and the registry entry is the one hand-authored, version-controlled
+ * artifact per plugin. Requires full git history (the deploy workflow's
+ * checkout uses fetch-depth: 0); falls back to `fallback` for a shallow
+ * clone or a registry file that isn't committed yet.
+ */
+function firstAddedAt(relPath: string, fallback: string): string {
+  try {
+    const out = execFileSync(
+      "git",
+      ["log", "--diff-filter=A", "--follow", "--format=%aI", "--", relPath],
+      { cwd: ROOT, encoding: "utf8" }
+    ).trim()
+    if (!out) return fallback
+    const dates = out.split("\n")
+    return dates[dates.length - 1] ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
 async function scanOne(entryFile: string): Promise<PluginRecord> {
   const id = registryIdSchema.parse(entryFile.slice(0, -".json".length))
   const raw = JSON.parse(readFileSync(join(REGISTRY_DIR, entryFile), "utf8"))
   const entry = registryEntrySchema.parse(raw)
   const [owner, repo] = entry.repo.split("/")
   const scannedAt = new Date().toISOString()
+  const addedAt = firstAddedAt(join("registry", entryFile), scannedAt)
   const prefix = entry.path ? `${entry.path}/` : ""
   const fallbackUrl = `https://github.com/${entry.repo}${entry.path ? `/tree/HEAD/${entry.path}` : ""}`
 
@@ -109,6 +136,7 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
     images: [],
     videos: [],
     scannedAt,
+    addedAt,
   }
 
   try {
@@ -275,6 +303,7 @@ async function scanOne(entryFile: string): Promise<PluginRecord> {
       images,
       videos,
       scannedAt,
+      addedAt,
     }
 
     if (!manifestId) {

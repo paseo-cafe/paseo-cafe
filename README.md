@@ -72,6 +72,10 @@ bun run dev                 # regenerate the listing, then serve http://localhos
 `.output/public`. Run `bun run registry:scan` explicitly to refresh it. Other useful scripts:
 `bun run typecheck`, `bun run lint`, `bun run test`.
 
+Unauthenticated GitHub API requests are capped at 60/hour and `registry:scan`/`registry:validate`
+will hit that fast. Put a token (no scopes needed) in a local `.env` as `GITHUB_TOKEN=...` — Bun
+loads it automatically — to raise that to 5,000/hour.
+
 ## Stack
 
 TanStack Start (file-based routes under `src/routes/`), shadcn/ui (`src/components/ui/`,

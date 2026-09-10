@@ -30,6 +30,7 @@ const basePlugin: PluginRecord = {
   images: [],
   videos: [],
   scannedAt: "2026-09-01T00:00:00.000Z",
+  addedAt: "2026-08-01T00:00:00.000Z",
 }
 
 describe("pluginJsonLd", () => {

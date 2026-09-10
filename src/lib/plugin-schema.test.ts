@@ -37,6 +37,7 @@ describe("pluginRecordSchema", () => {
         "https://raw.githubusercontent.com/mcowger/paseo-plugins/main/subagent-activity/images/a.png",
       ],
       scannedAt: new Date().toISOString(),
+      addedAt: new Date().toISOString(),
     })
     expect(result.success).toBe(true)
   })
@@ -60,6 +61,7 @@ describe("pluginRecordSchema", () => {
       images: [],
       scanError: "repo/path not found on GitHub: someone/deleted-repo",
       scannedAt: new Date().toISOString(),
+      addedAt: new Date().toISOString(),
     })
     expect(result.success).toBe(true)
   })
@@ -75,6 +77,7 @@ describe("pluginRecordSchema", () => {
       health: validHealth,
       images: [],
       scannedAt: new Date().toISOString(),
+      addedAt: new Date().toISOString(),
     })
     expect(result.platforms).toEqual([])
     expect(result.caveats).toEqual([])
@@ -96,6 +99,7 @@ describe("pluginRecordSchema", () => {
       health: validHealth,
       images: [],
       scannedAt: new Date().toISOString(),
+      addedAt: new Date().toISOString(),
     })
     expect(result.success).toBe(true)
   })

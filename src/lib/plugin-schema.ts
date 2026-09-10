@@ -97,6 +97,12 @@ export const pluginRecordSchema = z.object({
   videos: z.array(videoEmbedSchema).default([]),
   scanError: z.string().optional(),
   scannedAt: z.string(),
+  // When this plugin's registry/<id>.json entry first landed in the repo —
+  // i.e. when it joined the directory — read from git history at scan time
+  // (see scripts/scan.ts's firstAddedAt), not hand-maintained. Falls back to
+  // scannedAt when history isn't available (shallow clone, brand-new file).
+  // Powers the homepage's "Latest" sort.
+  addedAt: z.string(),
 })
 
 export type PluginHealth = z.infer<typeof pluginHealthSchema>

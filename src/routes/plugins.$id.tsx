@@ -21,7 +21,7 @@ import type { PluginHealth } from "@/lib/plugin-schema"
 import { listPlugins } from "@/lib/plugins-data"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
-import { SITE_NAME } from "@/lib/site"
+import { SITE_NAME, SITE_REPO } from "@/lib/site"
 
 export const Route = createFileRoute("/plugins/$id")({
   component: PluginDetail,
@@ -55,6 +55,12 @@ const HEALTH_LABELS: Record<keyof PluginHealth, string> = {
 
 function PluginDetail() {
   const plugin = Route.useLoaderData()
+  // plugin.owner comes from the GitHub API and is authoritative when present;
+  // repo.split("/")[0] is the same fallback used elsewhere on this page for
+  // a scan that errored before repoMeta/owner got populated.
+  const ownerLogin = plugin.owner?.login ?? plugin.repo.split("/")[0]
+  const isOfficialListing =
+    ownerLogin.toLowerCase() === SITE_REPO.split("/")[0].toLowerCase()
 
   return (
     <div className="flex flex-col gap-8">
@@ -145,25 +151,25 @@ function PluginDetail() {
           <IconExternalLink className="size-3.5" />
         </a>
       </div>
-
-      <Alert>
-        <IconAlertTriangle />
-        <AlertTitle>
-          Community-submitted — not owned or vetted by {SITE_NAME}
-        </AlertTitle>
-        <AlertDescription>
-          This listing is generated automatically from the plugin's own public
-          repository. We don't audit, endorse, or take responsibility for
-          third-party plugin code. Paseo plugins are trusted, unsandboxed code
-          with filesystem, process, and network access on the machine they run
-          on — read the source at{" "}
-          <a href={plugin.url} target="_blank" rel="noreferrer">
-            {plugin.repo}
-          </a>{" "}
-          before installing.
-        </AlertDescription>
-      </Alert>
-
+      {!isOfficialListing && (
+        <Alert>
+          <IconAlertTriangle />
+          <AlertTitle>
+            Community-submitted — not owned or vetted by {SITE_NAME}
+          </AlertTitle>
+          <AlertDescription>
+            This listing is generated automatically from the plugin's own
+            public repository. We don't audit, endorse, or take
+            responsibility for third-party plugin code. Paseo plugins are
+            trusted, unsandboxed code with filesystem, process, and network
+            access on the machine they run on — read the source at{" "}
+            <a href={plugin.url} target="_blank" rel="noreferrer">
+              {plugin.repo}
+            </a>{" "}
+            before installing.
+          </AlertDescription>
+        </Alert>
+      )}
       {plugin.paseoVersionRequirement ||
       plugin.platforms.length > 0 ||
       plugin.caveats.length > 0 ||
