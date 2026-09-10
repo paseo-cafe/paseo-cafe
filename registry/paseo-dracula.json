@@ -1,6 +1,7 @@
 {
-  "repo": "omercnet/paseo-dracula",
+  "repo": "omercnet/paseo-plugins",
+  "path": "paseo-dracula",
   "categories": ["theme"],
-  "caveats": ["Requires Paseo 0.7.2 or newer"],
+  "caveats": ["Requires Paseo 0.8.x"],
   "submittedBy": "omercnet"
 }

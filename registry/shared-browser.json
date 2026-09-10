@@ -1,5 +1,6 @@
 {
-  "repo": "omercnet/paseo-shared-browser",
+  "repo": "omercnet/paseo-plugins",
+  "path": "paseo-shared-browser",
   "categories": ["browser", "productivity"],
   "caveats": [
     "Installs a dedicated Chromium download of roughly 180 MB on the daemon host",

@@ -1,0 +1,11 @@
+{
+  "repo": "omercnet/paseo-plugins",
+  "path": "fresh-worktrees",
+  "categories": ["automation", "git", "productivity"],
+  "platforms": ["macos", "linux", "windows"],
+  "caveats": [
+    "Requires Paseo 0.8.0-beta.1 or newer",
+    "Fetch failures stop branch-off worktree creation rather than using stale refs"
+  ],
+  "submittedBy": "omercnet"
+}
