@@ -432,6 +432,15 @@ describe("installDirectoryPlugin", () => {
       ok: false,
       message: `"bad ref" isn't a valid Git branch.`,
     })
+    await expect(
+      installDirectoryPlugin({
+        repo: "acme/plugin",
+        expectedCommit: "a".repeat(40),
+      })
+    ).resolves.toEqual({
+      ok: false,
+      message: "The scanned commit cannot be verified without a branch name.",
+    })
   })
 
   it("tracks the scanned branch in the install command", () => {

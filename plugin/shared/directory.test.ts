@@ -16,6 +16,7 @@ import {
   getInstallCommand,
   getInstallRef,
   getRepositoryUrl,
+  getRepositoryUrlAtRef,
   getSiteUrl,
   isOfficialPlugin,
   isTrustedCatalogUrl,
@@ -79,6 +80,11 @@ describe("plugin install targets", () => {
         security,
       })
     ).toBe(`https://github.com/paseo-cafe/standalone/tree/${commit}`)
+  })
+  it("links update review to the prospective commit", () => {
+    expect(getRepositoryUrlAtRef({ repo: "owner/root" }, "b".repeat(40))).toBe(
+      `https://github.com/owner/root/tree/${"b".repeat(40)}`
+    )
   })
 
   it("rejects targets that could escape the repository or add CLI arguments", () => {

@@ -21,6 +21,7 @@ import {
   getReportPluginIssueUrl,
   getRepositoryOwner,
   getRepositoryUrl,
+  getRepositoryUrlAtRef,
   getSiteUrl,
   HEALTH_KEYS,
   HEALTH_LABELS,
@@ -450,6 +451,9 @@ export function PluginDetailPage({
   const command = getInstallCommand(entry)
   const installRef = getInstallRef(entry.repoMeta?.defaultBranch)
   const repositoryUrl = getRepositoryUrl(entry)
+  const updateRepositoryUrl = confirmingUpdate?.latestCommit
+    ? getRepositoryUrlAtRef(entry, confirmingUpdate.latestCommit)
+    : repositoryUrl
   const repositoryOwner = getRepositoryOwner(entry.repo)
   const ownerMetadataMatchesRepository =
     entry.owner?.login?.toLowerCase() === repositoryOwner.toLowerCase()
@@ -516,7 +520,9 @@ export function PluginDetailPage({
   const catalogScannedDate = formatDate(entry.scannedAt)
   const securityScannedDate = formatDate(securityAttestation?.scannedAt)
   const securityReportUrl = securityAttestation?.reportUrl
-  const installable = command !== undefined
+  const missingAttestationBranch =
+    securityAttestation?.commit !== undefined && installRef === undefined
+  const installable = command !== undefined && !missingAttestationBranch
   const actionPending = installing || updatingId !== null
   const reportPluginUrl = getReportPluginIssueUrl(entry)
   const actionError = installations.length > 0 ? updateError : installError
@@ -937,8 +943,9 @@ export function PluginDetailPage({
         {inventoryAvailable && installations.length === 0 && !installable ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
             <Text style={styles.errorText}>
-              This listing has an invalid repository or plugin subpath and
-              cannot be installed.
+              {missingAttestationBranch
+                ? "This security-attested listing lacks valid branch metadata. Refresh or update the catalog before installing."
+                : "This listing has an invalid repository or plugin subpath and cannot be installed."}
             </Text>
           </View>
         ) : null}
@@ -1252,12 +1259,18 @@ export function PluginDetailPage({
             Updating replaces trusted, unsandboxed plugin code on this Paseo
             host. Review the source before continuing.
           </Text>
+          {confirmingUpdate?.latestCommit ? (
+            <Text style={styles.modalText}>
+              Review commit {confirmingUpdate.latestCommit.slice(0, 12)} before
+              updating.
+            </Text>
+          ) : null}
           <View style={styles.actionsRow}>
             <Pressable
               accessibilityRole="link"
               accessibilityLabel={`Open ${entry.name} repository`}
               style={styles.secondaryButton}
-              onPress={() => openExternal(repositoryUrl)}
+              onPress={() => openExternal(updateRepositoryUrl)}
             >
               <Text style={styles.secondaryButtonText}>View repository</Text>
             </Pressable>

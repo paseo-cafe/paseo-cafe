@@ -639,6 +639,17 @@ export function getRepositoryUrl(
   })
 }
 
+export function getRepositoryUrlAtRef(
+  entry: Pick<DirectoryEntry, "repo" | "path">,
+  ref: string
+): string {
+  return getCatalogRepositoryUrl({
+    repo: entry.repo,
+    path: entry.path,
+    ref: isValidCatalogCommit(ref) ? ref : undefined,
+  })
+}
+
 export function getSiteUrl(entry: Pick<DirectoryEntry, "id">): string {
   return `${SITE_URL}/plugins/${encodeURIComponent(entry.id)}`
 }
