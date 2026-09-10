@@ -14,8 +14,8 @@ export function HomeHero() {
         <a href="https://paseo.sh" className="underline underline-offset-4">
           Paseo
         </a>{" "}
-        plugins. Every listing is generated straight from each plugin's own
-        repo — no forms to fill out, just point us at the code.
+        plugins. Every listing is generated straight from each plugin's own repo
+        — no forms to fill out, just point us at the code.
       </p>
     </div>
   )

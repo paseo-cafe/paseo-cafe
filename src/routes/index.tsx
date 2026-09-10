@@ -7,7 +7,7 @@ import { PluginSidebar } from "@/components/plugin-sidebar"
 import { listPlugins } from "@/lib/plugins-data"
 import { seo } from "@/lib/seo"
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
-import { sortPlugins, SORT_VALUES } from "@/lib/sort-plugins"
+import { SORT_VALUES, sortPlugins } from "@/lib/sort-plugins"
 
 /**
  * Search, category, and sort all live in the URL (?q=&category=&sort=)

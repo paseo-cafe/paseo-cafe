@@ -11,7 +11,9 @@ const health = {
   updatedRecently: true,
 }
 
-function plugin(overrides: Partial<PluginRecord> & { id: string }): PluginRecord {
+function plugin(
+  overrides: Partial<PluginRecord> & { id: string }
+): PluginRecord {
   return {
     repo: `owner/${overrides.id}`,
     url: `https://github.com/owner/${overrides.id}`,
