@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { failedInstallCountsSnapshot, parseCafeCounts } from "./install-counts"
+import {
+  failedInstallCountsSnapshot,
+  isCurrentInstallCounts,
+  parseCafeCounts,
+  reclassifyInstallCountsSnapshot,
+} from "./install-counts"
 
 const catalogIds = ["alpha-plugin", "beta-plugin"]
 const published = {
-  schemaVersion: 1,
+  schemaVersion: 1 as const,
   asOf: "2026-09-10T00:00:00.000Z",
   trackingSince: "2026-09-08T12:00:00.000Z",
   counts: { "alpha-plugin": 3, "beta-plugin": 0 },
@@ -12,6 +17,39 @@ const published = {
 describe("Cafe install count schemas", () => {
   it("accepts an exact catalog snapshot and preserves a reported zero", () => {
     expect(parseCafeCounts(published, catalogIds)).toEqual(published)
+  })
+
+  it("reclassifies a reused snapshot against the current day", () => {
+    expect(isCurrentInstallCounts(published, "2026-09-10T23:59:59.000Z")).toBe(
+      true
+    )
+    expect(isCurrentInstallCounts(published, "2026-09-11T00:00:00.000Z")).toBe(
+      false
+    )
+  })
+
+  it("persists staleness before static rendering", () => {
+    const snapshot = {
+      schemaVersion: 1 as const,
+      status: "available" as const,
+      attemptedAt: "2026-09-10T01:00:00.000Z",
+      fetchedAt: "2026-09-10T01:00:00.000Z",
+      data: published,
+    }
+    expect(
+      reclassifyInstallCountsSnapshot(
+        snapshot,
+        catalogIds,
+        "2026-09-11T00:00:00.000Z"
+      ).status
+    ).toBe("stale")
+    expect(
+      reclassifyInstallCountsSnapshot(
+        snapshot,
+        catalogIds,
+        "2026-09-10T23:59:59.000Z"
+      ).status
+    ).toBe("available")
   })
 
   it("preserves existing counts across independently deployed catalogs", () => {

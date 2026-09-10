@@ -31,7 +31,7 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
     plugin.health.hasTypecheckScript
   const installs = getPublishedInstallCount(plugin.id)
   const installCountTitle = installs
-    ? `${installs.stale ? "Stale snapshot. " : ""}Opt-in reports for new installs received since ${formatDateTime(installs.trackingSince)} and before ${formatDate(installs.asOf)}.${installs.stale ? ` Last fetched ${formatDateTime(installs.fetchedAt)}.` : ""}`
+    ? `${installs.stale ? "Stale snapshot. " : ""}Reports from Cafe installs where reporting remained enabled, received since ${formatDateTime(installs.trackingSince)} and before ${formatDate(installs.asOf)}.${installs.stale ? ` Last fetched ${formatDateTime(installs.fetchedAt)}.` : ""}`
     : undefined
 
   return (

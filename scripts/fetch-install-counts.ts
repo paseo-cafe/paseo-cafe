@@ -12,11 +12,14 @@ import {
   failedInstallCountsSnapshot,
   type InstallCountsSnapshot,
   parseCafeCounts,
+  parseInstallCountsSnapshot,
   receivedInstallCountsSnapshot,
+  reclassifyInstallCountsSnapshot,
 } from "../src/lib/install-counts.ts"
 import { registryIdSchema } from "../src/lib/registry-schema.ts"
 
 const DEFAULT_SERVICE_URL = "https://api.paseo.cafe"
+const DEFAULT_PREVIOUS_SNAPSHOT_URL = "https://paseo.cafe/api/install-counts"
 const FETCH_TIMEOUT_MS = 5_000
 const MAX_RESPONSE_BYTES = 64 * 1024
 
@@ -46,6 +49,26 @@ export function countsEndpoint(serviceUrl: string): URL {
     throw new Error("Cafe service URL must be an origin without a path")
   }
   return new URL("/v1/counts", base)
+}
+
+export function previousSnapshotEndpoint(value: string): URL {
+  const endpoint = new URL(value)
+  const isAllowedHttp =
+    endpoint.protocol === "http:" && isLoopbackHostname(endpoint.hostname)
+  if (endpoint.protocol !== "https:" && !isAllowedHttp) {
+    throw new Error("Previous snapshot URL must use HTTPS or loopback HTTP")
+  }
+  if (
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash
+  ) {
+    throw new Error(
+      "Previous snapshot URL must not contain credentials or parameters"
+    )
+  }
+  return endpoint
 }
 
 function catalogIds(registryDirectory: string): string[] {
@@ -110,6 +133,19 @@ export async function fetchPublishedCounts(
   return parseCafeCounts(await boundedJson(response), ids)
 }
 
+async function fetchPreviousSnapshot(
+  endpoint: URL,
+  ids: readonly string[],
+  fetcher: typeof fetch
+): Promise<InstallCountsSnapshot> {
+  const response = await fetcher(endpoint, {
+    headers: { Accept: "application/json" },
+    redirect: "error",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
+  return parseInstallCountsSnapshot(await boundedJson(response), ids)
+}
+
 function readPreviousSnapshot(outputPath: string): unknown {
   try {
     return JSON.parse(readFileSync(outputPath, "utf8"))
@@ -130,19 +166,26 @@ function writeSnapshot(
 
 export async function fetchAndWriteInstallCounts({
   serviceUrl,
+  previousSnapshotUrl,
   registryDirectory,
   outputPath,
   now = () => new Date(),
   fetcher = fetch,
 }: {
   serviceUrl: string
+  previousSnapshotUrl?: string
   registryDirectory: string
   outputPath: string
   now?: () => Date
   fetcher?: typeof fetch
 }): Promise<InstallCountsSnapshot> {
   const ids = catalogIds(registryDirectory)
-  const previous = readPreviousSnapshot(outputPath)
+  let previous = readPreviousSnapshot(outputPath)
+  try {
+    previous = parseInstallCountsSnapshot(previous, ids)
+  } catch {
+    previous = undefined
+  }
 
   let snapshot: InstallCountsSnapshot
   try {
@@ -154,8 +197,20 @@ export async function fetchAndWriteInstallCounts({
     const fetchedAt = now().toISOString()
     snapshot = receivedInstallCountsSnapshot(data, fetchedAt, ids)
   } catch {
+    let fallback = previous
+    if (fallback === undefined && previousSnapshotUrl) {
+      try {
+        fallback = await fetchPreviousSnapshot(
+          previousSnapshotEndpoint(previousSnapshotUrl),
+          ids,
+          fetcher
+        )
+      } catch {
+        // No local or deployed valid snapshot exists; publish unavailable.
+      }
+    }
     const attemptedAt = now().toISOString()
-    snapshot = failedInstallCountsSnapshot(previous, attemptedAt, ids)
+    snapshot = failedInstallCountsSnapshot(fallback, attemptedAt, ids)
   }
 
   writeSnapshot(outputPath, snapshot)
@@ -165,12 +220,24 @@ export async function fetchAndWriteInstallCounts({
 async function main(): Promise<void> {
   const root = process.cwd()
   const outputPath = join(root, "data", "install-counts.json")
-  if (process.argv.includes("--if-missing") && existsSync(outputPath)) return
-
+  if (process.argv.includes("--if-missing") && existsSync(outputPath)) {
+    const ids = catalogIds(join(root, "registry"))
+    const reclassified = reclassifyInstallCountsSnapshot(
+      readPreviousSnapshot(outputPath),
+      ids,
+      new Date().toISOString()
+    )
+    writeSnapshot(outputPath, reclassified)
+    return
+  }
   const serviceUrl =
     process.env.PASEO_CAFE_SERVICE_URL?.trim() || DEFAULT_SERVICE_URL
+  const previousSnapshotUrl =
+    process.env.PASEO_CAFE_PREVIOUS_COUNTS_URL?.trim() ||
+    DEFAULT_PREVIOUS_SNAPSHOT_URL
   const snapshot = await fetchAndWriteInstallCounts({
     serviceUrl,
+    previousSnapshotUrl,
     registryDirectory: join(root, "registry"),
     outputPath,
   })

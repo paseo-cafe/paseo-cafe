@@ -7,10 +7,11 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it, onTestFinished } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 import {
   countsEndpoint,
   fetchAndWriteInstallCounts,
+  previousSnapshotEndpoint,
 } from "./fetch-install-counts.ts"
 
 function fixture() {
@@ -44,6 +45,15 @@ describe("fetch-install-counts", () => {
     )
     expect(() => countsEndpoint("http://example.com")).toThrow()
     expect(() => countsEndpoint("https://example.com/other")).toThrow()
+  })
+
+  it("accepts only HTTPS or loopback previous snapshot URLs", () => {
+    expect(
+      previousSnapshotEndpoint("https://paseo.cafe/api/install-counts").href
+    ).toBe("https://paseo.cafe/api/install-counts")
+    expect(() =>
+      previousSnapshotEndpoint("http://example.com/snapshot")
+    ).toThrow()
   })
 
   it("writes a successful aggregate without changing zero counts", async () => {
@@ -102,6 +112,39 @@ describe("fetch-install-counts", () => {
 
     expect(snapshot.status).toBe("stale")
     expect(snapshot.data?.counts).toEqual(responseBody.counts)
+  })
+
+  it("restores the deployed snapshot when the service is unavailable", async () => {
+    const paths = fixture()
+    const deployed = {
+      schemaVersion: 1,
+      status: "available",
+      attemptedAt: "2026-09-10T01:00:00.000Z",
+      fetchedAt: "2026-09-10T01:00:00.000Z",
+      data: responseBody,
+    }
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response("down", { status: 503 }))
+      .mockResolvedValueOnce(Response.json(deployed))
+
+    const snapshot = await fetchAndWriteInstallCounts({
+      ...paths,
+      serviceUrl: "https://api.paseo.cafe",
+      previousSnapshotUrl: "https://paseo.cafe/api/install-counts",
+      now: () => new Date("2026-09-11T01:00:00.000Z"),
+      fetcher,
+    })
+
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api.paseo.cafe/v1/counts",
+      "https://paseo.cafe/api/install-counts",
+    ])
+    expect(snapshot).toMatchObject({
+      status: "stale",
+      fetchedAt: deployed.fetchedAt,
+      data: responseBody,
+    })
   })
 
   it("writes explicit unavailable state when no valid success exists", async () => {

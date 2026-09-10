@@ -120,9 +120,12 @@ and deploy the service when registry entries change. Website and service release
 independent: an entry missing from a snapshot has no displayed count, not an invented zero.
 
 From the root, `PASEO_CAFE_SERVICE_URL=http://127.0.0.1:8787 bun run counts:fetch` refreshes the
-website snapshot from the local service. `counts:ensure` generates only a missing snapshot.
-The default service origin is `https://api.paseo.cafe`; overrides require HTTPS or loopback HTTP.
-Same-day local reports intentionally do not produce public totals until the next UTC day.
+website snapshot from the local service. `counts:ensure` generates only a missing snapshot. The
+default service origin is `https://api.paseo.cafe`; overrides require HTTPS or loopback HTTP.
+When the service is unavailable and no local snapshot exists, the fetcher validates the currently
+deployed `/api/install-counts` snapshot and republishes it as stale. Override that source with
+`PASEO_CAFE_PREVIOUS_COUNTS_URL` for another deployment. Same-day local reports intentionally do
+not produce public totals until the next UTC day.
 
 ### Deployment
 

@@ -21,7 +21,7 @@ const config = defineConfig({
         crawlLinks: true,
         failOnError: true,
         ignore: ["/404.html"],
-        routes: ["/", "/submit", "/api/plugins"],
+        routes: ["/", "/submit", "/api/plugins", "/api/install-counts"],
       },
     }),
     viteReact(),

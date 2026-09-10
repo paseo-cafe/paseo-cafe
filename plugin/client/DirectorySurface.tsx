@@ -549,14 +549,14 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const baseUrl =
     settings.status === "ready" ? settings.values.directoryUrl : undefined
   const reportInstalls =
-    settings.status === "ready" && settings.values.reportInstalls
+    settings.status === "ready" ? settings.values.reportInstalls : undefined
   useEffect(() => {
-    if (!reportInstalls) {
+    if (reportInstalls === false) {
       void cancelInstallReports({}).catch(() => {})
     }
   }, [cancelInstallReports, reportInstalls])
   useEffect(() => {
-    if (pendingReportTokens.length === 0) return
+    if (pendingReportTokens.length === 0 || reportInstalls === undefined) return
     setPendingReportTokens([])
     for (const reportToken of pendingReportTokens) {
       void completeInstallReport({

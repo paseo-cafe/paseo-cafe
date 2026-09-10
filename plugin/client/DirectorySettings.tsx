@@ -15,6 +15,7 @@ import {
   directoryCancelInstallReportsRpc,
   directorySettings,
 } from "../shared/directory"
+import { updateInstallReportingPreference } from "./install-reporting"
 
 export function DirectorySettings() {
   const settings = useSettings(directorySettings)
@@ -64,13 +65,21 @@ export function DirectorySettings() {
   }
 
   async function setInstallReporting(reportInstalls: boolean) {
-    const ok = await saveSettings({ ...values, reportInstalls }, revision)
-    if (!ok) {
+    const result = await updateInstallReportingPreference(
+      reportInstalls,
+      (enabled) =>
+        saveSettings({ ...values, reportInstalls: enabled }, revision),
+      () => cancelInstallReports({})
+    )
+    if (result === "save-failed") {
       toast.error("Failed to save Paseo Cafe settings.")
       return
     }
-    if (!reportInstalls) {
-      void cancelInstallReports({}).catch(() => {})
+    if (result === "cancel-failed") {
+      toast.error(
+        "Reporting is off, but Cafe couldn't cancel reports already in progress. Reconnect and try again."
+      )
+      return
     }
     toast.show("Paseo Cafe settings saved.", { variant: "success" })
   }

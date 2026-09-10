@@ -78,8 +78,11 @@ const unavailableSnapshotSchema = z
   })
   .strict()
 
-function isCurrentPublication(data: CafeCounts, fetchedAt: string): boolean {
-  const currentCutoff = `${fetchedAt.slice(0, 10)}T00:00:00.000Z`
+export function isCurrentInstallCounts(
+  data: CafeCounts,
+  observedAt: string
+): boolean {
+  const currentCutoff = `${observedAt.slice(0, 10)}T00:00:00.000Z`
   if (data.asOf !== null) return data.asOf === currentCutoff
   return data.trackingSince === null || data.trackingSince >= currentCutoff
 }
@@ -112,7 +115,7 @@ const retainedSnapshotSchema = z
 
     if (
       value.status === "available" &&
-      !isCurrentPublication(value.data, value.fetchedAt)
+      !isCurrentInstallCounts(value.data, value.fetchedAt)
     ) {
       context.addIssue({
         code: "custom",
@@ -178,6 +181,25 @@ export function parseInstallCountsSnapshot(
   return snapshot
 }
 
+export function reclassifyInstallCountsSnapshot(
+  input: unknown,
+  catalogIds: readonly string[],
+  observedAt: string
+): InstallCountsSnapshot {
+  const snapshot = parseInstallCountsSnapshot(input, catalogIds)
+  if (
+    snapshot.status !== "available" ||
+    snapshot.data === null ||
+    isCurrentInstallCounts(snapshot.data, observedAt)
+  ) {
+    return snapshot
+  }
+  return parseInstallCountsSnapshot(
+    { ...snapshot, status: "stale" },
+    catalogIds
+  )
+}
+
 export function receivedInstallCountsSnapshot(
   data: CafeCounts,
   attemptedAt: string,
@@ -186,7 +208,7 @@ export function receivedInstallCountsSnapshot(
   return parseInstallCountsSnapshot(
     {
       schemaVersion: INSTALL_COUNTS_SCHEMA_VERSION,
-      status: isCurrentPublication(data, attemptedAt) ? "available" : "stale",
+      status: isCurrentInstallCounts(data, attemptedAt) ? "available" : "stale",
       attemptedAt,
       fetchedAt: attemptedAt,
       data,
