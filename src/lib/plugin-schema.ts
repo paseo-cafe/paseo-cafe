@@ -102,6 +102,12 @@ export const pluginRecordSchema = z.object({
   // since their last visit. Optional — absent when the scan ran without
   // usable git history.
   addedAt: z.string().optional(),
+  // When `version` above was last bumped: the commit in the plugin's own repo
+  // that introduced it (see scripts/version-history.ts). Distinct from
+  // repoMeta.pushedAt, which moves on any commit — a README fix is not a
+  // release. Optional — absent when the plugin has no version, or when the
+  // bump predates the commits we can cheaply look through.
+  updatedAt: z.string().optional(),
   scannedAt: z.string(),
 })
 

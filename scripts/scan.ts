@@ -51,6 +51,7 @@ import {
 } from "./github.ts"
 import { renderOgImage } from "./og-image.tsx"
 import { readRegistryAddedDates } from "./registry-history.ts"
+import { fetchVersionUpdatedAt } from "./version-history.ts"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
 const ROOT = process.cwd()
@@ -168,6 +169,17 @@ async function scanOne(
         ? manifestRequirements.paseo
         : undefined
 
+    // Dated from the plugin's own history, so it survives rescans and is
+    // right the first time — no need to watch for a bump to happen.
+    const updatedAt = pkg?.version
+      ? await fetchVersionUpdatedAt(
+          owner,
+          repo,
+          `${prefix}package.json`,
+          pkg.version
+        )
+      : undefined
+
     const installNotes = extractInstallSection(readme ?? "")
     const installNotesHtml = installNotes
       ? await renderMarkdownToHtml(installNotes)
@@ -280,6 +292,7 @@ async function scanOne(
       images,
       videos,
       addedAt,
+      updatedAt,
       scannedAt,
     }
 

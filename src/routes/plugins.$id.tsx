@@ -132,8 +132,16 @@ function PluginDetail() {
         ) : null}
         {plugin.license ? <span>License: {plugin.license}</span> : null}
         {plugin.author ? <span>By {plugin.author}</span> : null}
+        {plugin.version ? (
+          <span>
+            Version {plugin.version}
+            {plugin.updatedAt
+              ? `, released ${formatDate(plugin.updatedAt)}`
+              : ""}
+          </span>
+        ) : null}
         {plugin.repoMeta ? (
-          <span>Last updated {formatDate(plugin.repoMeta.pushedAt)}</span>
+          <span>Last commit {formatDate(plugin.repoMeta.pushedAt)}</span>
         ) : null}
         <a
           href={plugin.url}

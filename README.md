@@ -24,9 +24,12 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
    and production builds, then refreshes it during deployment on merges to `main` and nightly. It
    reads `paseo-plugin.json`, `package.json`, `README.md`, `LICENSE`, and `images/` straight from
    each plugin's repo, plus GitHub API metadata (stars, last commit, topics, license), and writes
-   ignored, never-hand-edited records and public assets. It also stamps each record with
-   `addedAt` — the commit that added its `registry/<id>.json`, read from this repo's git history
-   (`scripts/registry-history.ts`), which is why the deploy checks out with `fetch-depth: 0`. See
+   ignored, never-hand-edited records and public assets. It also stamps each record with two
+   dates neither the plugin nor the submitter provides: `addedAt`, the commit that added its
+   `registry/<id>.json`, read from this repo's git history (`scripts/registry-history.ts`, which
+   is why the deploy checks out with `fetch-depth: 0`), and `updatedAt`, the commit in the
+   plugin's own repo that set its current `package.json` version
+   (`scripts/version-history.ts`) — unlike `repoMeta.pushedAt`, a README fix doesn't move it. See
    `.github/workflows/deploy-pages.yml`.
 4. The build imports the generated `data/plugins.json` via `src/lib/plugins-data.ts`, prerenders
    every public page, and emits the directory API as the static `/api/plugins` asset.

@@ -1,6 +1,7 @@
 import {
   IconPhotoOff,
   IconPlayerPlayFilled,
+  IconRefresh,
   IconSparkles,
   IconStar,
   IconVersions,
@@ -18,16 +19,19 @@ import type { PluginRecord } from "@/lib/plugin-schema"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 
 /**
- * `isNew` marks a plugin the directory gained since this visitor's previous
- * visit (see src/lib/new-plugins.ts). It's per-browser, so it only ever
- * arrives from a client-side caller — never from the record itself.
+ * `isNew` and `isUpdated` mark what the directory gained, and what changed
+ * version, since this visitor's previous visit (see src/lib/since-last-visit.ts).
+ * Both are per-browser, so they only ever arrive from a client-side caller —
+ * never from the record itself.
  */
 export function PluginCard({
   plugin,
   isNew = false,
+  isUpdated = false,
 }: {
   plugin: PluginRecord
   isNew?: boolean
+  isUpdated?: boolean
 }) {
   return (
     <Link to="/plugins/$id" params={{ id: plugin.id }} className="block">
@@ -48,6 +52,11 @@ export function PluginCard({
           {isNew ? (
             <Badge variant="default" className="absolute top-2 left-2 shadow">
               <IconSparkles /> new
+            </Badge>
+          ) : null}
+          {isUpdated ? (
+            <Badge variant="secondary" className="absolute top-2 left-2 shadow">
+              <IconRefresh /> updated
             </Badge>
           ) : null}
           {plugin.videos.length > 0 ? (
