@@ -1,17 +1,22 @@
 import { randomUUID } from "node:crypto"
 import { setTimeout as sleep } from "node:timers/promises"
 import { z } from "zod"
+import {
+  type LifecycleEventType,
+  lifecycleEventTypeSchema,
+} from "../shared/directory"
 
-export const DEFAULT_INSTALL_REPORT_URL = "https://api.paseo.cafe/v1/install"
+export const DEFAULT_INSTALL_REPORT_URL = "https://api.paseo.cafe/v1/events"
 
 const installReportSchema = z
   .object({
     pluginId: z.string().min(1).max(200),
+    event: lifecycleEventTypeSchema,
     nonce: z.uuid(),
   })
   .strict()
 
-export type InstallReport = z.infer<typeof installReportSchema>
+export type LifecycleEventReport = z.infer<typeof installReportSchema>
 
 const DEFAULT_RETRY_DELAYS_MS = [250, 1_000] as const
 const DEFAULT_REQUEST_TIMEOUT_MS = 5_000
@@ -53,12 +58,12 @@ export function resolveInstallReportUrl(
       "PASEO_CAFE_SERVICE_URL must use HTTPS, or HTTP on a loopback host"
     )
   }
-  if (url.pathname !== "/" && url.pathname !== "/v1/install") {
+  if (url.pathname !== "/" && url.pathname !== "/v1/events") {
     throw new Error(
-      "PASEO_CAFE_SERVICE_URL must be a service origin or end in /v1/install"
+      "PASEO_CAFE_SERVICE_URL must be a service origin or end in /v1/events"
     )
   }
-  url.pathname = "/v1/install"
+  url.pathname = "/v1/events"
   return url.toString()
 }
 
@@ -81,8 +86,8 @@ export interface SendInstallReportOptions {
  * the caller-provided operation nonce; there is no persistent or autonomous
  * retry queue.
  */
-export async function sendInstallReport(
-  report: InstallReport,
+export async function sendLifecycleEvent(
+  report: LifecycleEventReport,
   options: SendInstallReportOptions = {}
 ): Promise<void> {
   const payload = installReportSchema.parse(report)
@@ -139,16 +144,19 @@ interface PendingEligibility {
 }
 
 export interface InstallReportManager {
-  begin(pluginId: string): string
+  begin(pluginId: string): string | undefined
   confirm(reportToken: string, installed: boolean): void
   complete(reportToken: string, consent: boolean): boolean
-  cancelAll(): void
+  report(
+    events: readonly { pluginId: string; event: LifecycleEventType }[]
+  ): Promise<number>
+  setEnabled(enabled: boolean): void
   dispose(): void
 }
 
 export interface InstallReportManagerOptions {
   send?: (
-    report: InstallReport,
+    report: LifecycleEventReport,
     options: { signal: AbortSignal }
   ) => Promise<void>
   nonce?: () => string
@@ -161,9 +169,11 @@ export function createInstallReportManager(
   const active = new Map<string, AbortController>()
   const send =
     options.send ??
-    ((report, sendOptions) => sendInstallReport(report, sendOptions))
+    ((report, sendOptions) => sendLifecycleEvent(report, sendOptions))
   const nonce = options.nonce ?? randomUUID
   let disposed = false
+  let cancellationGeneration = 0
+  let reportingEnabled = true
 
   function removePending(reportToken: string) {
     const eligibility = pending.get(reportToken)
@@ -175,6 +185,7 @@ export function createInstallReportManager(
   function dispatch(reportToken: string, eligibility: PendingEligibility) {
     if (
       disposed ||
+      !reportingEnabled ||
       !eligibility.confirmed ||
       !eligibility.completed ||
       !eligibility.consent
@@ -185,14 +196,15 @@ export function createInstallReportManager(
     const controller = new AbortController()
     active.set(reportToken, controller)
     void send(
-      { pluginId: eligibility.pluginId, nonce: reportToken },
+      { pluginId: eligibility.pluginId, event: "install", nonce: reportToken },
       { signal: controller.signal }
     )
       .catch(() => {})
       .finally(() => active.delete(reportToken))
   }
 
-  function cancelAll() {
+  function cancelOutstanding() {
+    cancellationGeneration += 1
     for (const reportToken of pending.keys()) removePending(reportToken)
     for (const controller of active.values()) controller.abort()
     active.clear()
@@ -200,7 +212,7 @@ export function createInstallReportManager(
 
   return {
     begin(pluginId) {
-      if (disposed) return nonce()
+      if (disposed || !reportingEnabled) return undefined
       const reportToken = nonce()
       pending.set(reportToken, {
         pluginId,
@@ -226,7 +238,7 @@ export function createInstallReportManager(
     },
     complete(reportToken, consent) {
       const eligibility = pending.get(reportToken)
-      if (!eligibility || eligibility.completed) return false
+      if (!reportingEnabled || !eligibility || eligibility.completed) return false
       eligibility.completed = true
       eligibility.consent = consent
       if (!consent) {
@@ -236,10 +248,37 @@ export function createInstallReportManager(
       dispatch(reportToken, eligibility)
       return true
     },
-    cancelAll,
+    setEnabled(enabled) {
+      reportingEnabled = enabled
+      if (!enabled) cancelOutstanding()
+    },
+    async report(events) {
+      if (disposed || !reportingEnabled) return 0
+      const generation = cancellationGeneration
+      let accepted = 0
+      for (const event of events) {
+        if (disposed || !reportingEnabled || generation !== cancellationGeneration) break
+        const reportToken = nonce()
+        const controller = new AbortController()
+        active.set(reportToken, controller)
+        try {
+          await send(
+            { ...event, nonce: reportToken },
+            { signal: controller.signal }
+          )
+          if (generation !== cancellationGeneration) break
+          accepted += 1
+        } catch {
+          break
+        } finally {
+          active.delete(reportToken)
+        }
+      }
+      return accepted
+    },
     dispose() {
       disposed = true
-      cancelAll()
+      cancelOutstanding()
     },
   }
 }

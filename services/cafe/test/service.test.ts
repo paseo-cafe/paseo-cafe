@@ -10,7 +10,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { CATALOG_IDS } from "../src/catalog.generated"
 import type { CafeEnv } from "../src/env"
 import worker from "../src/index"
-import { MAX_INSTALL_BODY_READ_MS, parseInstallRequest } from "../src/install"
+import {
+  MAX_EVENT_BODY_READ_MS,
+  parseLifecycleEventRequest,
+} from "../src/install"
 import type { InstallCounter } from "../src/install-counter"
 
 const SERVICE_URL = "https://api.paseo.cafe"
@@ -19,14 +22,15 @@ const COUNTER_NAME = "global"
 const COUNTS_CACHE_KEY = new Request(`${SERVICE_URL}/v1/counts`)
 const STAGING_COUNTS_CACHE_KEY = new Request(`${STAGING_URL}/v1/counts`)
 
-function installRequest(
+function lifecycleRequest(
   pluginId: string,
-  nonce = crypto.randomUUID()
+  nonce = crypto.randomUUID(),
+  event: "install" | "update" | "uninstall" = "install"
 ): Promise<Response> {
-  return exports.default.fetch(`${SERVICE_URL}/v1/install`, {
+  return exports.default.fetch(`${SERVICE_URL}/v1/events`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ pluginId, nonce }),
+    body: JSON.stringify({ pluginId, event, nonce }),
   })
 }
 
@@ -54,11 +58,12 @@ describe("Cafe service", () => {
 
   it("rejects reporting while disabled without creating counter storage", async () => {
     const response = await worker.fetch(
-      new Request(`${SERVICE_URL}/v1/install`, {
+      new Request(`${SERVICE_URL}/v1/events`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           pluginId: CATALOG_IDS[0],
+          event: "install",
           nonce: crypto.randomUUID(),
         }),
       }),
@@ -71,7 +76,7 @@ describe("Cafe service", () => {
 
   it("rejects unknown routes and methods before creating counter storage", async () => {
     const responses = await Promise.all([
-      exports.default.fetch(`${SERVICE_URL}/v1/install`),
+      exports.default.fetch(`${SERVICE_URL}/v1/events`),
       exports.default.fetch(`${SERVICE_URL}/v1/counts`, { method: "POST" }),
       exports.default.fetch(`${SERVICE_URL}/unknown`),
     ])
@@ -88,6 +93,7 @@ describe("Cafe service", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           pluginId: "not-in-the-catalog",
+          event: "install",
           nonce: crypto.randomUUID(),
         }),
       },
@@ -96,30 +102,41 @@ describe("Cafe service", () => {
         body: JSON.stringify({
           pluginId: CATALOG_IDS[0],
           nonce: crypto.randomUUID(),
+          event: "install",
           metadata: "not accepted",
         }),
       },
       {
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pluginId: CATALOG_IDS[0], nonce: "not-a-uuid" }),
+        body: JSON.stringify({
+          pluginId: CATALOG_IDS[0],
+          event: "install",
+          nonce: "not-a-uuid",
+        }),
+      },
+      {
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          pluginId: CATALOG_IDS[0],
+          event: "activate",
+          nonce: crypto.randomUUID(),
+        }),
       },
       {
         headers: { "content-type": "text/plain" },
         body: JSON.stringify({
           pluginId: CATALOG_IDS[0],
+          event: "install",
           nonce: crypto.randomUUID(),
         }),
       },
     ]
 
     for (const request of cases) {
-      const response = await exports.default.fetch(
-        `${SERVICE_URL}/v1/install`,
-        {
-          method: "POST",
-          ...request,
-        }
-      )
+      const response = await exports.default.fetch(`${SERVICE_URL}/v1/events`, {
+        method: "POST",
+        ...request,
+      })
       expect(response.status).toBe(400)
     }
   })
@@ -127,6 +144,7 @@ describe("Cafe service", () => {
   it("enforces the streamed byte limit even when content-length is absent or lies", async () => {
     const oversized = `${JSON.stringify({
       pluginId: CATALOG_IDS[0],
+      event: "install",
       nonce: crypto.randomUUID(),
     })}${" ".repeat(513)}`
     for (const contentLength of [undefined, "1"]) {
@@ -140,7 +158,7 @@ describe("Cafe service", () => {
       if (contentLength) headers.set("content-length", contentLength)
 
       const response = await exports.default.fetch(
-        new Request(`${SERVICE_URL}/v1/install`, {
+        new Request(`${SERVICE_URL}/v1/events`, {
           method: "POST",
           headers,
           body: stream,
@@ -156,28 +174,28 @@ describe("Cafe service", () => {
     const body = new ReadableStream<Uint8Array>({
       cancel: () => new Promise<void>(() => {}),
     })
-    const result = parseInstallRequest(
-      new Request(`${SERVICE_URL}/v1/install`, {
+    const result = parseLifecycleEventRequest(
+      new Request(`${SERVICE_URL}/v1/events`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body,
       })
     )
-    await vi.advanceTimersByTimeAsync(MAX_INSTALL_BODY_READ_MS)
+    await vi.advanceTimersByTimeAsync(MAX_EVENT_BODY_READ_MS)
     expect(await result).toEqual({ ok: false, status: 400 })
   })
 
   it("deduplicates atomically and preserves the result across eviction", async () => {
     const nonce = crypto.randomUUID()
     const concurrent = await Promise.all([
-      installRequest(CATALOG_IDS[0], nonce),
-      installRequest(CATALOG_IDS[0], nonce),
+      lifecycleRequest(CATALOG_IDS[0], nonce),
+      lifecycleRequest(CATALOG_IDS[0], nonce),
     ])
     expect(concurrent.map((response) => response.status)).toEqual([204, 204])
 
     const stub = counterStub()
     await evictDurableObject(stub)
-    expect((await installRequest(CATALOG_IDS[0], nonce)).status).toBe(204)
+    expect((await lifecycleRequest(CATALOG_IDS[0], nonce)).status).toBe(204)
 
     const storedCount = await runInDurableObject(
       stub,
@@ -193,14 +211,14 @@ describe("Cafe service", () => {
 
   it("enforces persistent per-plugin and global daily caps across eviction without storing denials", async () => {
     const beforeEviction = await Promise.all([
-      installRequest(CATALOG_IDS[0]),
-      installRequest(CATALOG_IDS[0]),
+      lifecycleRequest(CATALOG_IDS[0]),
+      lifecycleRequest(CATALOG_IDS[0]),
     ])
     await evictDurableObject(counterStub())
     const afterEviction = await Promise.all([
-      installRequest(CATALOG_IDS[0]),
-      installRequest(CATALOG_IDS[1]),
-      installRequest(CATALOG_IDS[1]),
+      lifecycleRequest(CATALOG_IDS[0]),
+      lifecycleRequest(CATALOG_IDS[1]),
+      lifecycleRequest(CATALOG_IDS[1]),
     ])
     const statuses = [...beforeEviction, ...afterEviction].map(
       (response) => response.status
@@ -226,8 +244,49 @@ describe("Cafe service", () => {
     expect(stored).toEqual({ reports: 3, installs: 3 })
   })
 
+  it("migrates existing install totals into the lifecycle schema", async () => {
+    const stub = counterStub()
+    await runInDurableObject(stub, (_instance: InstallCounter, state) => {
+      state.storage.sql.exec(`
+        DROP TABLE daily_counts;
+        CREATE TABLE daily_counts (
+          day TEXT NOT NULL,
+          plugin_id TEXT NOT NULL,
+          count INTEGER NOT NULL,
+          PRIMARY KEY (day, plugin_id)
+        ) WITHOUT ROWID;
+        INSERT INTO daily_counts (day, plugin_id, count)
+        VALUES ('2026-01-01', '${CATALOG_IDS[0]}', 4);
+        DELETE FROM service_metadata WHERE key = 'schema_version';
+        INSERT INTO service_metadata (key, value)
+        VALUES ('tracking_since', '2026-01-01T00:00:00.000Z')
+        ON CONFLICT (key) DO UPDATE SET value = excluded.value;
+      `)
+    })
+    await evictDurableObject(stub)
+
+    const response = await exports.default.fetch(`${SERVICE_URL}/v1/counts`)
+    const snapshot = (await response.json()) as {
+      counts: Record<string, number>
+      updates: Record<string, number>
+      uninstalls: Record<string, number>
+    }
+    expect(snapshot.counts[CATALOG_IDS[0]]).toBe(4)
+    expect(snapshot.updates[CATALOG_IDS[0]]).toBe(0)
+    expect(snapshot.uninstalls[CATALOG_IDS[0]]).toBe(0)
+    const columns = await runInDurableObject(
+      stub,
+      (_instance: InstallCounter, state) =>
+        state.storage.sql
+          .exec<{ name: string }>("PRAGMA table_info(daily_counts)")
+          .toArray()
+          .map(({ name }) => name)
+    )
+    expect(columns).toContain("event_type")
+  })
+
   it("withholds the current UTC day and publishes complete prior-day counts", async () => {
-    expect((await installRequest(CATALOG_IDS[0])).status).toBe(204)
+    expect((await lifecycleRequest(CATALOG_IDS[0])).status).toBe(204)
 
     const unpublished = (await (
       await exports.default.fetch(`${SERVICE_URL}/v1/counts`)
@@ -235,10 +294,14 @@ describe("Cafe service", () => {
       asOf: string | null
       trackingSince: string | null
       counts: Record<string, number>
+      updates: Record<string, number>
+      uninstalls: Record<string, number>
     }
     expect(unpublished.asOf).toBeNull()
     expect(unpublished.trackingSince).toBeNull()
     expect(unpublished.counts).toEqual({})
+    expect(unpublished.updates).toEqual({})
+    expect(unpublished.uninstalls).toEqual({})
 
     await reset()
     await caches.default.delete(COUNTS_CACHE_KEY)
@@ -247,7 +310,31 @@ describe("Cafe service", () => {
     const priorDayTime = Date.parse(cutoff) - 1_000
     await runInDurableObject(counterStub(), (instance: InstallCounter) =>
       instance.record(
-        { pluginId: CATALOG_IDS[0], nonce: crypto.randomUUID() },
+        {
+          pluginId: CATALOG_IDS[0],
+          event: "install",
+          nonce: crypto.randomUUID(),
+        },
+        priorDayTime
+      )
+    )
+    await runInDurableObject(counterStub(), (instance: InstallCounter) =>
+      instance.record(
+        {
+          pluginId: CATALOG_IDS[0],
+          event: "update",
+          nonce: crypto.randomUUID(),
+        },
+        priorDayTime
+      )
+    )
+    await runInDurableObject(counterStub(), (instance: InstallCounter) =>
+      instance.record(
+        {
+          pluginId: CATALOG_IDS[1],
+          event: "uninstall",
+          nonce: crypto.randomUUID(),
+        },
         priorDayTime
       )
     )
@@ -259,13 +346,21 @@ describe("Cafe service", () => {
       asOf: string | null
       trackingSince: string | null
       counts: Record<string, number>
+      updates: Record<string, number>
+      uninstalls: Record<string, number>
     }
     expect(published).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       asOf: cutoff,
       trackingSince: `${new Date(priorDayTime).toISOString().slice(0, 10)}T00:00:00.000Z`,
       counts: Object.fromEntries(
         CATALOG_IDS.map((id) => [id, id === CATALOG_IDS[0] ? 1 : 0])
+      ),
+      updates: Object.fromEntries(
+        CATALOG_IDS.map((id) => [id, id === CATALOG_IDS[0] ? 1 : 0])
+      ),
+      uninstalls: Object.fromEntries(
+        CATALOG_IDS.map((id) => [id, id === CATALOG_IDS[1] ? 1 : 0])
       ),
     })
   })
@@ -276,7 +371,11 @@ describe("Cafe service", () => {
     const stub = counterStub()
     await runInDurableObject(stub, (instance: InstallCounter) =>
       instance.record(
-        { pluginId: CATALOG_IDS[0], nonce: crypto.randomUUID() },
+        {
+          pluginId: CATALOG_IDS[0],
+          event: "install",
+          nonce: crypto.randomUUID(),
+        },
         priorDayTime
       )
     )
@@ -286,7 +385,11 @@ describe("Cafe service", () => {
     ).text()
     await runInDurableObject(stub, (instance: InstallCounter) =>
       instance.record(
-        { pluginId: CATALOG_IDS[0], nonce: crypto.randomUUID() },
+        {
+          pluginId: CATALOG_IDS[0],
+          event: "install",
+          nonce: crypto.randomUUID(),
+        },
         priorDayTime + 1
       )
     )
@@ -307,7 +410,11 @@ describe("Cafe service", () => {
     const stub = counterStub()
     await runInDurableObject(stub, (instance: InstallCounter) =>
       instance.record(
-        { pluginId: CATALOG_IDS[0], nonce: crypto.randomUUID() },
+        {
+          pluginId: CATALOG_IDS[0],
+          event: "install",
+          nonce: crypto.randomUUID(),
+        },
         expiredAt
       )
     )

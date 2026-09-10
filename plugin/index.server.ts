@@ -11,12 +11,13 @@ import {
 } from "./server/directory"
 import { createInstallReportManager } from "./server/telemetry"
 import {
-  directoryCancelInstallReportsRpc,
+  directorySetInstallReportingRpc,
   directoryCompleteInstallReportRpc,
   directoryInstallRpc,
   directoryListRpc,
   directoryManifestSearchRpc,
   directoryReadmeSearchRpc,
+  directoryReportLifecycleRpc,
   directorySearchRpc,
   directorySecuritySearchRpc,
   directorySettings,
@@ -49,10 +50,13 @@ export default function contribute(server: PluginServerContext) {
       scheduled: reports.complete(reportToken, consent),
     })
   )
-  server.handle(directoryCancelInstallReportsRpc, () => {
-    reports.cancelAll()
+  server.handle(directorySetInstallReportingRpc, ({ enabled }) => {
+    reports.setEnabled(enabled)
     return {}
   })
+  server.handle(directoryReportLifecycleRpc, async ({ events }) => ({
+    accepted: await reports.report(events),
+  }))
   server.handle(directoryUpdateRpc, (input) => updateDirectoryPlugin(input))
   return () => reports.dispose()
 }

@@ -12,14 +12,14 @@ import {
 import { useRef, useState } from "react"
 import {
   DEFAULT_DIRECTORY_URL,
-  directoryCancelInstallReportsRpc,
+  directorySetInstallReportingRpc,
   directorySettings,
 } from "../shared/directory"
 import { updateInstallReportingPreference } from "./install-reporting"
 
 export function DirectorySettings() {
   const settings = useSettings(directorySettings)
-  const cancelInstallReports = useRpc(directoryCancelInstallReportsRpc)
+  const setServerInstallReporting = useRpc(directorySetInstallReportingRpc)
   const toast = useToast()
   const [draft, setDraft] = useState<string | null>(null)
   const inputRef = useRef<SettingsInputHandle>(null)
@@ -69,15 +69,17 @@ export function DirectorySettings() {
       reportInstalls,
       (enabled) =>
         saveSettings({ ...values, reportInstalls: enabled }, revision),
-      () => cancelInstallReports({})
+      (enabled) => setServerInstallReporting({ enabled })
     )
     if (result === "save-failed") {
       toast.error("Failed to save Paseo Cafe settings.")
       return
     }
-    if (result === "cancel-failed") {
+    if (result === "sync-failed") {
       toast.error(
-        "Reporting is off, but Cafe couldn't cancel reports already in progress. Reconnect and try again."
+        reportInstalls
+          ? "The preference was saved, but Cafe couldn't start reporting. Reconnect and try again."
+          : "Reporting is off, but Cafe couldn't cancel reports already in progress. Reconnect and try again."
       )
       return
     }
@@ -108,7 +110,7 @@ export function DirectorySettings() {
         />
         <SettingsSwitch
           label="Share approximate install counts"
-          hint="Enabled by default. Switch this off to stop reporting. After a genuinely new install from the default catalog, Cafe sends only the public catalog ID and a one-time operation nonce. Cloudflare necessarily processes the request IP. Published counts are approximate reported installs."
+          hint="Enabled by default. Switch this off to stop reporting. Cafe reports catalog plugins already installed when the directory opens, successful updates, and removals observed on a later visit. Reports contain only the public catalog ID, event type, and a one-time operation nonce. Cloudflare necessarily processes the request IP."
           value={values.reportInstalls}
           onValueChange={(value) => void setInstallReporting(value)}
           disabled={saving}

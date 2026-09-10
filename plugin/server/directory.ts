@@ -759,15 +759,17 @@ export function createDirectoryInstaller(
             findInstallations(eligibleEntry, before).length === 0
           ) {
             const token = reports.begin(eligibleEntry.id)
-            reportToken = token
-            void listInstalled().then(
-              (after) =>
-                reports.confirm(
-                  token,
-                  findInstallations(eligibleEntry, after).length > 0
-                ),
-              () => reports.confirm(token, false)
-            )
+            if (token) {
+              reportToken = token
+              void listInstalled().then(
+                (after) =>
+                  reports.confirm(
+                    token,
+                    findInstallations(eligibleEntry, after).length > 0
+                  ),
+                () => reports.confirm(token, false)
+              )
+            }
           }
           return {
             ok: true,

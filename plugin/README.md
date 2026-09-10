@@ -39,18 +39,23 @@ A custom catalog must use HTTPS, or HTTP on loopback (`localhost`, `*.localhost`
 daemon host.
 
 Install reporting is enabled by default. **Settings → Plugins → Paseo Cafe → Share approximate
-install counts** lets the host owner opt out. While enabled, Cafe reports genuinely new,
-successful installs started from the default catalog. Updates, already-installed no-ops, failed
-installs, custom catalogs, and catalog entries the daemon cannot verify are not reported. A later
-reinstall after removal is a new install event and may be counted again.
+install counts** lets the host owner opt out. When the default catalog opens, Cafe reports listed
+plugins already installed on that host once. It subsequently reports newly observed installs,
+successful updates when their Git revision changes, and removals detected the next time Cafe
+loads. Custom catalogs and entries the daemon cannot verify are not reported.
 
-Each report contains exactly the public catalog plugin ID and a fresh operation nonce used only
-to deduplicate that install's bounded retries. It contains no machine or installation identifier,
-plugin inventory, or arbitrary metadata. Cloudflare necessarily processes the request IP.
-Published counts are therefore approximate reported installs, not unique users or machines.
-Revoking consent cancels pending in-memory reports; there is no persistent retry queue.
+Each lifecycle report contains exactly the public catalog plugin ID, an event type (`install`,
+`update`, or `uninstall`), and a fresh operation nonce used only to deduplicate bounded retries.
+The host-scoped settings keep a local plugin-to-revision snapshot so the same state is not
+reported on every load; local paths and installation IDs are never sent. Cloudflare necessarily
+processes the request IP. Published install counts are therefore approximate events, not unique
+users or machines. Disabling reporting records the current inventory locally without reporting
+it, so re-enabling does not retroactively report activity from the opted-out period. Revoking
+consent cancels pending in-memory reports; there is no persistent retry queue. Removals are only
+reported for plugins Cafe previously observed and can confirm are absent on a later load. Cafe
+cannot report its own removal because its code is no longer running and its settings are deleted.
 
-Reports go to `https://api.paseo.cafe/v1/install`. A trusted daemon environment may set
+Reports go to `https://api.paseo.cafe/v1/events`. A trusted daemon environment may set
 `PASEO_CAFE_SERVICE_URL` to another HTTPS service origin, or to an HTTP loopback origin for local
 smoke testing. The plugin app cannot choose this destination.
 

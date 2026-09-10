@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { registryIdSchema } from "./registry-schema"
 
-export const INSTALL_COUNTS_SCHEMA_VERSION = 1 as const
+export const INSTALL_COUNTS_SCHEMA_VERSION = 2 as const
 
 const utcTimestampSchema = z
   .string()
@@ -19,16 +19,42 @@ const utcTimestampSchema = z
 
 const safeCountSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
 
+const legacyCafeCountsSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    asOf: utcTimestampSchema.nullable(),
+    trackingSince: utcTimestampSchema.nullable(),
+    counts: z.record(registryIdSchema, safeCountSchema),
+  })
+  .strict()
+
+function migrateCafeCounts(input: unknown): unknown {
+  const legacy = legacyCafeCountsSchema.safeParse(input)
+  if (!legacy.success) return input
+  return {
+    ...legacy.data,
+    schemaVersion: INSTALL_COUNTS_SCHEMA_VERSION,
+    updates: {},
+    uninstalls: {},
+  }
+}
+
 export const cafeCountsSchema = z
   .object({
     schemaVersion: z.literal(INSTALL_COUNTS_SCHEMA_VERSION),
     asOf: utcTimestampSchema.nullable(),
     trackingSince: utcTimestampSchema.nullable(),
     counts: z.record(registryIdSchema, safeCountSchema),
+    updates: z.record(registryIdSchema, safeCountSchema),
+    uninstalls: z.record(registryIdSchema, safeCountSchema),
   })
   .strict()
   .superRefine((value, context) => {
-    const countIds = Object.keys(value.counts)
+    const countIds = [
+      ...Object.keys(value.counts),
+      ...Object.keys(value.updates),
+      ...Object.keys(value.uninstalls),
+    ]
 
     if (value.trackingSince === null && value.asOf !== null) {
       context.addIssue({
@@ -43,7 +69,8 @@ export const cafeCountsSchema = z
         context.addIssue({
           code: "custom",
           path: ["counts"],
-          message: "must be empty without a publishable observation period",
+          message:
+            "all lifecycle totals must be empty without a publishable observation period",
         })
       }
       return
@@ -158,8 +185,10 @@ function retainCatalogCounts(
   const knownIds = new Set(catalogIds)
   // The website and service deploy independently. New entries have no count
   // until the service knows them; removed entries must not hide other totals.
-  for (const id of Object.keys(counts.counts)) {
-    if (!knownIds.has(id)) delete counts.counts[id]
+  for (const totals of [counts.counts, counts.updates, counts.uninstalls]) {
+    for (const id of Object.keys(totals)) {
+      if (!knownIds.has(id)) delete totals[id]
+    }
   }
 }
 
@@ -167,7 +196,7 @@ export function parseCafeCounts(
   input: unknown,
   catalogIds: readonly string[]
 ): CafeCounts {
-  const counts = cafeCountsSchema.parse(input)
+  const counts = cafeCountsSchema.parse(migrateCafeCounts(input))
   retainCatalogCounts(counts, catalogIds)
   return counts
 }
@@ -176,7 +205,18 @@ export function parseInstallCountsSnapshot(
   input: unknown,
   catalogIds: readonly string[]
 ): InstallCountsSnapshot {
-  const snapshot = installCountsSnapshotSchema.parse(input)
+  let candidate = input
+  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
+    const record = input as Record<string, unknown>
+    if (record.schemaVersion === 1) {
+      candidate = {
+        ...record,
+        schemaVersion: INSTALL_COUNTS_SCHEMA_VERSION,
+        data: record.data === null ? null : migrateCafeCounts(record.data),
+      }
+    }
+  }
+  const snapshot = installCountsSnapshotSchema.parse(candidate)
   if (snapshot.data !== null) retainCatalogCounts(snapshot.data, catalogIds)
   return snapshot
 }

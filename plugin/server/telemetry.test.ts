@@ -3,16 +3,17 @@ import type { AddressInfo } from "node:net"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 import {
   createInstallReportManager,
-  type InstallReport,
+  type InstallReportManager,
+  type LifecycleEventReport,
   resolveInstallReportUrl,
-  sendInstallReport,
+  sendLifecycleEvent,
 } from "./telemetry"
 
 const NONCE = "11111111-1111-4111-8111-111111111111"
 
 describe("install report consent", () => {
   it("consumes an opted-out completion without sending", async () => {
-    const sent: InstallReport[] = []
+    const sent: LifecycleEventReport[] = []
     const reports = createInstallReportManager({
       nonce: () => NONCE,
       send: async (report) => {
@@ -30,7 +31,7 @@ describe("install report consent", () => {
   })
 
   it("does not send when post-install inventory cannot confirm the source", async () => {
-    const sent: InstallReport[] = []
+    const sent: LifecycleEventReport[] = []
     const reports = createInstallReportManager({
       nonce: () => NONCE,
       send: async (report) => {
@@ -47,7 +48,7 @@ describe("install report consent", () => {
   })
 
   it("sends a confirmed completion once across duplicate clients", async () => {
-    const sent: InstallReport[] = []
+    const sent: LifecycleEventReport[] = []
     const reports = createInstallReportManager({
       nonce: () => NONCE,
       send: async (report) => {
@@ -60,7 +61,9 @@ describe("install report consent", () => {
     expect(reports.complete(reportToken, true)).toBe(false)
     reports.confirm(reportToken, true)
     await Promise.resolve()
-    expect(sent).toEqual([{ pluginId: "review", nonce: NONCE }])
+    expect(sent).toEqual([
+      { pluginId: "review", event: "install", nonce: NONCE },
+    ])
     reports.dispose()
   })
 
@@ -82,8 +85,85 @@ describe("install report consent", () => {
     reports.confirm(reportToken, true)
     reports.complete(reportToken, true)
 
-    reports.cancelAll()
+    reports.setEnabled(false)
     expect(aborted).toBe(true)
+    reports.dispose()
+  })
+
+  it("sends update and uninstall events through the same bounded sender", async () => {
+    const sent: LifecycleEventReport[] = []
+    const nonces = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    ]
+    const reports = createInstallReportManager({
+      nonce: () => nonces.shift() ?? NONCE,
+      send: async (report) => {
+        sent.push(report)
+      },
+    })
+
+    await expect(
+      reports.report([
+        { pluginId: "review", event: "update" },
+        { pluginId: "review", event: "uninstall" },
+      ])
+    ).resolves.toBe(2)
+    expect(sent).toEqual([
+      {
+        pluginId: "review",
+        event: "update",
+        nonce: "11111111-1111-4111-8111-111111111111",
+      },
+      {
+        pluginId: "review",
+        event: "uninstall",
+        nonce: "22222222-2222-4222-8222-222222222222",
+      },
+    ])
+    reports.dispose()
+  })
+
+  it("stops the remaining lifecycle batch after cancellation", async () => {
+    const attempted: LifecycleEventReport[] = []
+    let reports: InstallReportManager
+    reports = createInstallReportManager({
+      nonce: () => NONCE,
+      send: async (report) => {
+        attempted.push(report)
+        reports.setEnabled(false)
+        throw new Error("aborted")
+      },
+    })
+
+    await expect(
+      reports.report([
+        { pluginId: "review", event: "update" },
+        { pluginId: "review", event: "uninstall" },
+      ])
+    ).resolves.toBe(0)
+    expect(attempted).toHaveLength(1)
+    reports.dispose()
+  })
+
+  it("rejects stale batches until explicitly re-enabled", async () => {
+    const sent: LifecycleEventReport[] = []
+    const reports = createInstallReportManager({
+      nonce: () => NONCE,
+      send: async (report) => {
+        sent.push(report)
+      },
+    })
+
+    reports.setEnabled(false)
+    await expect(
+      reports.report([{ pluginId: "review", event: "update" }])
+    ).resolves.toBe(0)
+    reports.setEnabled(true)
+    await expect(
+      reports.report([{ pluginId: "review", event: "update" }])
+    ).resolves.toBe(1)
+    expect(sent).toHaveLength(1)
     reports.dispose()
   })
 })
@@ -92,7 +172,7 @@ describe("install report sender", () => {
   it("does not forward reports through HTTP redirects", async () => {
     const redirectedRequests: string[] = []
     const server = createServer((request, response) => {
-      if (request.url === "/v1/install") {
+      if (request.url === "/v1/events") {
         response.writeHead(307, { location: "/unexpected-destination" }).end()
       } else {
         redirectedRequests.push(request.url ?? "")
@@ -108,8 +188,8 @@ describe("install report sender", () => {
     })
     const { port } = server.address() as AddressInfo
     await expect(
-      sendInstallReport(
-        { pluginId: "review", nonce: NONCE },
+      sendLifecycleEvent(
+        { pluginId: "review", event: "install", nonce: NONCE },
         { serviceUrl: `http://127.0.0.1:${port}`, retryDelaysMs: [] }
       )
     ).rejects.toThrow()
@@ -135,8 +215,8 @@ describe("install report sender", () => {
         return new Response(null, { status: 204 })
       })
 
-    await sendInstallReport(
-      { pluginId: "review", nonce: NONCE },
+    await sendLifecycleEvent(
+      { pluginId: "review", event: "install", nonce: NONCE },
       {
         serviceUrl: "http://127.0.0.1:8787",
         retryDelaysMs: [0],
@@ -146,22 +226,22 @@ describe("install report sender", () => {
 
     expect(requests).toEqual([
       {
-        url: "http://127.0.0.1:8787/v1/install",
-        body: { pluginId: "review", nonce: NONCE },
+        url: "http://127.0.0.1:8787/v1/events",
+        body: { pluginId: "review", event: "install", nonce: NONCE },
       },
       {
-        url: "http://127.0.0.1:8787/v1/install",
-        body: { pluginId: "review", nonce: NONCE },
+        url: "http://127.0.0.1:8787/v1/events",
+        body: { pluginId: "review", event: "install", nonce: NONCE },
       },
     ])
   })
 
   it("allows only HTTPS or loopback HTTP service overrides", () => {
     expect(resolveInstallReportUrl("https://cafe.example")).toBe(
-      "https://cafe.example/v1/install"
+      "https://cafe.example/v1/events"
     )
     expect(resolveInstallReportUrl("http://localhost:8787")).toBe(
-      "http://localhost:8787/v1/install"
+      "http://localhost:8787/v1/events"
     )
     expect(() => resolveInstallReportUrl("http://cafe.example")).toThrow(
       "must use HTTPS"

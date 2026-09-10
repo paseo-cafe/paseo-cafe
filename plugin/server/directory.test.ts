@@ -18,7 +18,10 @@ import {
   searchDirectorySecurity,
   updateDirectoryPlugin,
 } from "./directory"
-import { createInstallReportManager, type InstallReport } from "./telemetry"
+import {
+  createInstallReportManager,
+  type LifecycleEventReport,
+} from "./telemetry"
 
 const originalFetch = globalThis.fetch
 const originalDirectoryUrl = process.env.PASEO_CAFE_DIRECTORY_URL
@@ -430,7 +433,7 @@ describe("install report eligibility", () => {
   it("reports only one confirmed new install across concurrent clients", async () => {
     let installed = false
     let commandCount = 0
-    const sent: InstallReport[] = []
+    const sent: LifecycleEventReport[] = []
     const reports = createInstallReportManager({
       nonce: () => "11111111-1111-4111-8111-111111111111",
       send: async (report) => {
@@ -483,6 +486,7 @@ describe("install report eligibility", () => {
     expect(sent).toEqual([
       {
         pluginId: "review",
+        event: "install",
         nonce: "11111111-1111-4111-8111-111111111111",
       },
     ])

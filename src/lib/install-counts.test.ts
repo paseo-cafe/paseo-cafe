@@ -3,15 +3,18 @@ import {
   failedInstallCountsSnapshot,
   isCurrentInstallCounts,
   parseCafeCounts,
+  parseInstallCountsSnapshot,
   reclassifyInstallCountsSnapshot,
 } from "./install-counts"
 
 const catalogIds = ["alpha-plugin", "beta-plugin"]
 const published = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   asOf: "2026-09-10T00:00:00.000Z",
   trackingSince: "2026-09-08T12:00:00.000Z",
   counts: { "alpha-plugin": 3, "beta-plugin": 0 },
+  updates: { "alpha-plugin": 1, "beta-plugin": 0 },
+  uninstalls: { "alpha-plugin": 0, "beta-plugin": 1 },
 }
 
 describe("Cafe install count schemas", () => {
@@ -28,9 +31,29 @@ describe("Cafe install count schemas", () => {
     )
   })
 
+  it("upgrades version-one aggregates without inventing lifecycle events", () => {
+    const legacy = {
+      schemaVersion: 1,
+      status: "available",
+      attemptedAt: "2026-09-10T01:00:00.000Z",
+      fetchedAt: "2026-09-10T01:00:00.000Z",
+      data: {
+        schemaVersion: 1,
+        asOf: "2026-09-10T00:00:00.000Z",
+        trackingSince: "2026-09-08T12:00:00.000Z",
+        counts: { "alpha-plugin": 3, "beta-plugin": 0 },
+      },
+    }
+
+    expect(parseInstallCountsSnapshot(legacy, catalogIds)).toMatchObject({
+      schemaVersion: 2,
+      data: { schemaVersion: 2, updates: {}, uninstalls: {} },
+    })
+  })
+
   it("persists staleness before static rendering", () => {
     const snapshot = {
-      schemaVersion: 1 as const,
+      schemaVersion: 2 as const,
       status: "available" as const,
       attemptedAt: "2026-09-10T01:00:00.000Z",
       fetchedAt: "2026-09-10T01:00:00.000Z",
@@ -77,10 +100,12 @@ describe("Cafe install count schemas", () => {
     expect(() =>
       parseCafeCounts(
         {
-          schemaVersion: 1,
+          schemaVersion: 2,
           asOf: null,
           trackingSince: "2026-09-10T12:00:00.000Z",
           counts: { "alpha-plugin": 0, "beta-plugin": 0 },
+          updates: {},
+          uninstalls: {},
         },
         catalogIds
       )
@@ -89,7 +114,7 @@ describe("Cafe install count schemas", () => {
 
   it("retains only a valid prior success when a refresh fails", () => {
     const previous = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       status: "available",
       attemptedAt: "2026-09-10T01:00:00.000Z",
       fetchedAt: "2026-09-10T01:00:00.000Z",
@@ -116,7 +141,7 @@ describe("Cafe install count schemas", () => {
         catalogIds
       )
     ).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       status: "unavailable",
       attemptedAt: "2026-09-11T01:00:00.000Z",
       fetchedAt: null,

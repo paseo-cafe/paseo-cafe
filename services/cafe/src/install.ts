@@ -1,15 +1,19 @@
 import { CATALOG_ID_SET } from "./catalog.generated"
 
-export const MAX_INSTALL_BODY_BYTES = 512
-export const MAX_INSTALL_BODY_READ_MS = 5_000
+export const MAX_EVENT_BODY_BYTES = 512
+export const MAX_EVENT_BODY_READ_MS = 5_000
 
-export interface InstallReport {
+export const LIFECYCLE_EVENTS = ["install", "update", "uninstall"] as const
+export type LifecycleEvent = (typeof LIFECYCLE_EVENTS)[number]
+
+export interface LifecycleEventReport {
   pluginId: string
+  event: LifecycleEvent
   nonce: string
 }
 
 type ParseResult =
-  | { ok: true; report: InstallReport }
+  | { ok: true; report: LifecycleEventReport }
   | { ok: false; status: 400 | 413 }
 
 const UUID_PATTERN =
@@ -21,19 +25,19 @@ async function readBoundedBody(
   const reader = request.body?.getReader()
   if (!reader) return { ok: true, bytes: new Uint8Array() }
 
-  const bytes = new Uint8Array(MAX_INSTALL_BODY_BYTES)
+  const bytes = new Uint8Array(MAX_EVENT_BODY_BYTES)
   let length = 0
   let timedOut = false
   const timeout = setTimeout(() => {
     timedOut = true
     void reader.cancel().catch(() => {})
-  }, MAX_INSTALL_BODY_READ_MS)
+  }, MAX_EVENT_BODY_READ_MS)
   try {
     while (true) {
       const chunk = await reader.read()
       if (timedOut) return { ok: false, status: 400 }
       if (chunk.done) return { ok: true, bytes: bytes.subarray(0, length) }
-      if (length + chunk.value.byteLength > MAX_INSTALL_BODY_BYTES) {
+      if (length + chunk.value.byteLength > MAX_EVENT_BODY_BYTES) {
         void reader.cancel().catch(() => {})
         return { ok: false, status: 413 }
       }
@@ -48,15 +52,18 @@ async function readBoundedBody(
   }
 }
 
-export function normalizeInstallReport(value: unknown): InstallReport | null {
+export function normalizeLifecycleEvent(
+  value: unknown
+): LifecycleEventReport | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null
   }
 
   const keys = Object.keys(value)
   if (
-    keys.length !== 2 ||
+    keys.length !== 3 ||
     !Object.hasOwn(value, "pluginId") ||
+    !Object.hasOwn(value, "event") ||
     !Object.hasOwn(value, "nonce")
   ) {
     return null
@@ -66,6 +73,8 @@ export function normalizeInstallReport(value: unknown): InstallReport | null {
   if (
     typeof candidate.pluginId !== "string" ||
     CATALOG_ID_SET[candidate.pluginId] !== true ||
+    typeof candidate.event !== "string" ||
+    !LIFECYCLE_EVENTS.includes(candidate.event as LifecycleEvent) ||
     typeof candidate.nonce !== "string" ||
     !UUID_PATTERN.test(candidate.nonce)
   ) {
@@ -74,11 +83,12 @@ export function normalizeInstallReport(value: unknown): InstallReport | null {
 
   return {
     pluginId: candidate.pluginId,
+    event: candidate.event as LifecycleEvent,
     nonce: candidate.nonce.toLowerCase(),
   }
 }
 
-export async function parseInstallRequest(
+export async function parseLifecycleEventRequest(
   request: Request
 ): Promise<ParseResult> {
   const contentType = request.headers.get("content-type")
@@ -92,7 +102,7 @@ export async function parseInstallRequest(
   const declaredLength = request.headers.get("content-length")
   if (declaredLength !== null) {
     if (!/^\d+$/.test(declaredLength)) return { ok: false, status: 400 }
-    if (Number(declaredLength) > MAX_INSTALL_BODY_BYTES) {
+    if (Number(declaredLength) > MAX_EVENT_BODY_BYTES) {
       return { ok: false, status: 413 }
     }
   }
@@ -111,7 +121,7 @@ export async function parseInstallRequest(
     return { ok: false, status: 400 }
   }
 
-  const report = normalizeInstallReport(value)
+  const report = normalizeLifecycleEvent(value)
   if (!report) return { ok: false, status: 400 }
 
   return { ok: true, report }

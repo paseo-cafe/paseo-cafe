@@ -16,19 +16,27 @@ import type {
   InstalledPlugin,
 } from "../shared/directory"
 import {
+  DEFAULT_DIRECTORY_URL,
   DIRECTORY_CATEGORIES,
   DIRECTORY_CATEGORY_LABELS,
   directoryBrowseSettingsEqual,
-  directoryCancelInstallReportsRpc,
+  directorySetInstallReportingRpc,
   directoryCompleteInstallReportRpc,
   directoryInstallRpc,
   directoryListRpc,
+  directoryReportLifecycleRpc,
   directorySettings,
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
   findInstallations,
   normalizeDirectoryCategories,
 } from "../shared/directory"
+import {
+  claimObservedInstall,
+  observeCatalogPlugins,
+  observedPluginsEqual,
+  reconcileCatalogPlugins,
+} from "./install-inventory"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
 import { PluginRow } from "./PluginRow"
@@ -431,7 +439,8 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const listDirectory = useRpc(directoryListRpc)
   const installPlugin = useRpc(directoryInstallRpc)
   const completeInstallReport = useRpc(directoryCompleteInstallReportRpc)
-  const cancelInstallReports = useRpc(directoryCancelInstallReportsRpc)
+  const setServerInstallReporting = useRpc(directorySetInstallReportingRpc)
+  const reportLifecycle = useRpc(directoryReportLifecycleRpc)
   const updatePlugin = useRpc(directoryUpdateRpc)
   const listUpdateStatus = useRpc(directoryUpdateStatusRpc)
   const settings = useSettings(directorySettings)
@@ -457,7 +466,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     entryId: string
     message: string
   } | null>(null)
-  const [pendingReportTokens, setPendingReportTokens] = useState<string[]>([])
+  const [pendingReportTokens, setPendingReportTokens] = useState<
+    Array<{ reportToken: string; pluginId: string }>
+  >([])
   const [detailEntry, setDetailEntry] = useState<DirectoryEntry | null>(null)
   const [galleryEntry, setGalleryEntry] = useState<DirectoryEntry | null>(null)
   const [lastOpenedPluginId, setLastOpenedPluginId] = useState<string | null>(
@@ -466,6 +477,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const [settingsHydrated, setSettingsHydrated] = useState(false)
   const hasHydratedSettings = useRef(false)
   const hasRestoredLastOpened = useRef(false)
+  const inventorySyncing = useRef(false)
 
   const settingsValues = settings.status === "ready" ? settings.values : null
   const settingsRevision =
@@ -476,6 +488,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     reload: reloadSettings,
   } = settings
   const storedBrowse = settingsValues?.browse ?? null
+  const storedObservedPlugins = settingsValues?.observedPlugins ?? null
   const browseSettings = useMemo<DirectoryBrowseSettings>(
     () => ({
       query: search,
@@ -517,6 +530,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       settingsRevision === null ||
       storedBrowse === null ||
       settingsSaving ||
+      inventorySyncing.current ||
       directoryBrowseSettingsEqual(storedBrowse, browseSettings)
     ) {
       return
@@ -553,19 +567,66 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     settings.status === "ready" ? settings.values.reportInstalls : undefined
   useEffect(() => {
     if (reportInstalls === false) {
-      void cancelInstallReports({}).catch(() => {})
+      void setServerInstallReporting({ enabled: false }).catch(() => {})
     }
-  }, [cancelInstallReports, reportInstalls])
+  }, [reportInstalls, setServerInstallReporting])
   useEffect(() => {
-    if (pendingReportTokens.length === 0 || reportInstalls === undefined) return
-    setPendingReportTokens([])
-    for (const reportToken of pendingReportTokens) {
-      void completeInstallReport({
-        reportToken,
-        consent: reportInstalls,
-      }).catch(() => {})
+    const pending = pendingReportTokens[0]
+    if (
+      !pending ||
+      reportInstalls === undefined ||
+      settingsValues === null ||
+      settingsRevision === null ||
+      settingsSaving ||
+      inventorySyncing.current
+    ) {
+      return
     }
-  }, [completeInstallReport, pendingReportTokens, reportInstalls])
+    inventorySyncing.current = true
+    void (async () => {
+      let consent = reportInstalls
+      if (consent) {
+        const claim = claimObservedInstall(
+          settingsValues.observedPlugins,
+          pending.pluginId
+        )
+        if (!claim.claimed) {
+          consent = false
+        } else {
+          const saved = await saveSettings(
+            { ...settingsValues, observedPlugins: claim.observed },
+            settingsRevision
+          )
+          if (!saved) {
+            consent = false
+            await reloadSettings()
+          }
+        }
+      }
+      await completeInstallReport({
+        reportToken: pending.reportToken,
+        consent,
+      })
+    })()
+      .catch(() => undefined)
+      .finally(() => {
+        setPendingReportTokens((tokens) =>
+          tokens.filter(
+            ({ reportToken }) => reportToken !== pending.reportToken
+          )
+        )
+        inventorySyncing.current = false
+      })
+  }, [
+    completeInstallReport,
+    pendingReportTokens,
+    reloadSettings,
+    reportInstalls,
+    saveSettings,
+    settingsRevision,
+    settingsSaving,
+    settingsValues,
+  ])
   const settingsPending = settings.status === "loading"
   const queryKey = [DIRECTORY_QUERY_KEY, baseUrl]
   const updateStatusQueryKey = [UPDATE_STATUS_QUERY_KEY, baseUrl]
@@ -608,7 +669,10 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           void settings
             .reload()
             .then(() =>
-              setPendingReportTokens((pending) => [...pending, reportToken])
+              setPendingReportTokens((pending) => [
+                ...pending,
+                { reportToken, pluginId: entry.id },
+              ])
             )
             .catch(() => {
               void completeInstallReport({ reportToken, consent: false }).catch(
@@ -759,6 +823,72 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       ),
     [plugins, installations]
   )
+  const currentObservedPlugins = useMemo(
+    () => observeCatalogPlugins(plugins, installations),
+    [plugins, installations]
+  )
+  const catalogPluginIds = useMemo(() => plugins.map(({ id }) => id), [plugins])
+  useEffect(() => {
+    if (
+      !settingsHydrated ||
+      settingsValues === null ||
+      settingsRevision === null ||
+      storedBrowse === null ||
+      settingsSaving ||
+      inventorySyncing.current ||
+      pendingReportTokens.length > 0 ||
+      !inventoryAvailable ||
+      baseUrl !== DEFAULT_DIRECTORY_URL ||
+      !directoryBrowseSettingsEqual(storedBrowse, browseSettings) ||
+      storedObservedPlugins === null
+    ) {
+      return
+    }
+
+    const reconciliation = reconcileCatalogPlugins(
+      storedObservedPlugins,
+      currentObservedPlugins,
+      catalogPluginIds
+    )
+    if (observedPluginsEqual(storedObservedPlugins, reconciliation.observed)) {
+      return
+    }
+    inventorySyncing.current = true
+    void saveSettings(
+      { ...settingsValues, observedPlugins: reconciliation.observed },
+      settingsRevision
+    )
+      .then(async (saved) => {
+        if (!saved) {
+          await reloadSettings()
+          return
+        }
+        if (reportInstalls && reconciliation.events.length > 0) {
+          await reportLifecycle({ events: reconciliation.events })
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        inventorySyncing.current = false
+      })
+  }, [
+    baseUrl,
+    browseSettings,
+    catalogPluginIds,
+    currentObservedPlugins,
+    inventoryAvailable,
+    pendingReportTokens.length,
+    reloadSettings,
+    reportInstalls,
+    reportLifecycle,
+    saveSettings,
+    settingsHydrated,
+    settingsRevision,
+    settingsSaving,
+    settingsValues,
+    storedBrowse,
+    storedObservedPlugins,
+  ])
   const detailInstallations = detailEntry
     ? (installationByEntryId.get(detailEntry.id) ?? [])
     : []

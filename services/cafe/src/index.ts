@@ -1,6 +1,6 @@
 import { reportingEnabled } from "./config"
 import type { CafeEnv } from "./env"
-import { parseInstallRequest } from "./install"
+import { parseLifecycleEventRequest } from "./install"
 import { InstallCounter } from "./install-counter"
 
 export { InstallCounter }
@@ -24,22 +24,25 @@ function serviceResponse(status: 400 | 404 | 405 | 413 | 429 | 503): Response {
   })
 }
 
-async function install(request: Request, env: CafeEnv): Promise<Response> {
+async function ingestLifecycleEvent(
+  request: Request,
+  env: CafeEnv
+): Promise<Response> {
   if (!reportingEnabled(env.REPORTING_ENABLED)) return serviceResponse(503)
 
   try {
-    const { success } = await env.INSTALL_RATE_LIMITER.limit({ key: "install" })
+    const { success } = await env.INSTALL_RATE_LIMITER.limit({ key: "events" })
     if (!success) return serviceResponse(429)
   } catch {
     return serviceResponse(503)
   }
-  const parsed = await parseInstallRequest(request)
+  const parsed = await parseLifecycleEventRequest(request)
   if (!parsed.ok) return serviceResponse(parsed.status)
 
   try {
     const id = env.INSTALL_COUNTER.idFromName(COUNTER_NAME)
     const response = await env.INSTALL_COUNTER.get(id).fetch(
-      new Request("https://install-counter/install", {
+      new Request("https://install-counter/events", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(parsed.report),
@@ -121,13 +124,13 @@ export default {
       )
     }
 
-    if (pathname === "/v1/install") {
+    if (pathname === "/v1/events") {
       if (request.method !== "POST") {
         const response = serviceResponse(405)
         response.headers.set("allow", "POST")
         return response
       }
-      return install(request, env)
+      return ingestLifecycleEvent(request, env)
     }
 
     if (pathname === "/v1/counts") {

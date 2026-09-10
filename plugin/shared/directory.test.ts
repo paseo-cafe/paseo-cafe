@@ -199,11 +199,13 @@ describe("directory taxonomy and browse settings", () => {
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
       reportInstalls: true,
+      observedPlugins: {},
     })
     expect(directorySettings.schema.parse(migrated)).toEqual({
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
       reportInstalls: true,
+      observedPlugins: {},
     })
   })
 
@@ -217,6 +219,7 @@ describe("directory taxonomy and browse settings", () => {
       directoryUrl: DEFAULT_DIRECTORY_URL,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
       reportInstalls: true,
+      observedPlugins: {},
     })
   })
 })
@@ -227,6 +230,7 @@ describe("directory settings", () => {
       directoryUrl: "https://paseo.cafe/api/plugins",
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
       reportInstalls: true,
+      observedPlugins: {},
     })
     const migrated = await Promise.resolve(
       directorySettings.migrate?.(
@@ -238,6 +242,25 @@ describe("directory settings", () => {
       directoryUrl: "https://catalog.example/api/plugins",
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
       reportInstalls: true,
+      observedPlugins: {},
+    })
+  })
+
+  it("adds inventory state without changing an existing opt-out", () => {
+    expect(
+      migrateDirectorySettings(
+        {
+          directoryUrl: DEFAULT_DIRECTORY_URL,
+          browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+          reportInstalls: false,
+        },
+        2
+      )
+    ).toEqual({
+      directoryUrl: DEFAULT_DIRECTORY_URL,
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: false,
+      observedPlugins: {},
     })
   })
 })

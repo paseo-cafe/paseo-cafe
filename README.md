@@ -79,32 +79,38 @@ bun run dev                 # regenerate the listing, then serve http://localhos
 ## Cafe service
 
 `services/cafe/` is a separately deployed Cloudflare Worker, managed with Wrangler. Its first
-feature is install reporting from the Cafe plugin; it is not bundled into the plugin or the
-GitHub Pages website. There is no author SDK. Install routes and storage stay separate from the
+feature is plugin lifecycle reporting from the Cafe plugin; it is not bundled into the plugin or
+the GitHub Pages website. There is no author SDK. Event routes and storage stay separate from the
 service entry point so unrelated service features can be added without changing this protocol.
 
 - `GET /health`: service health without request metadata.
-- `POST /v1/install`: exactly `{ "pluginId": "paseo-cafe", "nonce": "<operation UUID>" }`.
-  Reporting is enabled by default; the host owner can opt out in the Cafe plugin settings. The
-  plugin verifies a new default-catalog install before reporting. `204` accepts a report or retry,
-  `400` rejects invalid input, `413` rejects oversized input, `429` throttles admission, and `503`
-  means disabled or unavailable.
+- `POST /v1/events`: exactly a public catalog `pluginId`, an `install`, `update`, or `uninstall`
+  event type, and a one-time operation `nonce`. Reporting is enabled by default; the host owner
+  can opt out in the Cafe plugin settings. `204` accepts an event or retry, `400` rejects invalid
+  input, `413` rejects oversized input, `429` throttles admission, and `503` means disabled or
+  unavailable.
 - `GET /v1/counts`: versioned public totals with `asOf` and `trackingSince`. Only completed UTC
   days are published. Tracking dates are day-rounded and withheld until the first publishable
   period. The response is edge-cached for five minutes and contains no report nonces.
+The service stores daily aggregate lifecycle counts and operation nonces with acceptance times
+for 48-hour retry deduplication. Alarms expire the nonces; daily totals remain. It does not store
+IP addresses, machine IDs, installation IDs, inventories, paths, or free-form properties. Worker
+invocation logs and dependency instrumentation are disabled, but Cloudflare still processes
+network metadata; account-level retention settings must be reviewed separately.
 
-The service stores daily aggregate counts and operation nonces with acceptance times for
-48-hour retry deduplication. Alarms expire the nonces; daily totals remain. It does not store
-IP addresses, machine IDs, inventories, paths, or free-form properties. Worker invocation logs
-and dependency instrumentation are disabled, but Cloudflare still processes network metadata;
-account-level retention settings must be reviewed separately.
+On first default-catalog load, the plugin reports catalog plugins already installed on the host.
+A small host-scoped local snapshot prevents repeated load events and detects later Git revisions
+and missing plugins as update and uninstall events. Opted-out loads update only that local baseline.
+Because lifecycle events are independent aggregates, uninstalls do not decrement the cumulative
+reported-install total. Events that occur entirely between Cafe loads are not observable, and Cafe
+cannot report its own removal because its code is no longer running and its settings are deleted.
 
 Admission uses Cloudflare's approximate per-location rate limiter (600 requests/minute by
 default), followed by transactional daily limits (10,000 globally and 1,000 per plugin). Invalid
 and denied reports cannot add counter rows. A 512-byte body limit and five-second body deadline
 bound parsing. These controls limit accepted volume, not all request charges, and cannot prove
-that an anonymous client really installed a plugin. The UI labels totals as reported installs
-via Cafe, not unique users; it does not use them to rank plugins.
+that an anonymous client performed the reported lifecycle event. The UI does not use counts to
+rank plugins.
 
 ### Development and validation
 
@@ -135,6 +141,10 @@ GitHub environments `cafe-service-staging` and `cafe-service-production`, each w
 domain `api.paseo.cafe`, which must belong to that Cloudflare account; staging uses its
 `workers.dev` URL. The workflow requires an explicit choice to enable install reporting.
 Leaving it disabled is the ingestion kill switch; public historical totals remain available.
+Deploy and enable the service before releasing a plugin version that emits lifecycle events.
+Inventory state is recorded locally before delivery to prevent duplicate reports across connected
+clients; network failures intentionally undercount because there is no persistent retry queue.
+
 
 Pages deployment stays independent. Its optional `PASEO_CAFE_SERVICE_URL` repository variable
 selects an alternate aggregate origin; no service credentials are exposed to the website or

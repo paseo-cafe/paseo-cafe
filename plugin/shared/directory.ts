@@ -140,6 +140,15 @@ export type DirectoryBrowseSettings = z.infer<
   typeof directoryBrowseSettingsSchema
 >
 
+export const observedPluginsSchema = z
+  .record(z.string().regex(/^[a-z][a-z0-9-]*$/), z.string().min(1).max(500))
+  .refine(
+    (value) => Object.keys(value).length <= 500,
+    "Too many observed plugins"
+  )
+
+export type ObservedPlugins = z.infer<typeof observedPluginsSchema>
+
 export const DEFAULT_DIRECTORY_BROWSE_SETTINGS =
   directoryBrowseSettingsSchema.parse({})
 
@@ -176,7 +185,7 @@ export function migrateDirectorySettings(
   fromVersion: number
 ): unknown {
   if (
-    fromVersion >= 2 ||
+    fromVersion >= 3 ||
     typeof values !== "object" ||
     values === null ||
     Array.isArray(values)
@@ -193,6 +202,7 @@ export function migrateDirectorySettings(
       : DEFAULT_DIRECTORY_URL,
     browse: previous.browse ?? DEFAULT_DIRECTORY_BROWSE_SETTINGS,
     reportInstalls: previous.reportInstalls ?? true,
+    observedPlugins: previous.observedPlugins ?? {},
   }
 }
 
@@ -204,9 +214,10 @@ export function migrateDirectorySettings(
 export const directorySettings = defineSettings({
   id: "directory-settings",
   scope: "host",
-  version: 2,
+  version: 3,
   schema: z.object({
     directoryUrl: catalogUrlSchema.default(DEFAULT_DIRECTORY_URL),
+    observedPlugins: observedPluginsSchema.default({}),
     browse: directoryBrowseSettingsSchema.default(
       DEFAULT_DIRECTORY_BROWSE_SETTINGS
     ),
@@ -600,6 +611,28 @@ export const directoryInstallRpc = defineRpc({
   }),
 })
 
+export const lifecycleEventTypeSchema = z.enum([
+  "install",
+  "update",
+  "uninstall",
+])
+export type LifecycleEventType = z.infer<typeof lifecycleEventTypeSchema>
+
+export const directoryReportLifecycleRpc = defineRpc({
+  name: "directory.report-lifecycle",
+  input: z.object({
+    events: z
+      .array(
+        z.object({
+          pluginId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+          event: lifecycleEventTypeSchema,
+        })
+      )
+      .max(500),
+  }),
+  output: z.object({ accepted: z.number().int().nonnegative() }),
+})
+
 export const directoryCompleteInstallReportRpc = defineRpc({
   name: "directory.complete-install-report",
   input: z.object({
@@ -609,9 +642,9 @@ export const directoryCompleteInstallReportRpc = defineRpc({
   output: z.object({ scheduled: z.boolean() }),
 })
 
-export const directoryCancelInstallReportsRpc = defineRpc({
-  name: "directory.cancel-install-reports",
-  input: z.object({}),
+export const directorySetInstallReportingRpc = defineRpc({
+  name: "directory.set-install-reporting",
+  input: z.object({ enabled: z.boolean() }),
   output: z.object({}),
 })
 

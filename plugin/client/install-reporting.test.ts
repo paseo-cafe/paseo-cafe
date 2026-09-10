@@ -2,13 +2,17 @@ import { describe, expect, it, vi } from "vitest"
 import { updateInstallReportingPreference } from "./install-reporting"
 
 describe("install reporting preference", () => {
-  it("does not cancel when saving the preference fails", async () => {
-    const cancel = vi.fn(async () => {})
+  it("does not synchronize when saving the preference fails", async () => {
+    const synchronize = vi.fn(async () => {})
 
     expect(
-      await updateInstallReportingPreference(false, async () => false, cancel)
+      await updateInstallReportingPreference(
+        false,
+        async () => false,
+        synchronize
+      )
     ).toBe("save-failed")
-    expect(cancel).not.toHaveBeenCalled()
+    expect(synchronize).not.toHaveBeenCalled()
   })
 
   it("waits for cancellation and reports a partial failure", async () => {
@@ -39,6 +43,14 @@ describe("install reporting preference", () => {
           throw new Error("offline")
         }
       )
-    ).resolves.toBe("cancel-failed")
+    ).resolves.toBe("sync-failed")
+  })
+
+  it("explicitly re-enables daemon reporting", async () => {
+    const synchronize = vi.fn(async () => {})
+    await expect(
+      updateInstallReportingPreference(true, async () => true, synchronize)
+    ).resolves.toBe("saved")
+    expect(synchronize).toHaveBeenCalledWith(true)
   })
 })
