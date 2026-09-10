@@ -53,6 +53,36 @@ describe("extractReadmeImages", () => {
   it("returns an empty array for a README with no images", () => {
     expect(extractReadmeImages("Just a description, no pictures.")).toEqual([])
   })
+
+  it("filters out shields.io badges while keeping real screenshots", () => {
+    const readme = [
+      "![npm version](https://img.shields.io/npm/v/some-plugin.svg)",
+      "![License](https://img.shields.io/github/license/owner/repo)",
+      "![Screenshot](docs/shot.png)",
+    ].join("\n")
+    expect(extractReadmeImages(readme)).toEqual(["docs/shot.png"])
+  })
+
+  it("filters out other common badge-hosting domains", () => {
+    const readme = [
+      "![Build](https://travis-ci.com/owner/repo.svg)",
+      "![Coverage](https://codecov.io/gh/owner/repo/badge.svg)",
+      "![Demo](https://example.com/demo.png)",
+    ].join("\n")
+    expect(extractReadmeImages(readme)).toEqual([
+      "https://example.com/demo.png",
+    ])
+  })
+
+  it("filters out a GitHub Actions workflow status badge", () => {
+    const readme = [
+      "![CI](https://github.com/owner/repo/actions/workflows/ci.yml/badge.svg)",
+      "![Screenshot](https://raw.githubusercontent.com/owner/repo/main/shot.png)",
+    ].join("\n")
+    expect(extractReadmeImages(readme)).toEqual([
+      "https://raw.githubusercontent.com/owner/repo/main/shot.png",
+    ])
+  })
 })
 
 describe("resolveGitHubAssetImages", () => {

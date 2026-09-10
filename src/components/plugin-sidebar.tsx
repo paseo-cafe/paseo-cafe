@@ -3,20 +3,20 @@ import {
   IconBrandGithub,
   IconExternalLink,
   IconStar,
-} from "@tabler/icons-react";
-import { Link } from "@tanstack/react-router";
-import { PluginHealthChecks } from "@/components/plugin-health-checks";
-import { PluginManifest } from "@/components/plugin-manifest";
-import { PluginSecurityScanSection } from "@/components/plugin-security-scan";
-import { Badge } from "@/components/ui/badge";
-import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search";
-import { formatDate } from "@/lib/format-date";
-import type { PluginRecord } from "@/lib/plugin-schema";
-import { normalizeCategory, PLATFORM_LABELS } from "@/lib/registry-schema";
-import { buildReportIssueUrl } from "@/lib/report-issue-url";
+} from "@tabler/icons-react"
+import { Link } from "@tanstack/react-router"
+import { PluginHealthChecks } from "@/components/plugin-health-checks"
+import { PluginManifest } from "@/components/plugin-manifest"
+import { PluginSecurityScanSection } from "@/components/plugin-security-scan"
+import { Badge } from "@/components/ui/badge"
+import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
+import { formatDate } from "@/lib/format-date"
+import type { PluginRecord } from "@/lib/plugin-schema"
+import { normalizeCategory, PLATFORM_LABELS } from "@/lib/registry-schema"
+import { buildReportIssueUrl } from "@/lib/report-issue-url"
 
 export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
-  const username = plugin.owner?.login ?? plugin.repo.split("/")[0];
+  const username = plugin.owner?.login ?? plugin.repo.split("/")[0]
 
   return (
     <aside className="flex flex-col gap-6 bg-card p-3 lg:sticky lg:top-20 lg:w-1/3 lg:shrink-0 lg:self-start">
@@ -119,5 +119,5 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
       <PluginHealthChecks health={plugin.health} />
       <PluginSecurityScanSection security={plugin.security} />
     </aside>
-  );
+  )
 }

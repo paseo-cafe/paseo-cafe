@@ -1,27 +1,27 @@
-import { IconSearch } from "@tabler/icons-react";
-import { Link } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
+import { IconSearch } from "@tabler/icons-react"
+import { Link } from "@tanstack/react-router"
+import { Button } from "@/components/ui/button"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-} from "@/components/ui/input-group";
-import type { CatalogSearch, SortValue } from "@/lib/catalog-search";
-import { sortLabels, sortOptions } from "@/lib/catalog-search";
-import type { Category, Platform } from "@/lib/registry-schema";
-import { CATEGORY_LABELS, PLATFORM_LABELS } from "@/lib/registry-schema";
+} from "@/components/ui/input-group"
+import type { CatalogSearch, SortValue } from "@/lib/catalog-search"
+import { sortLabels, sortOptions } from "@/lib/catalog-search"
+import type { Category, Platform } from "@/lib/registry-schema"
+import { CATEGORY_LABELS, PLATFORM_LABELS } from "@/lib/registry-schema"
 
 interface CatalogSidebarProps {
-  search: CatalogSearch;
-  totalCount: number;
-  categories: Category[];
-  categoryCounts: Record<Category, number>;
-  platforms: Platform[];
-  platformCounts: Record<Platform, number>;
-  onQueryChange: (q: string) => void;
-  onSortChange: (sort: SortValue) => void;
-  onCategoryChange: (category: Category | "") => void;
-  onPlatformChange: (platform: Platform | "") => void;
+  search: CatalogSearch
+  totalCount: number
+  categories: Category[]
+  categoryCounts: Record<Category, number>
+  platforms: Platform[]
+  platformCounts: Record<Platform, number>
+  onQueryChange: (q: string) => void
+  onSortChange: (sort: SortValue) => void
+  onCategoryChange: (category: Category | "") => void
+  onPlatformChange: (platform: Platform | "") => void
 }
 
 export function CatalogSidebar({
@@ -138,5 +138,5 @@ export function CatalogSidebar({
         Submit your plugin
       </Button>
     </aside>
-  );
+  )
 }
