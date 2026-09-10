@@ -18,6 +18,7 @@ import type {
 import {
   DIRECTORY_CATEGORIES,
   DIRECTORY_CATEGORY_LABELS,
+  DIRECTORY_PLATFORM_LABELS,
   directoryBrowseSettingsEqual,
   directoryInstallRpc,
   directoryListRpc,
@@ -48,6 +49,8 @@ interface FilterRowProps<T extends string> {
   selected: ReadonlySet<T>
   theme: PluginTheme
   compact: boolean
+  allCount?: number
+  getCount?: (value: T) => number | undefined
   formatOption?: (value: T) => string
   onToggle: (value: T) => void
   onClear: () => void
@@ -59,6 +62,8 @@ function FilterRow<T extends string>({
   selected,
   theme,
   compact,
+  allCount,
+  getCount,
   formatOption,
   onToggle,
   onClear,
@@ -112,7 +117,9 @@ function FilterRow<T extends string>({
         style={styles.chip(selected.size === 0)}
         onPress={onClear}
       >
-        <Text style={styles.chipText(selected.size === 0)}>All</Text>
+        <Text style={styles.chipText(selected.size === 0)}>
+          All{allCount === undefined ? "" : ` ${allCount}`}
+        </Text>
       </Pressable>
       {options.map((option) => {
         const active = selected.has(option)
@@ -126,7 +133,10 @@ function FilterRow<T extends string>({
             style={styles.chip(active)}
             onPress={() => onToggle(option)}
           >
-            <Text style={styles.chipText(active)}>{optionLabel}</Text>
+            <Text style={styles.chipText(active)}>
+              {optionLabel}
+              {getCount ? ` ${getCount(option) ?? "—"}` : ""}
+            </Text>
           </Pressable>
         )
       })}
@@ -759,6 +769,25 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       ).sort(),
     [plugins]
   )
+  const categoryCounts = useMemo(
+    (): Record<DirectoryCategory, number> =>
+      Object.fromEntries(
+        DIRECTORY_CATEGORIES.map((category) => [
+          category,
+          plugins.filter((entry) => entry.categories.includes(category)).length,
+        ])
+      ) as Record<DirectoryCategory, number>,
+    [plugins]
+  )
+  const platformCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const entry of plugins) {
+      for (const platform of new Set(entry.platforms)) {
+        counts.set(platform, (counts.get(platform) ?? 0) + 1)
+      }
+    }
+    return counts
+  }, [plugins])
 
   const nonStatusFiltered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -1095,6 +1124,8 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
               <View style={styles.filtersBlock}>
                 <FilterRow
                   label="Categories"
+                  allCount={plugins.length}
+                  getCount={(category) => categoryCounts[category]}
                   options={allCategories}
                   selected={categoryFilter}
                   theme={theme}
@@ -1109,10 +1140,17 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                 />
                 <FilterRow
                   label="Platforms"
+                  allCount={plugins.length}
+                  getCount={(platform) => platformCounts.get(platform)}
                   options={allPlatforms}
                   selected={platformFilter}
                   theme={theme}
                   compact={layout.compact}
+                  formatOption={(platform) =>
+                    DIRECTORY_PLATFORM_LABELS[
+                      platform as keyof typeof DIRECTORY_PLATFORM_LABELS
+                    ] ?? platform
+                  }
                   onToggle={(value) =>
                     setPlatformFilter((prev) => toggle(prev, value))
                   }

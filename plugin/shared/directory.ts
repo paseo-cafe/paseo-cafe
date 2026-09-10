@@ -9,8 +9,10 @@ import {
   CATALOG_CATEGORIES,
   CATALOG_CATEGORY_LABELS,
   CATALOG_HEALTH_LABELS,
+  CATALOG_PLATFORM_LABELS,
   type CatalogCategory,
   getCatalogInstallCommand,
+  isOfficialCatalogPlugin,
   normalizeCatalogCategories,
   normalizeCatalogCategory,
   normalizeCatalogCategoryFilter,
@@ -22,21 +24,7 @@ export const DEFAULT_DIRECTORY_URL = "https://paseo.cafe/api/plugins"
 // "View on paseo.cafe" should never point at a local/staging override.
 const SITE_URL = "https://paseo.cafe"
 
-// The GitHub org that publishes official paseo.cafe plugins. Mirrors
-// src/lib/site.ts's OFFICIAL_GITHUB_ORG/isOfficialPlugin — kept as a local
-// copy since this package doesn't import from the web app's src/ tree.
-export const OFFICIAL_GITHUB_ORG = "paseo-cafe"
-// Derived from `repo`, not `entry.owner.login` — a custom catalog is
-// untrusted input, and those two fields aren't validated against each
-// other. Binding this to `repo` ties the trust badge to the same field the
-// install command uses, so a catalog can't claim official-org ownership
-// for a repo it doesn't actually point the install action at.
-export function isOfficialPlugin(entry: { repo: string }): boolean {
-  return (
-    entry.repo.split("/")[0]?.toLowerCase() ===
-    OFFICIAL_GITHUB_ORG.toLowerCase()
-  )
-}
+export const isOfficialPlugin = isOfficialCatalogPlugin
 const MAX_HTTP_URL_LENGTH = 2_048
 const httpUrlSchema = z
   .url()
@@ -80,6 +68,7 @@ export function isTrustedCatalogUrl(value: string): boolean {
   )
 }
 
+export const DIRECTORY_PLATFORM_LABELS = CATALOG_PLATFORM_LABELS
 const catalogUrlSchema = httpUrlSchema.refine(
   isTrustedCatalogUrl,
   "Catalog URL must use HTTPS, or HTTP on localhost"

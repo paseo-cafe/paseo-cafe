@@ -7,6 +7,24 @@
  * of React, the Paseo SDK, Zod, DOM globals, and Node APIs.
  */
 
+export const CATALOG_PLATFORMS = ["macos", "linux", "windows"] as const
+
+export type CatalogPlatform = (typeof CATALOG_PLATFORMS)[number]
+
+export const CATALOG_PLATFORM_LABELS: Record<CatalogPlatform, string> = {
+  macos: "macOS",
+  linux: "Linux",
+  windows: "Windows",
+}
+
+export const OFFICIAL_GITHUB_ORG = "paseo-cafe"
+
+export function isOfficialCatalogPlugin(entry: {
+  owner?: { login?: string }
+}): boolean {
+  return entry.owner?.login?.toLowerCase() === OFFICIAL_GITHUB_ORG
+}
+
 export const CATALOG_CATEGORIES = [
   "automation",
   "browser",

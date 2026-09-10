@@ -1,15 +1,10 @@
 import { IconCheck, IconX } from "@tabler/icons-react"
 import { ExpandableSection } from "@/components/expandable-section"
 import type { PluginHealth } from "@/lib/plugin-schema"
+import { CATALOG_HEALTH_LABELS } from "../../plugin/shared/catalog"
 
-export const HEALTH_LABELS: Record<keyof PluginHealth, string> = {
-  manifestValid: "Manifest ID matches registry",
-  hasReadme: "Has a README",
-  hasLicense: "Has a license",
-  hasTests: "Has tests",
-  hasTypecheckScript: "Has a typecheck script",
-  updatedRecently: "Updated in the last 6 months",
-}
+export const HEALTH_LABELS: Record<keyof PluginHealth, string> =
+  CATALOG_HEALTH_LABELS
 
 const HEALTH_KEYS = Object.keys(HEALTH_LABELS) as (keyof PluginHealth)[]
 

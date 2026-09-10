@@ -2,7 +2,10 @@ import { z } from "zod"
 import {
   CATALOG_CATEGORIES,
   CATALOG_CATEGORY_LABELS,
+  CATALOG_PLATFORM_LABELS,
+  CATALOG_PLATFORMS,
   type CatalogCategory,
+  type CatalogPlatform,
   normalizeCatalogCategory,
 } from "../../plugin/shared/catalog"
 
@@ -13,13 +16,9 @@ import {
  * scripts/scan.ts should prefer that over this the same way it already
  * prefers package.json/paseo-plugin.json over registry defaults elsewhere.
  */
-export const PLATFORMS = ["macos", "linux", "windows"] as const
-export type Platform = (typeof PLATFORMS)[number]
-export const PLATFORM_LABELS: Record<Platform, string> = {
-  macos: "macOS",
-  linux: "Linux",
-  windows: "Windows",
-}
+export const PLATFORMS = CATALOG_PLATFORMS
+export type Platform = CatalogPlatform
+export const PLATFORM_LABELS: Record<Platform, string> = CATALOG_PLATFORM_LABELS
 
 /** Stable taxonomy used by catalog filters. Registry records keep their source values. */
 export const CATEGORIES = CATALOG_CATEGORIES

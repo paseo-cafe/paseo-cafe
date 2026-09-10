@@ -5,6 +5,7 @@ import { Image, Pressable, Text, View } from "react-native"
 import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
+  DIRECTORY_PLATFORM_LABELS,
   HEALTH_LABELS,
   normalizeDirectoryCategory,
 } from "../shared/directory"
@@ -174,7 +175,12 @@ export function PluginRow({
       (category) =>
         DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(category)]
     ),
-    ...entry.platforms,
+    ...entry.platforms.map(
+      (platform) =>
+        DIRECTORY_PLATFORM_LABELS[
+          platform as keyof typeof DIRECTORY_PLATFORM_LABELS
+        ] ?? platform
+    ),
   ]
   const hasTagsRow = tags.length > 0
 

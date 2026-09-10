@@ -15,6 +15,7 @@ import type {
 } from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
+  DIRECTORY_PLATFORM_LABELS,
   getInstallCommand,
   getReportPluginIssueUrl,
   getSiteUrl,
@@ -24,6 +25,7 @@ import {
   isValidRepo,
   stripHtml,
 } from "../shared/directory"
+import { ExpandableSection } from "./ExpandableSection"
 import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 import { openExternal } from "./web"
 
@@ -77,7 +79,6 @@ export function PluginDetailPage({
   const [confirmingUpdate, setConfirmingUpdate] =
     useState<InstalledPlugin | null>(null)
   const [showFullActionError, setShowFullActionError] = useState(false)
-  const [showManifest, setShowManifest] = useState(false)
   const [showReadme, setShowReadme] = useState(false)
 
   const manifestText = useMemo(
@@ -116,7 +117,17 @@ export function PluginDetailPage({
         gap: 10,
         flexWrap: "wrap" as const,
       },
-      avatar: { width: 32, height: 32, borderRadius: 16 },
+      ownerRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 6,
+      },
+      avatar: { width: 20, height: 20, borderRadius: 10 },
+      ownerText: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 12,
+      },
       title: {
         color: theme.colors.foreground,
         fontFamily: CAFE_MONO_FONT,
@@ -347,12 +358,6 @@ export function PluginDetailPage({
         fontSize: 14,
         fontWeight: "600" as const,
       },
-      manifestHeaderRow: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        flexWrap: "wrap" as const,
-        gap: 8,
-      },
       manifestViewer: {
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -446,7 +451,12 @@ export function PluginDetailPage({
       (category) =>
         DIRECTORY_CATEGORY_LABELS[category as DirectoryCategory] ?? category
     ),
-    ...entry.platforms,
+    ...entry.platforms.map(
+      (platform) =>
+        DIRECTORY_PLATFORM_LABELS[
+          platform as keyof typeof DIRECTORY_PLATFORM_LABELS
+        ] ?? platform
+    ),
   ]
   const limitationsText = entry.limitationsNotesHtml
     ? stripHtml(entry.limitationsNotesHtml)
@@ -527,19 +537,30 @@ export function PluginDetailPage({
         </Pressable>
 
         <View style={styles.headerRow}>
-          {entry.owner?.avatarUrl ? (
-            <Image
-              accessible={false}
-              source={{ uri: entry.owner.avatarUrl }}
-              style={styles.avatar}
-            />
-          ) : null}
           <Text style={styles.title}>{entry.name}</Text>
           {entry.scanError ? (
             <View style={styles.errorBadge}>
               <Text style={styles.errorBadgeText}>needs attention</Text>
             </View>
           ) : null}
+        </View>
+        <View style={styles.ownerRow}>
+          {entry.owner?.avatarUrl ? (
+            <Image
+              accessible={false}
+              source={{ uri: entry.owner.avatarUrl }}
+              style={styles.avatar}
+            />
+          ) : (
+            <Icon
+              name="Github"
+              size={16}
+              color={theme.colors.foregroundMuted}
+            />
+          )}
+          <Text style={styles.ownerText}>
+            by {entry.owner?.login ?? entry.repo.split("/")[0]}
+          </Text>
         </View>
 
         {entry.description ? (
@@ -640,7 +661,16 @@ export function PluginDetailPage({
             </View>
             {entry.platforms.length > 0 ? (
               <Text style={styles.alertBody}>
-                Supported platforms: {entry.platforms.join(", ")}.
+                Supported platforms:{" "}
+                {entry.platforms
+                  .map(
+                    (platform) =>
+                      DIRECTORY_PLATFORM_LABELS[
+                        platform as keyof typeof DIRECTORY_PLATFORM_LABELS
+                      ] ?? platform
+                  )
+                  .join(", ")}
+                .
               </Text>
             ) : null}
             {entry.caveats.map((caveat) => (
@@ -763,28 +793,12 @@ export function PluginDetailPage({
         </View>
 
         {manifestText ? (
-          <View style={styles.section}>
-            <Text style={styles.label}>Manifest</Text>
-            <View style={styles.manifestHeaderRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showManifest
-                    ? `Hide manifest for ${entry.name}`
-                    : `Show manifest for ${entry.name}`
-                }
-                onPress={() => setShowManifest((current) => !current)}
-                style={styles.errorAction}
-              >
-                <Icon
-                  name={showManifest ? "ChevronUp" : "ChevronDown"}
-                  size={14}
-                  color={theme.colors.accent}
-                />
-                <Text style={styles.errorActionText}>
-                  {showManifest ? "Hide JSON" : "View JSON"}
-                </Text>
-              </Pressable>
+          <ExpandableSection
+            title="Paseo manifest"
+            subtitle="Pretty-printed JSON"
+            theme={theme}
+          >
+            <View style={styles.section}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Copy manifest JSON"
@@ -797,15 +811,13 @@ export function PluginDetailPage({
                 <Icon name="Copy" size={14} color={theme.colors.accent} />
                 <Text style={styles.errorActionText}>Copy JSON</Text>
               </Pressable>
-            </View>
-            {showManifest ? (
               <View style={styles.manifestViewer}>
                 <Text selectable style={styles.manifestText}>
                   {manifestText}
                 </Text>
               </View>
-            ) : null}
-          </View>
+            </View>
+          </ExpandableSection>
         ) : null}
 
         {!inventoryAvailable ? (
@@ -979,8 +991,11 @@ export function PluginDetailPage({
           </View>
         ) : null}
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Security</Text>
+        <ExpandableSection
+          title="Security scan"
+          subtitle={securityStatusLabel}
+          theme={theme}
+        >
           <View style={styles.alert}>
             <View style={styles.alertTitleRow}>
               <Icon
@@ -1033,11 +1048,14 @@ export function PluginDetailPage({
               </>
             )}
           </View>
-        </View>
+        </ExpandableSection>
 
         {health ? (
-          <View style={styles.section}>
-            <Text style={styles.label}>Health checks</Text>
+          <ExpandableSection
+            title="Health checks"
+            subtitle={healthSummary}
+            theme={theme}
+          >
             <View style={styles.healthGrid}>
               {Object.entries(HEALTH_LABELS).map(([key, label]) => {
                 const ok = health[key as keyof typeof health] === true
@@ -1068,7 +1086,7 @@ export function PluginDetailPage({
                 )
               })}
             </View>
-          </View>
+          </ExpandableSection>
         ) : null}
 
         {entry.scannedAt ? (
