@@ -1,27 +1,27 @@
-import { IconSearch } from "@tabler/icons-react"
-import { Link } from "@tanstack/react-router"
-import { Button } from "@/components/ui/button"
+import { IconSearch } from "@tabler/icons-react";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-} from "@/components/ui/input-group"
-import type { CatalogSearch, SortValue } from "@/lib/catalog-search"
-import { sortLabels, sortOptions } from "@/lib/catalog-search"
-import type { Category, Platform } from "@/lib/registry-schema"
-import { CATEGORY_LABELS, PLATFORM_LABELS } from "@/lib/registry-schema"
+} from "@/components/ui/input-group";
+import type { CatalogSearch, SortValue } from "@/lib/catalog-search";
+import { sortLabels, sortOptions } from "@/lib/catalog-search";
+import type { Category, Platform } from "@/lib/registry-schema";
+import { CATEGORY_LABELS, PLATFORM_LABELS } from "@/lib/registry-schema";
 
 interface CatalogSidebarProps {
-  search: CatalogSearch
-  totalCount: number
-  categories: Category[]
-  categoryCounts: Record<Category, number>
-  platforms: Platform[]
-  platformCounts: Record<Platform, number>
-  onQueryChange: (q: string) => void
-  onSortChange: (sort: SortValue) => void
-  onCategoryChange: (category: Category | "") => void
-  onPlatformChange: (platform: Platform | "") => void
+  search: CatalogSearch;
+  totalCount: number;
+  categories: Category[];
+  categoryCounts: Record<Category, number>;
+  platforms: Platform[];
+  platformCounts: Record<Platform, number>;
+  onQueryChange: (q: string) => void;
+  onSortChange: (sort: SortValue) => void;
+  onCategoryChange: (category: Category | "") => void;
+  onPlatformChange: (platform: Platform | "") => void;
 }
 
 export function CatalogSidebar({
@@ -37,7 +37,7 @@ export function CatalogSidebar({
   onPlatformChange,
 }: CatalogSidebarProps) {
   return (
-    <aside className="flex flex-col gap-3 bg-card p-3 lg:sticky lg:top-20 lg:w-64 lg:shrink-0 lg:self-start">
+    <aside className="flex flex-col gap-3 bg-card p-3 lg:sticky lg:top-20 lg:w-1/3 lg:shrink-0 lg:self-start">
       <div className="relative">
         <InputGroup>
           <InputGroupAddon align="inline-start">
@@ -138,5 +138,5 @@ export function CatalogSidebar({
         Submit your plugin
       </Button>
     </aside>
-  )
+  );
 }

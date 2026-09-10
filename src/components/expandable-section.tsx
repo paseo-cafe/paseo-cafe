@@ -1,3 +1,4 @@
+import { IconChevronDown } from "@tabler/icons-react"
 import type { ReactNode } from "react"
 
 /** A collapsed-by-default `<details>` block, styled to match across the sidebar. */
@@ -22,7 +23,7 @@ export function ExpandableSection({
           ) : null}
         </span>
         <span className="text-foreground/40 text-xs uppercase tracking-wide">
-          Expand
+          <IconChevronDown />
         </span>
       </summary>
       <div className="mt-3">{children}</div>

@@ -19,7 +19,7 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
   const username = plugin.owner?.login ?? plugin.repo.split("/")[0];
 
   return (
-    <aside className="flex flex-col gap-6 bg-card p-3 lg:sticky lg:top-20 lg:w-64 lg:shrink-0 lg:self-start">
+    <aside className="flex flex-col gap-6 bg-card p-3 lg:sticky lg:top-20 lg:w-1/3 lg:shrink-0 lg:self-start">
       <Link
         to="/user/$username"
         params={{ username }}
@@ -29,12 +29,12 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
           <img
             src={plugin.owner.avatarUrl}
             alt=""
-            className="size-4 rounded-full ring-1 ring-foreground/10 shrink-0"
+            className="size-4 shrink-0 rounded-full ring-1 ring-foreground/10"
           />
         ) : (
           <IconBrandGithub className="size-8 text-foreground/40" />
         )}
-        <span className="font-medium text-sm text-foreground hover:underline">
+        <span className="font-medium text-foreground text-sm hover:underline">
           {username}
         </span>
       </Link>
