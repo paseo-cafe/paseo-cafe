@@ -18,7 +18,7 @@ jobs:
   build:
     name: Enrich and build static site
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -32,30 +32,6 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      - name: Select full-registry security targets
-        run: >-
-          bun run security:targets
-          --output "$RUNNER_TEMP/plugin-security-targets.json"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-
-      # Scans every registry entry's current default-branch commit and
-      # writes the results the site/plugin read as trust data (see
-      # loadPublishedSecurityCatalog in scripts/scan.ts). continue-on-error
-      # and a bounded timeout keep a scanner failure/hang from blocking the
-      # catalog deploy — an absent or partial artifact degrades every
-      # affected plugin's security panel to "unknown", never to a false
-      # attestation.
-      - name: Scan full plugin registry
-        continue-on-error: true
-        timeout-minutes: 15
-        run: >-
-          mkdir -p data &&
-          bun run security:scan
-          --targets "$RUNNER_TEMP/plugin-security-targets.json"
-          --report "$RUNNER_TEMP/plugin-security-report.md"
-          --json data/plugin-security-results.json
 
       - name: Scan registry
         run: bun run registry:scan

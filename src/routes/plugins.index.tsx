@@ -1,13 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
-import { HOME_SEARCH_DEFAULT } from "@/routes/index"
 
 // The listing now lives on the home route ("/") — this just keeps
 // bookmarked/external links to /plugins working.
 export const Route = createFileRoute("/plugins/")({
   beforeLoad: () => {
-    throw redirect({
-      to: "/",
-      search: HOME_SEARCH_DEFAULT,
-    })
+    throw redirect({ to: "/" })
   },
 })

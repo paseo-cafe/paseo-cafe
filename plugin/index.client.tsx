@@ -1,18 +1,10 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client"
 import { DirectorySettings } from "./client/DirectorySettings"
 import { DirectorySurface } from "./client/DirectorySurface"
-import {
-  directoryAttachments,
-  directoryManifestAttachments,
-  directoryReadmeAttachments,
-  directorySecurityAttachments,
-} from "./shared/directory"
+import { directoryAttachments } from "./shared/directory"
 
 export default function contribute(client: PluginClientContext) {
   client.addAttachmentSource(directoryAttachments)
-  client.addAttachmentSource(directoryManifestAttachments)
-  client.addAttachmentSource(directoryReadmeAttachments)
-  client.addAttachmentSource(directorySecurityAttachments)
   client.addSettingsScreen({
     id: "settings",
     title: "Paseo Cafe",

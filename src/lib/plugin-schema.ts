@@ -16,45 +16,6 @@ export const pluginHealthSchema = z.object({
   updatedRecently: z.boolean(),
 })
 
-const httpUrlSchema = z
-  .string()
-  .url()
-  .refine((url) => url.startsWith("http://") || url.startsWith("https://"), {
-    message: "Must be an http(s) URL",
-  })
-
-export const gitCommitSchema = z
-  .string()
-  .trim()
-  .regex(/^[0-9a-f]{40}$/i, "Must be a full Git commit SHA")
-  .transform((commit) => commit.toLowerCase())
-
-export const pluginSecuritySchema = z
-  .object({
-    status: z.enum(["passed", "failed", "unknown"]),
-    blockingFindings: z.number().int().nonnegative(),
-    advisoryFindings: z.number().int().nonnegative(),
-    scannedAt: z.string().optional(),
-    commit: gitCommitSchema.optional(),
-    reportUrl: httpUrlSchema.optional(),
-  })
-  .superRefine((security, ctx) => {
-    if (security.status !== "unknown" && security.commit === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["commit"],
-        message: `status "${security.status}" requires a commit`,
-      })
-    }
-    if (security.status === "passed" && security.blockingFindings > 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["blockingFindings"],
-        message: 'status "passed" cannot have blocking findings',
-      })
-    }
-  })
-
 export const pluginRepoMetaSchema = z.object({
   stars: z.number().int().nonnegative(),
   openIssues: z.number().int().nonnegative(),
@@ -117,14 +78,6 @@ export const pluginRecordSchema = z.object({
   manifest: z.record(z.string(), z.json()).optional(),
   repoMeta: pluginRepoMetaSchema.optional(),
   owner: pluginOwnerSchema.optional(),
-  // Best-effort bounded copy of the plugin README markdown fetched at scan
-  // time. readmeText is the sanitized-source markdown retained for display
-  // and debugging, and readmeHtml is readmeText rendered through the shared
-  // markdown sanitizer pipeline in src/lib/markdown.ts. The site renders only
-  // the HTML field.
-  readmeText: z.string().optional(),
-  readmeHtml: z.string().optional(),
-  health: pluginHealthSchema,
   // Best-effort excerpt of an "Install"/"Setup"/"Getting started" README
   // section — supplementary to the always-correct generated install
   // command (see src/lib/install-command.ts), for anything extra the
@@ -139,7 +92,7 @@ export const pluginRecordSchema = z.object({
   // above. See src/lib/readme.ts's extractLimitationsSection.
   limitationsNotes: z.string().optional(),
   limitationsNotesHtml: z.string().optional(),
-  security: pluginSecuritySchema.optional(),
+  health: pluginHealthSchema,
   images: z.array(z.string()).default([]),
   videos: z.array(videoEmbedSchema).default([]),
   scanError: z.string().optional(),
@@ -147,7 +100,6 @@ export const pluginRecordSchema = z.object({
 })
 
 export type PluginHealth = z.infer<typeof pluginHealthSchema>
-export type PluginSecurity = z.infer<typeof pluginSecuritySchema>
 export type PluginRepoMeta = z.infer<typeof pluginRepoMetaSchema>
 export type PluginOwner = z.infer<typeof pluginOwnerSchema>
 export type VideoEmbed = z.infer<typeof videoEmbedSchema>

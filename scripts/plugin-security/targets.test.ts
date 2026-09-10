@@ -24,27 +24,13 @@ afterEach(() => {
 })
 
 describe("selectTargets", () => {
-  it("selects checked-out registry entries for non-pr runs, resolving each repo's current commit", async () => {
+  it("selects checked-out registry entries for non-pr runs", async () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
     const registry = join(root, "registry")
     mkdirSync(registry)
     writeFileSync(join(registry, "one.json"), JSON.stringify({ repo: "o/r" }))
-    responses.set("https://api.github.com/repos/o/r", {
-      default_branch: "main",
-    })
-    responses.set("https://api.github.com/repos/o/r/git/ref/heads/main", {
-      object: { sha: "commit-one" },
-    })
-    expect(
-      await selectTargets({ registryRoot: registry, githubToken: "token" })
-    ).toEqual([
-      {
-        id: "one",
-        repo: "o/r",
-        ref: "commit-one",
-        commit: "commit-one",
-        path: undefined,
-      },
+    expect(await selectTargets({ registryRoot: registry })).toEqual([
+      { id: "one", repo: "o/r", ref: "HEAD", commit: "HEAD", path: undefined },
     ])
   })
 

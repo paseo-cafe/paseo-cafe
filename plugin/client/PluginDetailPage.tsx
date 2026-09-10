@@ -8,15 +8,9 @@ import {
 } from "@getpaseo/plugin/client/react-native"
 import { useMemo, useState } from "react"
 import { Image, Pressable, Text, View } from "react-native"
-import type {
-  DirectoryCategory,
-  DirectoryEntry,
-  InstalledPlugin,
-} from "../shared/directory"
+import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
-  DIRECTORY_CATEGORY_LABELS,
   getInstallCommand,
-  getReportPluginIssueUrl,
   getSiteUrl,
   HEALTH_LABELS,
   isValidInstallPath,
@@ -75,17 +69,6 @@ export function PluginDetailPage({
   const [confirmingUpdate, setConfirmingUpdate] =
     useState<InstalledPlugin | null>(null)
   const [showFullActionError, setShowFullActionError] = useState(false)
-  const [showManifest, setShowManifest] = useState(false)
-  const [showReadme, setShowReadme] = useState(false)
-
-  const manifestText = useMemo(
-    () =>
-      entry.manifest === undefined
-        ? undefined
-        : JSON.stringify(entry.manifest, null, 2),
-    [entry.manifest]
-  )
-  const readmeText = entry.readmeText?.length ? entry.readmeText : undefined
 
   const styles = useMemo(
     () => ({
@@ -304,38 +287,6 @@ export function PluginDetailPage({
         fontSize: 14,
         fontWeight: "600" as const,
       },
-      manifestHeaderRow: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        flexWrap: "wrap" as const,
-        gap: 8,
-      },
-      manifestViewer: {
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: 8,
-        padding: 12,
-        backgroundColor: theme.colors.surface1,
-      },
-      manifestText: {
-        color: theme.colors.foreground,
-        fontFamily: "monospace" as const,
-        fontSize: 12,
-        lineHeight: 18,
-      },
-      readmeHeaderRow: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        flexWrap: "wrap" as const,
-        gap: 8,
-      },
-      readmeViewer: {
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: 8,
-        padding: 12,
-        backgroundColor: theme.colors.surface1,
-      },
       secondaryButton: {
         paddingHorizontal: 14,
         paddingVertical: 10,
@@ -387,13 +338,7 @@ export function PluginDetailPage({
   )
 
   const command = getInstallCommand(entry)
-  const tags = [
-    ...entry.categories.map(
-      (category) =>
-        DIRECTORY_CATEGORY_LABELS[category as DirectoryCategory] ?? category
-    ),
-    ...entry.platforms,
-  ]
+  const tags = [...entry.categories, ...entry.platforms]
   const limitationsText = entry.limitationsNotesHtml
     ? stripHtml(entry.limitationsNotesHtml)
     : undefined
@@ -406,55 +351,10 @@ export function PluginDetailPage({
     entry.caveats.length > 0 ||
     !!limitationsText
   const health = entry.health
-  const security = entry.security
-  const securityStatus = security?.status ?? "unknown"
-  const securityAttestation =
-    security && (security.status === "passed" || security.status === "failed")
-      ? security
-      : undefined
-  const securityStatusLabel =
-    securityStatus === "passed"
-      ? "Passed"
-      : securityStatus === "failed"
-        ? "Failed"
-        : "Unknown"
-  const securityStatusColor =
-    securityStatus === "passed"
-      ? theme.colors.statusSuccess
-      : securityStatus === "failed"
-        ? theme.colors.statusDanger
-        : theme.colors.statusWarning
-  const securityFindingsSummary = securityAttestation
-    ? `${securityAttestation.blockingFindings} blocking · ${securityAttestation.advisoryFindings} advisory`
-    : undefined
-  const healthValues = Object.keys(HEALTH_LABELS).map(
-    (key) => health?.[key as keyof NonNullable<DirectoryEntry["health"]>]
-  )
-  const knownHealthChecks = healthValues.filter(
-    (value) => value !== undefined
-  ).length
-  const passedHealthChecks = healthValues.filter(
-    (value) => value === true
-  ).length
-  const failedHealthChecks = healthValues.filter(
-    (value) => value === false
-  ).length
-  const unknownHealthChecks = healthValues.length - knownHealthChecks
-  const healthSummary =
-    knownHealthChecks === 0
-      ? "Unknown"
-      : `${passedHealthChecks} passed · ${failedHealthChecks} not passed${
-          unknownHealthChecks > 0 ? ` · ${unknownHealthChecks} unknown` : ""
-        }`
-  const sourceUpdatedDate = formatDate(entry.repoMeta?.pushedAt)
-  const catalogScannedDate = formatDate(entry.scannedAt)
-  const securityScannedDate = formatDate(securityAttestation?.scannedAt)
-  const securityReportUrl = securityAttestation?.reportUrl
   const installable =
     isValidRepo(entry.repo) &&
     (entry.path === undefined || isValidInstallPath(entry.path))
   const actionPending = installing || updatingId !== null
-  const reportPluginUrl = getReportPluginIssueUrl(entry)
   const actionError = installations.length > 0 ? updateError : installError
   // The toggle and the clamp share one condition: a short error is never
   // clamped, so wrapping on a narrow screen cannot hide text with no way back.
@@ -610,87 +510,45 @@ export function PluginDetailPage({
           </View>
         ) : null}
 
-        {entry.images.length > 0 ? (
-          <View style={styles.section}>
-            <Text style={styles.label}>Screenshots</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Open screenshots gallery for ${entry.name}`}
-              onPress={onOpenGallery}
-              style={styles.gallery}
-            >
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.galleryContent}
-              >
-                {entry.images.slice(0, 3).map((image) => (
-                  <Image
-                    key={image}
-                    accessible={false}
-                    source={{ uri: image }}
-                    style={styles.galleryTile}
-                  />
-                ))}
-              </ScrollView>
-              <Text style={styles.errorActionText}>Open gallery</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {readmeText ? (
-          <View style={styles.section}>
-            <Text style={styles.label}>README</Text>
-            <View style={styles.readmeHeaderRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showReadme
-                    ? `Hide README for ${entry.name}`
-                    : `Show README for ${entry.name}`
-                }
-                onPress={() => setShowReadme((current) => !current)}
-                style={styles.errorAction}
-              >
-                <Icon
-                  name={showReadme ? "ChevronUp" : "ChevronDown"}
-                  size={14}
-                  color={theme.colors.accent}
-                />
-                <Text style={styles.errorActionText}>
-                  {showReadme ? "Hide text" : "View raw text"}
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Copy README text for ${entry.name}`}
-                onPress={async () => {
-                  const text = readmeText
-                  if (text === undefined) return
-                  await copyText(text)
-                  toast.show("Copied README text")
-                }}
-                style={styles.errorAction}
-              >
-                <Icon name="Copy" size={14} color={theme.colors.accent} />
-                <Text style={styles.errorActionText}>Copy text</Text>
-              </Pressable>
-            </View>
-            {showReadme ? (
-              <View style={styles.readmeViewer}>
-                <Text selectable style={styles.readmeText}>
-                  {readmeText}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
         {entry.scanError ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{entry.scanError}</Text>
           </View>
         ) : null}
+
+        {entry.images.length > 0 ? (
+          <View style={styles.section}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.gallery}
+              contentContainerStyle={styles.galleryContent}
+            >
+              {entry.images.map((image, index) => (
+                <Pressable
+                  key={image}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View all screenshots of ${entry.name}, starting at image ${index + 1}`}
+                  onPress={onOpenGallery}
+                >
+                  <Image
+                    source={{ uri: image }}
+                    style={styles.galleryTile}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+            {entry.images.length > 1 ? (
+              <Pressable accessibilityRole="link" onPress={onOpenGallery}>
+                <Text style={styles.linkText}>
+                  View all {entry.images.length} screenshots →
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
         <View style={styles.section}>
           <Text style={styles.label}>Install</Text>
           <View style={styles.commandRow}>
@@ -714,52 +572,6 @@ export function PluginDetailPage({
             </>
           ) : null}
         </View>
-
-        {manifestText ? (
-          <View style={styles.section}>
-            <Text style={styles.label}>Manifest</Text>
-            <View style={styles.manifestHeaderRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showManifest
-                    ? `Hide manifest for ${entry.name}`
-                    : `Show manifest for ${entry.name}`
-                }
-                onPress={() => setShowManifest((current) => !current)}
-                style={styles.errorAction}
-              >
-                <Icon
-                  name={showManifest ? "ChevronUp" : "ChevronDown"}
-                  size={14}
-                  color={theme.colors.accent}
-                />
-                <Text style={styles.errorActionText}>
-                  {showManifest ? "Hide JSON" : "View JSON"}
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Copy manifest JSON"
-                onPress={async () => {
-                  await copyText(manifestText)
-                  toast.show("Copied manifest JSON")
-                }}
-                style={styles.errorAction}
-              >
-                <Icon name="Copy" size={14} color={theme.colors.accent} />
-                <Text style={styles.errorActionText}>Copy JSON</Text>
-              </Pressable>
-            </View>
-            {showManifest ? (
-              <View style={styles.manifestViewer}>
-                <Text selectable style={styles.manifestText}>
-                  {manifestText}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
 
         {!inventoryAvailable ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
@@ -840,32 +652,24 @@ export function PluginDetailPage({
           {inventoryAvailable && installations.length === 0 ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Review ${entry.name} before installing`}
+              accessibilityLabel={`Install ${entry.name}`}
               accessibilityState={{ disabled: actionPending || !installable }}
               style={[styles.button, !installable ? { opacity: 0.5 } : null]}
               disabled={actionPending || !installable}
               onPress={() => setConfirmingInstall(true)}
             >
               <Text style={styles.buttonText}>
-                {installing ? "Installing…" : "Review & install"}
+                {installing ? "Installing…" : "Install"}
               </Text>
             </Pressable>
           ) : null}
           <Pressable
             accessibilityRole="link"
-            accessibilityLabel={`Open ${entry.name} repository`}
+            accessibilityLabel={`Open ${entry.name} on GitHub`}
             style={styles.secondaryButton}
             onPress={() => openExternal(entry.url)}
           >
-            <Text style={styles.secondaryButtonText}>View repository</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`Report ${entry.name} on GitHub`}
-            style={styles.secondaryButton}
-            onPress={() => openExternal(reportPluginUrl)}
-          >
-            <Text style={styles.secondaryButtonText}>Report plugin</Text>
+            <Text style={styles.secondaryButtonText}>View repo</Text>
           </Pressable>
         </View>
 
@@ -932,62 +736,6 @@ export function PluginDetailPage({
           </View>
         ) : null}
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Security</Text>
-          <View style={styles.alert}>
-            <View style={styles.alertTitleRow}>
-              <Icon
-                name={
-                  securityStatus === "passed"
-                    ? "Check"
-                    : securityStatus === "failed"
-                      ? "X"
-                      : "AlertTriangle"
-                }
-                size={14}
-                color={securityStatusColor}
-              />
-              <Text style={[styles.alertTitle, { color: securityStatusColor }]}>
-                Security scan: {securityStatusLabel}
-              </Text>
-            </View>
-            {!securityAttestation ? (
-              <Text style={styles.alertBody}>
-                No published security scan is available for this plugin yet.
-              </Text>
-            ) : (
-              <>
-                <Text style={styles.alertBody}>
-                  Blocking findings: {securityAttestation.blockingFindings} ·
-                  Advisory findings: {securityAttestation.advisoryFindings}
-                </Text>
-                <Text selectable style={styles.alertBody}>
-                  Scanned {securityScannedDate ?? "Unknown"}
-                  {securityAttestation.commit
-                    ? ` at commit ${securityAttestation.commit}`
-                    : ""}
-                  .
-                </Text>
-                {securityReportUrl ? (
-                  <Pressable
-                    accessibilityRole="link"
-                    accessibilityLabel={`Open security report for ${entry.name}`}
-                    style={styles.errorAction}
-                    onPress={() => openExternal(securityReportUrl)}
-                  >
-                    <Icon
-                      name="ExternalLink"
-                      size={14}
-                      color={theme.colors.accent}
-                    />
-                    <Text style={styles.errorActionText}>Open report</Text>
-                  </Pressable>
-                ) : null}
-              </>
-            )}
-          </View>
-        </View>
-
         {health ? (
           <View style={styles.section}>
             <Text style={styles.label}>Health checks</Text>
@@ -1032,101 +780,31 @@ export function PluginDetailPage({
         ) : null}
       </ScrollView>
       <Modal
-        title={`Review ${entry.name} installation`}
+        title={`Install ${entry.name}?`}
         icon={<Icon name="Download" size={18} color={theme.colors.accent} />}
         open={confirmingInstall}
         onOpenChange={setConfirmingInstall}
       >
         <Modal.Content contentContainerStyle={styles.modalBody}>
-          <View style={styles.section}>
-            <Text style={styles.label}>Source repository</Text>
-            <Text selectable style={styles.modalText}>
-              {entry.url}
-            </Text>
-          </View>
-          <View style={styles.section}>
-            <Text style={styles.label}>Install command</Text>
-            <View style={styles.commandRow}>
-              <Text selectable style={styles.command}>
-                {command}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.section}>
-            <Text style={styles.label}>Freshness and status</Text>
-            {sourceUpdatedDate ? (
-              <Text style={styles.modalText}>
-                Repository updated: {sourceUpdatedDate}
-              </Text>
-            ) : null}
-            {catalogScannedDate ? (
-              <Text style={styles.modalText}>
-                Catalog scanned: {catalogScannedDate}
-              </Text>
-            ) : null}
-            <Text style={styles.modalText}>Health: {healthSummary}</Text>
-            {securityFindingsSummary ? (
-              <Text style={styles.modalText}>
-                Security: {securityStatusLabel} · {securityFindingsSummary}
-              </Text>
-            ) : (
-              <Text style={styles.modalText}>
-                Security: No published security scan is available for this
-                plugin yet.
-              </Text>
-            )}
-          </View>
-          <View style={styles.alert}>
-            <View style={styles.alertTitleRow}>
-              <Icon
-                name="AlertTriangle"
-                size={14}
-                color={theme.colors.statusWarning}
-              />
-              <Text style={styles.alertTitle}>Trusted, unsandboxed code</Text>
-            </View>
-            <Text style={styles.alertBody}>
-              Plugin server code, build commands, dependencies, and future
-              updates run as trusted code on the Paseo host. Review the source
-              before installing.
-            </Text>
-          </View>
-          <View style={styles.section}>
-            <Text style={styles.label}>Caveats</Text>
-            {entry.paseoVersionRequirement ? (
-              <Text style={styles.alertBody}>
-                Requires Paseo {entry.paseoVersionRequirement}.
-              </Text>
-            ) : null}
-            {entry.platforms.length > 0 ? (
-              <Text style={styles.alertBody}>
-                Supported platforms: {entry.platforms.join(", ")}.
-              </Text>
-            ) : null}
-            {entry.caveats.map((caveat) => (
-              <Text key={caveat} style={styles.caveatLine}>
-                ⚠ {caveat}
-              </Text>
-            ))}
-            {limitationsText ? (
-              <Text style={styles.readmeText}>{limitationsText}</Text>
-            ) : null}
-            {!hasCaveatsSection ? (
-              <Text style={styles.modalText}>No catalog caveats reported.</Text>
-            ) : null}
-          </View>
+          <Text style={styles.modalTitle}>
+            {entry.repo}
+            {entry.path ? `/${entry.path}` : ""}
+          </Text>
+          <Text style={styles.modalText}>
+            Plugin server code, build commands, dependencies, and future updates
+            run as trusted code on the Paseo host. Review the repository before
+            installing.
+          </Text>
           <View style={styles.actionsRow}>
             <Pressable
               accessibilityRole="link"
-              accessibilityLabel={`Open ${entry.name} repository`}
               style={styles.secondaryButton}
               onPress={() => openExternal(entry.url)}
             >
-              <Text style={styles.secondaryButtonText}>View repository</Text>
+              <Text style={styles.secondaryButtonText}>View repo</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Cancel installation"
               style={styles.secondaryButton}
               onPress={() => setConfirmingInstall(false)}
             >
@@ -1134,19 +812,13 @@ export function PluginDetailPage({
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Confirm installation of ${entry.name}`}
-              accessibilityState={{ disabled: actionPending || !installable }}
-              style={[styles.button, !installable ? { opacity: 0.5 } : null]}
-              disabled={actionPending || !installable}
+              style={styles.button}
               onPress={() => {
-                if (actionPending || !installable) return
                 setConfirmingInstall(false)
                 onInstall()
               }}
             >
-              <Text style={styles.buttonText}>
-                {installing ? "Installing…" : "Install"}
-              </Text>
+              <Text style={styles.buttonText}>Install</Text>
             </Pressable>
           </View>
         </Modal.Content>
@@ -1155,7 +827,7 @@ export function PluginDetailPage({
         title={`Update ${entry.name}?`}
         icon={<Icon name="RefreshCw" size={18} color={theme.colors.accent} />}
         open={confirmingUpdate !== null}
-        onOpenChange={(open: boolean) => {
+        onOpenChange={(open) => {
           if (!open) setConfirmingUpdate(null)
         }}
       >
@@ -1179,7 +851,7 @@ export function PluginDetailPage({
               style={styles.secondaryButton}
               onPress={() => openExternal(entry.url)}
             >
-              <Text style={styles.secondaryButtonText}>View repository</Text>
+              <Text style={styles.secondaryButtonText}>View repo</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"

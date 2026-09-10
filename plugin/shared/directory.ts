@@ -11,10 +11,8 @@ export const DEFAULT_DIRECTORY_URL = "https://paseo.cafe/api/plugins"
 // Always the real site, independent of directorySettings.directoryUrl above —
 // "View on paseo.cafe" should never point at a local/staging override.
 const SITE_URL = "https://paseo.cafe"
-const MAX_HTTP_URL_LENGTH = 2_048
 const httpUrlSchema = z
   .url()
-  .max(MAX_HTTP_URL_LENGTH)
   .refine((value) => /^https?:\/\//i.test(value), "Expected an HTTP(S) URL")
 
 /**
@@ -59,345 +57,53 @@ const catalogUrlSchema = httpUrlSchema.refine(
   "Catalog URL must use HTTPS, or HTTP on localhost"
 )
 
-export const DIRECTORY_CATEGORIES = [
-  "automation",
-  "browser",
-  "code-review",
-  "git",
-  "github",
-  "monitoring",
-  "orchestration",
-  "productivity",
-  "provider",
-  "theme",
-  "other",
-] as const
-
-export type DirectoryCategory = (typeof DIRECTORY_CATEGORIES)[number]
-
-export const DIRECTORY_CATEGORY_LABELS: Record<DirectoryCategory, string> = {
-  automation: "Automation",
-  browser: "Browser",
-  "code-review": "Code Review",
-  git: "Git",
-  github: "GitHub",
-  monitoring: "Monitoring",
-  orchestration: "Orchestration",
-  productivity: "Productivity",
-  provider: "Provider",
-  theme: "Theme",
-  other: "Other",
-}
-
-/** Maps filter input onto the stable directory taxonomy without inventing a match. */
-export function normalizeDirectoryCategoryFilter(
-  category: string
-): DirectoryCategory | "" {
-  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
-  return Object.hasOwn(DIRECTORY_CATEGORY_LABELS, normalized)
-    ? (normalized as DirectoryCategory)
-    : ""
-}
-
-/** Maps catalog-provided categories onto the stable directory taxonomy. */
-export function normalizeDirectoryCategory(
-  category: string
-): DirectoryCategory {
-  return normalizeDirectoryCategoryFilter(category) || "other"
-}
-
-/** Canonicalizes catalog categories while preserving their stable slug identity. */
-export function normalizeDirectoryCategories(
-  categories: readonly string[]
-): DirectoryCategory[] {
-  const present = new Set(categories.map(normalizeDirectoryCategory))
-  return DIRECTORY_CATEGORIES.filter((category) => present.has(category))
-}
-export const DIRECTORY_SORT_MODES = [
-  "updates-first",
-  "popular",
-  "recent",
-  "a-z",
-] as const
-
-export const DIRECTORY_STATUS_FILTERS = [
-  "all",
-  "installed",
-  "updates",
-  "not-installed",
-] as const
-
-export const directoryBrowseSettingsSchema = z.object({
-  query: z.string().max(200).default(""),
-  categories: z.array(z.enum(DIRECTORY_CATEGORIES)).default([]),
-  platforms: z.array(z.string()).default([]),
-  status: z.enum(DIRECTORY_STATUS_FILTERS).default("all"),
-  sort: z.enum(DIRECTORY_SORT_MODES).default("updates-first"),
-  lastOpenedPluginId: z.string().nullable().default(null),
-})
-
-export type DirectoryBrowseSettings = z.infer<
-  typeof directoryBrowseSettingsSchema
->
-
-export const DEFAULT_DIRECTORY_BROWSE_SETTINGS =
-  directoryBrowseSettingsSchema.parse({})
-
-function containsSameValues(
-  left: readonly string[],
-  right: readonly string[]
-): boolean {
-  const leftValues = new Set(left)
-  const rightValues = new Set(right)
-  if (leftValues.size !== rightValues.size) return false
-  for (const value of leftValues) {
-    if (!rightValues.has(value)) return false
-  }
-  return true
-}
-
-/** Compares persisted browse state using set semantics for multi-select filters. */
-export function directoryBrowseSettingsEqual(
-  left: DirectoryBrowseSettings,
-  right: DirectoryBrowseSettings
-): boolean {
-  return (
-    left.query === right.query &&
-    containsSameValues(left.categories, right.categories) &&
-    containsSameValues(left.platforms, right.platforms) &&
-    left.status === right.status &&
-    left.sort === right.sort &&
-    left.lastOpenedPluginId === right.lastOpenedPluginId
-  )
-}
-
-export function migrateDirectorySettings(
-  values: unknown,
-  fromVersion: number
-): unknown {
-  if (
-    fromVersion >= 2 ||
-    typeof values !== "object" ||
-    values === null ||
-    Array.isArray(values)
-  ) {
-    return values
-  }
-
-  const previous = values as Record<string, unknown>
-  return {
-    ...previous,
-    browse: previous.browse ?? DEFAULT_DIRECTORY_BROWSE_SETTINGS,
-  }
-}
-
 /**
- * The SDK currently supports host-scoped settings only. Browse fields are
- * deliberately limited to visible surface state, so search/filter/detail state
- * survives a restart and is shared by clients connected to the same host.
+ * Which paseo.cafe deployment to read from — host-scoped so it's one setting
+ * per daemon, editable from Settings → Plugins → Paseo Cafe without a
+ * reload. Exists for local development (point at `bun run dev`) and for
+ * anyone running a self-hosted fork of the directory.
  */
 export const directorySettings = defineSettings({
   id: "directory-settings",
   scope: "host",
-  version: 2,
+  version: 1,
   schema: z.object({
     directoryUrl: catalogUrlSchema.default(DEFAULT_DIRECTORY_URL),
-    browse: directoryBrowseSettingsSchema.default(
-      DEFAULT_DIRECTORY_BROWSE_SETTINGS
-    ),
   }),
-  migrate: migrateDirectorySettings,
 })
-
-const MAX_MANIFEST_DEPTH = 16
-const MAX_MANIFEST_SERIALIZED_BYTES = 64 * 1_024
-const MAX_MANIFEST_NODES = 2_048
-const MAX_MANIFEST_CONTAINER_ITEMS = 128
-const MAX_MANIFEST_KEY_LENGTH = 128
-const MAX_MANIFEST_STRING_LENGTH = 16_384
-
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false
-  }
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
-
-function jsonStringBytes(value: string): number {
-  let bytes = 2 // Surrounding JSON quotation marks.
-  for (let index = 0; index < value.length; index += 1) {
-    const codeUnit = value.charCodeAt(index)
-    if (codeUnit === 0x22 || codeUnit === 0x5c) {
-      bytes += 2
-    } else if (codeUnit <= 0x1f) {
-      bytes +=
-        codeUnit === 0x08 ||
-        codeUnit === 0x09 ||
-        codeUnit === 0x0a ||
-        codeUnit === 0x0c ||
-        codeUnit === 0x0d
-          ? 2
-          : 6
-    } else if (codeUnit <= 0x7f) {
-      bytes += 1
-    } else if (codeUnit <= 0x7ff) {
-      bytes += 2
-    } else if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
-      const next = value.charCodeAt(index + 1)
-      if (next >= 0xdc00 && next <= 0xdfff) {
-        bytes += 4
-        index += 1
-      } else {
-        bytes += 6
-      }
-    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
-      bytes += 6
-    } else {
-      bytes += 3
-    }
-  }
-  return bytes
-}
-
-const directoryManifestSchema = z
-  .custom<Record<string, unknown>>(
-    isJsonObject,
-    "Manifest must be a JSON object"
-  )
-  .superRefine((manifest, context) => {
-    const stack: Array<{ value: unknown; depth: number }> = [
-      { value: manifest, depth: 1 },
-    ]
-    const seen = new WeakSet<object>()
-    let nodes = 0
-    let serializedBytes = 0
-
-    const reject = (message: string) => {
-      context.addIssue({ code: "custom", message })
-    }
-
-    while (stack.length > 0) {
-      const current = stack.pop()
-      if (!current) break
-      const { value, depth } = current
-      nodes += 1
-      if (nodes > MAX_MANIFEST_NODES) {
-        reject(`Manifest exceeds ${MAX_MANIFEST_NODES} JSON values`)
-        return
-      }
-      if (depth > MAX_MANIFEST_DEPTH) {
-        reject(`Manifest exceeds maximum depth ${MAX_MANIFEST_DEPTH}`)
-        return
-      }
-
-      if (value === null) {
-        serializedBytes += 4
-      } else if (typeof value === "string") {
-        if (value.length > MAX_MANIFEST_STRING_LENGTH) {
-          reject(
-            `Manifest string exceeds ${MAX_MANIFEST_STRING_LENGTH} characters`
-          )
-          return
-        }
-        serializedBytes += jsonStringBytes(value)
-      } else if (typeof value === "number") {
-        if (!Number.isFinite(value)) {
-          reject("Manifest contains a non-finite number")
-          return
-        }
-        serializedBytes += String(value).length
-      } else if (typeof value === "boolean") {
-        serializedBytes += value ? 4 : 5
-      } else if (Array.isArray(value)) {
-        if (seen.has(value)) {
-          reject("Manifest contains a circular or repeated object reference")
-          return
-        }
-        seen.add(value)
-        if (value.length > MAX_MANIFEST_CONTAINER_ITEMS) {
-          reject(`Manifest array exceeds ${MAX_MANIFEST_CONTAINER_ITEMS} items`)
-          return
-        }
-        serializedBytes += 2 + Math.max(0, value.length - 1)
-        for (let index = value.length - 1; index >= 0; index -= 1) {
-          stack.push({ value: value[index], depth: depth + 1 })
-        }
-      } else if (isJsonObject(value)) {
-        if (seen.has(value)) {
-          reject("Manifest contains a circular or repeated object reference")
-          return
-        }
-        seen.add(value)
-        const keys = Object.keys(value)
-        if (keys.length > MAX_MANIFEST_CONTAINER_ITEMS) {
-          reject(
-            `Manifest object exceeds ${MAX_MANIFEST_CONTAINER_ITEMS} fields`
-          )
-          return
-        }
-        serializedBytes += 2 + Math.max(0, keys.length - 1)
-        for (let index = keys.length - 1; index >= 0; index -= 1) {
-          const key = keys[index]
-          if (key === undefined) continue
-          if (key.length > MAX_MANIFEST_KEY_LENGTH) {
-            reject(`Manifest key exceeds ${MAX_MANIFEST_KEY_LENGTH} characters`)
-            return
-          }
-          serializedBytes += jsonStringBytes(key) + 1
-          stack.push({ value: value[key], depth: depth + 1 })
-        }
-      } else {
-        reject("Manifest contains a non-JSON value")
-        return
-      }
-
-      if (serializedBytes > MAX_MANIFEST_SERIALIZED_BYTES) {
-        reject(
-          `Manifest exceeds ${MAX_MANIFEST_SERIALIZED_BYTES} serialized bytes`
-        )
-        return
-      }
-    }
-  })
 
 /**
  * Trimmed mirror of the PluginRecord shape served by https://paseo.cafe/api/plugins
- * (see src/lib/plugin-schema.ts and src/routes/api.plugins.ts in the site). Keep
- * JSON-compatible manifest data so the client can render it without re-fetching
- * or re-parsing the catalog payload.
+ * (see src/lib/plugin-schema.ts and src/routes/api.plugins.ts in the site). Only
+ * the fields this surface actually renders — zod drops the rest, so the site can
+ * grow its own schema without breaking this plugin.
  */
 export const directoryEntrySchema = z.object({
-  id: z.string().max(200),
-  repo: z.string().max(200),
-  path: z.string().max(500).optional(),
+  id: z.string(),
+  repo: z.string(),
+  path: z.string().optional(),
   url: httpUrlSchema,
-  name: z.string().max(200),
-  description: z.string().max(4_000).default(""),
-  author: z.string().max(200).optional(),
-  categories: z.array(z.string().max(100)).max(32).default([]),
-  platforms: z.array(z.string().max(100)).max(32).default([]),
-  caveats: z.array(z.string().max(1_000)).max(64).default([]),
-  license: z.string().max(100).optional(),
+  name: z.string(),
+  description: z.string().default(""),
+  author: z.string().optional(),
+  categories: z.array(z.string()).default([]),
+  platforms: z.array(z.string()).default([]),
+  caveats: z.array(z.string()).default([]),
+  license: z.string().optional(),
   // e.g. ">=0.8.0" — the plugin's own `requirements.paseo` from its
   // paseo-plugin.json (see scripts/scan.ts on the site). Highlighted the
   // same way as a platform restriction, not left for someone to dig out of
   // the README or the manifest themselves.
-  paseoVersionRequirement: z.string().max(200).optional(),
-  manifest: directoryManifestSchema.optional(),
-  images: z.array(httpUrlSchema).max(32).default([]),
-  // Raw README markdown from the scanner. Keep it optional so older catalog
-  // payloads still parse, and bound it so the companion plugin never retains
-  // or renders an unbounded blob.
-  readmeText: z.string().max(200_000).optional(),
+  paseoVersionRequirement: z.string().optional(),
+  images: z.array(httpUrlSchema).default([]),
   // Pre-sanitized HTML rendered at scan time from the plugin's own README
   // (see src/lib/markdown.ts on the site) — this plugin has no HTML renderer,
   // so it's shown as stripped plain text (see stripHtml below) rather than
   // with the site's original formatting.
-  installNotesHtml: z.string().max(100_000).optional(),
-  limitationsNotesHtml: z.string().max(100_000).optional(),
-  scanError: z.string().max(4_000).optional(),
-  scannedAt: z.string().max(100).optional(),
+  installNotesHtml: z.string().optional(),
+  limitationsNotesHtml: z.string().optional(),
+  scanError: z.string().optional(),
+  scannedAt: z.string().optional(),
   health: z
     .object({
       manifestValid: z.boolean().optional(),
@@ -408,59 +114,16 @@ export const directoryEntrySchema = z.object({
       updatedRecently: z.boolean().optional(),
     })
     .optional(),
-  // Mirrors src/lib/plugin-schema.ts's pluginSecuritySchema invariants — a
-  // remote catalog is untrusted input, so the consumer must enforce at
-  // least as much as the producer: a non-"unknown" verdict must carry a
-  // real commit SHA, and "passed" cannot coexist with blocking findings.
-  // Without this, a hostile/compromised catalog could fabricate a green
-  // "Passed" badge directly above the install action.
-  security: z
-    .object({
-      status: z.enum(["passed", "failed", "unknown"]),
-      blockingFindings: z.number().int().nonnegative().max(1_000_000),
-      advisoryFindings: z.number().int().nonnegative().max(1_000_000),
-      scannedAt: z.string().max(100).optional(),
-      commit: z
-        .string()
-        .trim()
-        .regex(/^[0-9a-f]{40}$/i, "Must be a full Git commit SHA")
-        .transform((commit) => commit.toLowerCase())
-        .optional(),
-      reportUrl: httpUrlSchema.optional(),
-    })
-    .optional()
-    .superRefine((security, ctx) => {
-      if (!security) return
-      if (security.status !== "unknown" && security.commit === undefined) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["commit"],
-          message: `status "${security.status}" requires a commit`,
-        })
-      }
-      if (security.status === "passed" && security.blockingFindings > 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["blockingFindings"],
-          message: 'status "passed" cannot have blocking findings',
-        })
-      }
-    }),
   owner: z
     .object({
-      login: z.string().max(100).optional(),
+      login: z.string().optional(),
       avatarUrl: httpUrlSchema.optional(),
     })
     .optional(),
   repoMeta: z
     .object({
-      stars: z
-        .number()
-        .int()
-        .nonnegative()
-        .max(Number.MAX_SAFE_INTEGER)
-        .optional(),
-      pushedAt: z.string().max(100).optional(),
+      stars: z.number().int().nonnegative().optional(),
+      pushedAt: z.string().optional(),
     })
     .optional(),
 })
@@ -509,36 +172,14 @@ export const directoryUpdateStatusRpc = defineRpc({
   }),
 })
 
-const directoryAttachmentSearchInput = z.object({
-  query: z.string().max(200),
-})
-
 export const directorySearchRpc = defineRpc({
   name: "directory.search",
-  input: directoryAttachmentSearchInput,
-  output: PluginAttachmentSearchPayloadSchema,
-})
-
-export const directoryManifestSearchRpc = defineRpc({
-  name: "directory.search-manifests",
-  input: directoryAttachmentSearchInput,
-  output: PluginAttachmentSearchPayloadSchema,
-})
-
-export const directoryReadmeSearchRpc = defineRpc({
-  name: "directory.search-readmes",
-  input: directoryAttachmentSearchInput,
-  output: PluginAttachmentSearchPayloadSchema,
-})
-
-export const directorySecuritySearchRpc = defineRpc({
-  name: "directory.search-security",
-  input: directoryAttachmentSearchInput,
+  input: z.object({ query: z.string().max(200) }),
   output: PluginAttachmentSearchPayloadSchema,
 })
 
 /**
- * Attachment searches always read the default catalog: Paseo calls the search
+ * Attachment search always reads the default catalog: Paseo calls the search
  * contract with `{ query }` only, and a server handler cannot read its own
  * settings document (PluginServerContext exposes registerSettings/handle/
  * registerProvider, and its context is just `paseo`). A host that overrides
@@ -551,33 +192,6 @@ export const directoryAttachments = defineAttachmentSource({
   pickerTitle: "Attach Paseo plugin",
   searchPlaceholder: "Search plugins by name, repository, or category",
   search: directorySearchRpc,
-})
-
-export const directoryManifestAttachments = defineAttachmentSource({
-  id: "paseo-plugin-manifests",
-  title: "Paseo plugin manifest",
-  icon: "FileJson",
-  pickerTitle: "Attach Paseo plugin manifest",
-  searchPlaceholder: "Search plugins by name, repository, or category",
-  search: directoryManifestSearchRpc,
-})
-
-export const directoryReadmeAttachments = defineAttachmentSource({
-  id: "paseo-plugin-readmes",
-  title: "Paseo plugin README",
-  icon: "FileText",
-  pickerTitle: "Attach Paseo plugin README",
-  searchPlaceholder: "Search plugins by name, repository, or category",
-  search: directoryReadmeSearchRpc,
-})
-
-export const directorySecurityAttachments = defineAttachmentSource({
-  id: "paseo-plugin-security",
-  title: "Paseo plugin security",
-  icon: "ShieldCheck",
-  pickerTitle: "Attach Paseo plugin security summary",
-  searchPlaceholder: "Search plugins by name, repository, or category",
-  search: directorySecuritySearchRpc,
 })
 
 export const directoryInstallRpc = defineRpc({
@@ -642,32 +256,6 @@ export function getInstallCommand(
 export function getSiteUrl(entry: Pick<DirectoryEntry, "id">): string {
   return `${SITE_URL}/plugins/${encodeURIComponent(entry.id)}`
 }
-
-const GITHUB_NEW_ISSUE_URL =
-  "https://github.com/paseo-cafe/paseo-cafe/issues/new"
-
-export function getReportPluginIssueUrl(
-  entry: Pick<DirectoryEntry, "id" | "url">
-): string {
-  const url = new URL(GITHUB_NEW_ISSUE_URL)
-  url.searchParams.set("title", `Report plugin: ${entry.id}`)
-  url.searchParams.set(
-    "body",
-    [
-      "## Problem",
-      "Describe the problem you saw, what you expected, and how to reproduce it.",
-      "",
-      `- Plugin ID: \`${entry.id}\``,
-      `- Source repository: ${entry.url}`,
-      `- Paseo listing: ${getSiteUrl(entry)}`,
-      "",
-      "## Additional context",
-      "",
-    ].join("\n")
-  )
-  return url.toString()
-}
-
 function githubRepoFromRemote(remote: string | undefined): string | undefined {
   if (!remote) return undefined
   const normalized = remote

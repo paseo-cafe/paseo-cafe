@@ -3,11 +3,6 @@ import { Icon } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Image, Pressable, Text, View } from "react-native"
 import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
-import {
-  DIRECTORY_CATEGORY_LABELS,
-  HEALTH_LABELS,
-  normalizeDirectoryCategory,
-} from "../shared/directory"
 
 interface PluginRowProps {
   entry: DirectoryEntry
@@ -15,53 +10,6 @@ interface PluginRowProps {
   compact: boolean
   installations: readonly InstalledPlugin[]
   onPress: () => void
-}
-
-type BadgeColor = "muted" | "success" | "warning" | "danger" | "accent"
-
-interface BadgeTone {
-  text: string
-  color: BadgeColor
-}
-
-function formatCompactNumber(value: number): string {
-  if (value >= 1_000_000) {
-    const scaled = value / 1_000_000
-    return `${scaled >= 10 ? scaled.toFixed(0) : scaled.toFixed(1)}M`.replace(
-      ".0M",
-      "M"
-    )
-  }
-  if (value >= 1_000) {
-    const scaled = value / 1_000
-    return `${scaled >= 10 ? scaled.toFixed(0) : scaled.toFixed(1)}k`.replace(
-      ".0k",
-      "k"
-    )
-  }
-  return `${value}`
-}
-
-export function getHealthBadge(entry: DirectoryEntry): BadgeTone | null {
-  if (entry.scanError) {
-    return { text: "Scan issue", color: "danger" }
-  }
-  if (!entry.health) return null
-
-  const values = Object.keys(HEALTH_LABELS).map(
-    (key) => entry.health?.[key as keyof NonNullable<DirectoryEntry["health"]>]
-  )
-  const failed = values.filter((value) => value === false).length
-  if (failed > 0) {
-    return {
-      text: `Health ${failed} warning${failed === 1 ? "" : "s"}`,
-      color: "warning",
-    }
-  }
-  if (values.some((value) => value === undefined)) {
-    return { text: "Health incomplete", color: "muted" }
-  }
-  return { text: "Health OK", color: "success" }
 }
 
 // Deliberately no per-row Install button: with the whole card opening the
@@ -90,6 +38,12 @@ export function PluginRow({
         gap: 8,
         flexWrap: "wrap" as const,
       },
+      starsRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 4,
+        marginLeft: "auto" as const,
+      },
       avatar: { width: 20, height: 20, borderRadius: 10 },
       name: {
         color: theme.colors.foreground,
@@ -110,34 +64,7 @@ export function PluginRow({
         fontSize: 11,
         fontWeight: "600" as const,
       }),
-      metaRow: {
-        flexDirection: "row" as const,
-        flexWrap: "wrap" as const,
-        gap: 6,
-        alignItems: "center" as const,
-      },
-      metaBadge: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 4,
-        borderRadius: 999,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        backgroundColor: theme.colors.surface2,
-      },
-      metaBadgeText: (tone: BadgeColor) => ({
-        color:
-          tone === "success"
-            ? theme.colors.statusSuccess
-            : tone === "warning"
-              ? theme.colors.statusWarning
-              : tone === "danger"
-                ? theme.colors.statusDanger
-                : tone === "accent"
-                  ? theme.colors.accent
-                  : theme.colors.foregroundMuted,
-        fontSize: 11,
-      }),
+      meta: { color: theme.colors.foregroundMuted, fontSize: 12 },
       description: { color: theme.colors.foregroundMuted, fontSize: 13 },
       tagsRow: {
         flexDirection: "row" as const,
@@ -151,18 +78,23 @@ export function PluginRow({
         backgroundColor: theme.colors.surface2,
       },
       tagText: { color: theme.colors.foregroundMuted, fontSize: 11 },
+      requirementTag: {
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        backgroundColor: theme.colors.accent,
+      },
+      requirementTagText: {
+        color: theme.colors.accentForeground,
+        fontSize: 11,
+        fontWeight: "600" as const,
+      },
     }),
     [theme, compact]
   )
 
-  const tags = [
-    ...entry.categories.map(
-      (category) =>
-        DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(category)]
-    ),
-    ...entry.platforms,
-  ]
-  const hasTagsRow = tags.length > 0
+  const tags = [...entry.categories, ...entry.platforms]
+  const hasTagsRow = tags.length > 0 || !!entry.paseoVersionRequirement
 
   const updateCount = installations.filter(
     (installation) => installation.updateState === "available"
@@ -177,19 +109,6 @@ export function PluginRow({
           ? "Installed"
           : `${installations.length} installations`
         : undefined
-
-  const starCount = entry.repoMeta?.stars
-  const updatedAt = entry.repoMeta?.pushedAt?.slice(0, 10)
-  const healthBadge = getHealthBadge(entry)
-  const compatibilityLabel = entry.paseoVersionRequirement
-    ? `Paseo ${entry.paseoVersionRequirement}`
-    : "Paseo any"
-  const caveatLabel =
-    entry.caveats.length > 0
-      ? entry.caveats.length === 1
-        ? "1 caveat"
-        : `${entry.caveats.length} caveats`
-      : undefined
 
   return (
     <Pressable
@@ -214,38 +133,10 @@ export function PluginRow({
             </Text>
           </View>
         ) : null}
-      </View>
-      <View style={styles.metaRow}>
-        {starCount !== undefined ? (
-          <View style={styles.metaBadge}>
-            <Icon name="Star" size={11} color={theme.colors.foregroundMuted} />
-            <Text style={styles.metaBadgeText("muted")}>
-              {formatCompactNumber(starCount)}
-            </Text>
-          </View>
-        ) : null}
-        {updatedAt ? (
-          <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText("muted")}>
-              Updated {updatedAt}
-            </Text>
-          </View>
-        ) : null}
-        <View style={styles.metaBadge}>
-          <Text style={styles.metaBadgeText("accent")}>
-            {compatibilityLabel}
-          </Text>
-        </View>
-        {caveatLabel ? (
-          <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText("warning")}>{caveatLabel}</Text>
-          </View>
-        ) : null}
-        {healthBadge ? (
-          <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText(healthBadge.color)}>
-              {healthBadge.text}
-            </Text>
+        {entry.repoMeta?.stars !== undefined ? (
+          <View style={styles.starsRow}>
+            <Icon name="Star" size={12} color={theme.colors.foregroundMuted} />
+            <Text style={styles.meta}>{entry.repoMeta.stars}</Text>
           </View>
         ) : null}
       </View>
@@ -256,6 +147,13 @@ export function PluginRow({
       ) : null}
       {hasTagsRow ? (
         <View style={styles.tagsRow}>
+          {entry.paseoVersionRequirement ? (
+            <View style={styles.requirementTag}>
+              <Text style={styles.requirementTagText}>
+                Paseo {entry.paseoVersionRequirement}
+              </Text>
+            </View>
+          ) : null}
           {tags.map((tag) => (
             <View key={tag} style={styles.tag}>
               <Text style={styles.tagText}>{tag}</Text>

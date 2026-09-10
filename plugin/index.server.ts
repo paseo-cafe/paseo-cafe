@@ -4,18 +4,12 @@ import {
   listDirectory,
   listDirectoryUpdateStatus,
   searchDirectory,
-  searchDirectoryManifests,
-  searchDirectoryReadmes,
-  searchDirectorySecurity,
   updateDirectoryPlugin,
 } from "./server/directory"
 import {
   directoryInstallRpc,
   directoryListRpc,
-  directoryManifestSearchRpc,
-  directoryReadmeSearchRpc,
   directorySearchRpc,
-  directorySecuritySearchRpc,
   directorySettings,
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
@@ -28,15 +22,6 @@ export default function contribute(server: PluginServerContext) {
     listDirectoryUpdateStatus(input)
   )
   server.handle(directorySearchRpc, (input) => searchDirectory(input))
-  server.handle(directoryManifestSearchRpc, (input) =>
-    searchDirectoryManifests(input)
-  )
-  server.handle(directoryReadmeSearchRpc, (input) =>
-    searchDirectoryReadmes(input)
-  )
-  server.handle(directorySecuritySearchRpc, (input) =>
-    searchDirectorySecurity(input)
-  )
   server.handle(directoryInstallRpc, (input) => installDirectoryPlugin(input))
   server.handle(directoryUpdateRpc, (input) => updateDirectoryPlugin(input))
   return () => {}
