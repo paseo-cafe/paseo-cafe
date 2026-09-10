@@ -263,7 +263,7 @@ describe("directory security summaries", () => {
         blockingFindings: status === "failed" ? 2 : 0,
         advisoryFindings: 1,
         scannedAt: "2026-09-09T00:00:00.000Z",
-        commit: "abc123",
+        commit: status === "unknown" ? undefined : "a".repeat(40),
         reportUrl: "https://example.com/security-report",
       }
 
@@ -281,6 +281,47 @@ describe("directory security summaries", () => {
         blockingFindings: 0,
         advisoryFindings: 0,
         reportUrl: "javascript:alert(1)",
+      },
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it("rejects a non-unknown status with no commit", () => {
+    const result = directoryEntrySchema.safeParse({
+      ...validEntry,
+      security: {
+        status: "passed",
+        blockingFindings: 0,
+        advisoryFindings: 0,
+      },
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects "passed" status with blocking findings', () => {
+    const result = directoryEntrySchema.safeParse({
+      ...validEntry,
+      security: {
+        status: "passed",
+        blockingFindings: 1,
+        advisoryFindings: 0,
+        commit: "a".repeat(40),
+      },
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it("rejects a malformed commit", () => {
+    const result = directoryEntrySchema.safeParse({
+      ...validEntry,
+      security: {
+        status: "failed",
+        blockingFindings: 1,
+        advisoryFindings: 0,
+        commit: "abc123",
       },
     })
 

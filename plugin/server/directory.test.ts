@@ -245,6 +245,7 @@ describe("directory attachment searches", () => {
               status: "passed",
               blockingFindings: 0,
               advisoryFindings: 1,
+              commit: "b".repeat(40),
               reportUrl: "https://example.com/security-report",
             },
           }),

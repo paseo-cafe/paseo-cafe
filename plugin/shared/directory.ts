@@ -89,14 +89,21 @@ export const DIRECTORY_CATEGORY_LABELS: Record<DirectoryCategory, string> = {
   other: "Other",
 }
 
+/** Maps filter input onto the stable directory taxonomy without inventing a match. */
+export function normalizeDirectoryCategoryFilter(
+  category: string
+): DirectoryCategory | "" {
+  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
+  return Object.hasOwn(DIRECTORY_CATEGORY_LABELS, normalized)
+    ? (normalized as DirectoryCategory)
+    : ""
+}
+
 /** Maps catalog-provided categories onto the stable directory taxonomy. */
 export function normalizeDirectoryCategory(
   category: string
 ): DirectoryCategory {
-  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
-  return Object.hasOwn(DIRECTORY_CATEGORY_LABELS, normalized)
-    ? (normalized as DirectoryCategory)
-    : "other"
+  return normalizeDirectoryCategoryFilter(category) || "other"
 }
 
 export const DIRECTORY_SORT_MODES = [
@@ -367,16 +374,44 @@ export const directoryEntrySchema = z.object({
       updatedRecently: z.boolean().optional(),
     })
     .optional(),
+  // Mirrors src/lib/plugin-schema.ts's pluginSecuritySchema invariants — a
+  // remote catalog is untrusted input, so the consumer must enforce at
+  // least as much as the producer: a non-"unknown" verdict must carry a
+  // real commit SHA, and "passed" cannot coexist with blocking findings.
+  // Without this, a hostile/compromised catalog could fabricate a green
+  // "Passed" badge directly above the install action.
   security: z
     .object({
       status: z.enum(["passed", "failed", "unknown"]),
       blockingFindings: z.number().int().nonnegative().max(1_000_000),
       advisoryFindings: z.number().int().nonnegative().max(1_000_000),
       scannedAt: z.string().max(100).optional(),
-      commit: z.string().max(128).optional(),
+      commit: z
+        .string()
+        .trim()
+        .regex(/^[0-9a-f]{40}$/i, "Must be a full Git commit SHA")
+        .transform((commit) => commit.toLowerCase())
+        .optional(),
       reportUrl: httpUrlSchema.optional(),
     })
-    .optional(),
+    .optional()
+    .superRefine((security, ctx) => {
+      if (!security) return
+      if (security.status !== "unknown" && security.commit === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["commit"],
+          message: `status "${security.status}" requires a commit`,
+        })
+      }
+      if (security.status === "passed" && security.blockingFindings > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["blockingFindings"],
+          message: 'status "passed" cannot have blocking findings',
+        })
+      }
+    }),
   owner: z
     .object({
       login: z.string().max(100).optional(),
