@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import {
+  directoryEntrySchema,
   directoryListRpc,
   directorySettings,
   directoryUpdateStatusRpc,
@@ -10,6 +11,18 @@ import {
   isValidRepo,
   stripHtml,
 } from "./directory"
+
+const validEntry = {
+  id: "plugin",
+  repo: "owner/repo",
+  url: "https://github.com/owner/repo",
+  name: "Plugin",
+  description: "",
+  categories: [],
+  health: {},
+  images: [],
+  scannedAt: new Date().toISOString(),
+}
 
 describe("plugin install targets", () => {
   it("accepts GitHub repositories and safe nested plugin paths", () => {
@@ -123,5 +136,72 @@ describe("directory presentation", () => {
     expect(stripHtml("<span>separate</span><span>segments</span>")).toBe(
       "separate segments"
     )
+  })
+})
+
+describe("directory README content", () => {
+  it("retains bounded readmeText markdown", () => {
+    const readmeText = [
+      "# Plugin",
+      "<script>alert('x')</script>",
+      "- selectable plain text",
+    ].join("\n")
+
+    const result = directoryEntrySchema.parse({
+      ...validEntry,
+      readmeText,
+    })
+
+    expect(result.readmeText).toBe(readmeText)
+  })
+
+  it("allows entries without readmeText", () => {
+    const result = directoryEntrySchema.safeParse(validEntry)
+
+    expect(result.success).toBe(true)
+    if (!result.success) {
+      throw new Error("expected readme-less entry to parse")
+    }
+
+    expect(result.data.readmeText).toBeUndefined()
+  })
+
+  it("rejects readmeText beyond the catalog bound", () => {
+    const result = directoryEntrySchema.safeParse({
+      ...validEntry,
+      readmeText: "a".repeat(200_001),
+    })
+
+    expect(result.success).toBe(false)
+  })
+})
+
+describe("directory catalog manifests", () => {
+  it("retains nested JSON-compatible manifest data", () => {
+    const manifest = {
+      id: "plugin",
+      nested: {
+        ok: true,
+        list: [1, { two: 2 }],
+      },
+    }
+
+    const result = directoryEntrySchema.parse({
+      ...validEntry,
+      manifest,
+    })
+
+    expect(result.manifest).toEqual(manifest)
+  })
+
+  it("allows entries without a manifest", () => {
+    const result = directoryEntrySchema.safeParse(validEntry)
+
+    expect(result.success).toBe(true)
+    if (!result.success) {
+      throw new Error("expected manifest-less entry to parse")
+    }
+
+    expect(result.data.manifest).toBeUndefined()
   })
 })

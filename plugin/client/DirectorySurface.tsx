@@ -202,6 +202,219 @@ function StatusFilterRow({
     </View>
   )
 }
+type DirectoryListResult = {
+  plugins: readonly DirectoryEntry[]
+  fetchedAt: string
+  installations?: readonly InstalledPlugin[]
+  installationError?: string
+}
+
+type UpdateStatusResult = {
+  installations: readonly InstalledPlugin[]
+}
+
+type InstallResult = {
+  ok: boolean
+  message: string
+}
+
+type UpdateResult = {
+  ok: boolean
+  message: string
+  updated?: boolean
+}
+
+type SortMode = "updates-first" | "popular" | "recent" | "a-z"
+
+interface SortOption {
+  value: SortMode
+  label: string
+}
+
+const SORT_OPTIONS: readonly SortOption[] = [
+  { value: "updates-first", label: "Updates first" },
+  { value: "popular", label: "Popular" },
+  { value: "recent", label: "Recently updated" },
+  { value: "a-z", label: "A–Z" },
+]
+
+const FEATURED_LIMIT = 5
+
+function normalizeText(value: string | undefined): string {
+  return value?.trim().toLowerCase() ?? ""
+}
+
+function compareText(a: string | undefined, b: string | undefined): number {
+  const left = normalizeText(a)
+  const right = normalizeText(b)
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
+}
+
+function timeValue(value: string | undefined): number {
+  const parsed = value ? Date.parse(value) : 0
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function compareDateDesc(a: string | undefined, b: string | undefined): number {
+  return timeValue(b) - timeValue(a)
+}
+
+function compareStarsDesc(a: DirectoryEntry, b: DirectoryEntry): number {
+  return (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)
+}
+
+function entryHasUpdate(
+  entry: DirectoryEntry,
+  installationByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>
+): boolean {
+  return (
+    installationByEntryId
+      .get(entry.id)
+      ?.some((installation) => installation.updateState === "available") ??
+    false
+  )
+}
+
+function compareEntries(
+  a: DirectoryEntry,
+  b: DirectoryEntry,
+  sortMode: SortMode,
+  installationByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>
+): number {
+  if (sortMode === "updates-first") {
+    return (
+      Number(entryHasUpdate(b, installationByEntryId)) -
+        Number(entryHasUpdate(a, installationByEntryId)) ||
+      compareStarsDesc(a, b) ||
+      compareDateDesc(a.repoMeta?.pushedAt, b.repoMeta?.pushedAt) ||
+      compareText(a.name, b.name) ||
+      compareText(a.repo, b.repo) ||
+      compareText(a.id, b.id)
+    )
+  }
+
+  if (sortMode === "popular") {
+    return (
+      compareStarsDesc(a, b) ||
+      compareDateDesc(a.repoMeta?.pushedAt, b.repoMeta?.pushedAt) ||
+      compareText(a.name, b.name) ||
+      compareText(a.repo, b.repo) ||
+      compareText(a.id, b.id)
+    )
+  }
+
+  if (sortMode === "recent") {
+    return (
+      compareDateDesc(a.repoMeta?.pushedAt, b.repoMeta?.pushedAt) ||
+      compareStarsDesc(a, b) ||
+      compareText(a.name, b.name) ||
+      compareText(a.repo, b.repo) ||
+      compareText(a.id, b.id)
+    )
+  }
+
+  return (
+    compareText(a.name, b.name) ||
+    compareText(a.repo, b.repo) ||
+    compareText(a.id, b.id)
+  )
+}
+
+function sortEntries(
+  entries: readonly DirectoryEntry[],
+  sortMode: SortMode,
+  installationByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>
+): DirectoryEntry[] {
+  return [...entries].sort((a, b) =>
+    compareEntries(a, b, sortMode, installationByEntryId)
+  )
+}
+
+function isDefaultBrowseState(
+  search: string,
+  categoryFilter: ReadonlySet<string>,
+  platformFilter: ReadonlySet<string>,
+  statusFilter: InstallationStatusFilter
+): boolean {
+  return (
+    search.trim() === "" &&
+    categoryFilter.size === 0 &&
+    platformFilter.size === 0 &&
+    statusFilter === "all"
+  )
+}
+
+function SortRow({
+  options,
+  selected,
+  theme,
+  onSelect,
+}: {
+  options: readonly SortOption[]
+  selected: SortMode
+  theme: PluginTheme
+  onSelect: (value: SortMode) => void
+}) {
+  const styles = useMemo(
+    () => ({
+      row: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 6,
+        flexWrap: "wrap" as const,
+      },
+      label: {
+        color: theme.colors.foregroundMuted,
+        fontSize: 12,
+        marginRight: 2,
+      },
+      chip: (active: boolean) => ({
+        minHeight: 44,
+        justifyContent: "center" as const,
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        backgroundColor: active ? theme.colors.accent : theme.colors.surface2,
+      }),
+      chipText: (active: boolean) => ({
+        color: active
+          ? theme.colors.accentForeground
+          : theme.colors.foregroundMuted,
+        fontSize: 12,
+        fontWeight: active ? ("600" as const) : ("400" as const),
+      }),
+    }),
+    [theme]
+  )
+
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel="Plugin sort order"
+      style={styles.row}
+    >
+      <Text style={styles.label}>Sort:</Text>
+      {options.map((option) => {
+        const active = selected === option.value
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="radio"
+            accessibilityLabel={`Sort by ${option.label}`}
+            accessibilityState={{ checked: active }}
+            aria-checked={active}
+            style={styles.chip(active)}
+            onPress={() => onSelect(option.value)}
+          >
+            <Text style={styles.chipText(active)}>{option.label}</Text>
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
 
 export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const listDirectory = useRpc(directoryListRpc)
@@ -225,7 +438,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     entryId: string
     message: string
   } | null>(null)
+  const [sortMode, setSortMode] = useState<SortMode>("updates-first")
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+
   const [updateFailure, setUpdateFailure] = useState<{
     entryId: string
     message: string
@@ -242,29 +457,34 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const queryKey = [DIRECTORY_QUERY_KEY, baseUrl]
   const updateStatusQueryKey = [UPDATE_STATUS_QUERY_KEY, baseUrl]
 
-  const directoryQuery = useQuery({
+  const directoryQuery = useQuery<DirectoryListResult>({
     queryKey,
-    queryFn: () => listDirectory({ baseUrl, force: false }),
+    queryFn: async (): Promise<DirectoryListResult> =>
+      listDirectory({ baseUrl, force: false }) as Promise<DirectoryListResult>,
     // Only the first read is gated, so the default catalog is never fetched
     // and then immediately replaced by the configured one.
     enabled: !settingsPending,
     staleTime: 60_000,
   })
   const inventoryAvailable = directoryQuery.data?.installations !== undefined
-  const updateStatusQuery = useQuery({
+  const updateStatusQuery = useQuery<UpdateStatusResult>({
     queryKey: updateStatusQueryKey,
-    queryFn: () => listUpdateStatus({ baseUrl }),
+    queryFn: async (): Promise<UpdateStatusResult> =>
+      listUpdateStatus({ baseUrl }) as Promise<UpdateStatusResult>,
     enabled: inventoryAvailable,
     staleTime: 60_000,
   })
 
-  const installMutation = useMutation({
-    mutationFn: (entry: DirectoryEntry) => {
+  const installMutation = useMutation<InstallResult, unknown, DirectoryEntry>({
+    mutationFn: (entry: DirectoryEntry): Promise<InstallResult> => {
       setInstallingId(entry.id)
       setInstallFailure(null)
-      return installPlugin({ repo: entry.repo, path: entry.path })
+      return installPlugin({
+        repo: entry.repo,
+        path: entry.path,
+      }) as Promise<InstallResult>
     },
-    onSuccess: async (result, entry) => {
+    onSuccess: async (result: InstallResult, entry: DirectoryEntry) => {
       if (result.ok) {
         setInstallFailure(null)
         toast.show(`Installed ${entry.name}`, { variant: "success" })
@@ -278,30 +498,38 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         toast.error(`Couldn't install ${entry.name}. See details below.`)
       }
     },
-    onError: (error, entry) => {
+    onError: (error: unknown, entry: DirectoryEntry) => {
       const message = error instanceof Error ? error.message : "Install failed"
       setInstallFailure({ entryId: entry.id, message })
       toast.error(`Couldn't install ${entry.name}. See details below.`)
     },
+
     onSettled: () => setInstallingId(null),
   })
 
-  const updateMutation = useMutation({
+  const updateMutation = useMutation<
+    UpdateResult,
+    unknown,
+    { entry: DirectoryEntry; installation: InstalledPlugin }
+  >({
     mutationFn: ({
       entry,
       installation,
     }: {
       entry: DirectoryEntry
       installation: InstalledPlugin
-    }) => {
+    }): Promise<UpdateResult> => {
       setUpdatingId(installation.id)
       setUpdateFailure(null)
       return updatePlugin({
         pluginId: installation.id,
         entry: { id: entry.id, repo: entry.repo, path: entry.path },
-      })
+      }) as Promise<UpdateResult>
     },
-    onSuccess: async (result, { entry }) => {
+    onSuccess: async (
+      result: UpdateResult,
+      { entry }: { entry: DirectoryEntry }
+    ) => {
       if (result.ok) {
         setUpdateFailure(null)
         toast.show(result.message, { variant: "success" })
@@ -315,22 +543,42 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         toast.error(`Couldn't update ${entry.name}. See details below.`)
       }
     },
-    onError: (error, { entry }) => {
+    onError: (error: unknown, { entry }: { entry: DirectoryEntry }) => {
       const message = error instanceof Error ? error.message : "Update failed"
       setUpdateFailure({ entryId: entry.id, message })
       toast.error(`Couldn't update ${entry.name}. See details below.`)
     },
+
     onSettled: () => setUpdatingId(null),
   })
 
-  const refreshMutation = useMutation({
+  const refreshMutation = useMutation<
+    { key: readonly [string, string | undefined]; result: DirectoryListResult },
+    unknown,
+    void
+  >({
     // The key travels with the request: switching the Catalog URL while a
     // refresh is in flight must not file the old catalog under the new key.
-    mutationFn: async () => {
-      const key = [DIRECTORY_QUERY_KEY, baseUrl]
-      return { key, result: await listDirectory({ baseUrl, force: true }) }
+    mutationFn: async (): Promise<{
+      key: readonly [string, string | undefined]
+      result: DirectoryListResult
+    }> => {
+      const key = [DIRECTORY_QUERY_KEY, baseUrl] as const
+      return {
+        key,
+        result: (await listDirectory({
+          baseUrl,
+          force: true,
+        })) as DirectoryListResult,
+      }
     },
-    onSuccess: async ({ key, result }) => {
+    onSuccess: async ({
+      key,
+      result,
+    }: {
+      key: readonly [string, string | undefined]
+      result: DirectoryListResult
+    }) => {
       queryClient.setQueryData(key, result)
       await queryClient.invalidateQueries({
         queryKey: updateStatusQueryKey,
@@ -338,7 +586,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       })
       toast.show("Paseo Cafe refreshed.", { variant: "success" })
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Refresh failed")
     },
   })
@@ -350,9 +598,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       [])
     : []
   const installationByEntryId = useMemo(
-    () =>
-      new Map(
-        plugins.flatMap((entry) => {
+    (): Map<string, InstalledPlugin[]> =>
+      new Map<string, InstalledPlugin[]>(
+        plugins.flatMap((entry: DirectoryEntry) => {
           const matches = findInstallations(entry, installations)
           return matches.length > 0 ? [[entry.id, matches] as const] : []
         })
@@ -364,13 +612,17 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     : []
 
   const allCategories = useMemo(
-    () =>
-      Array.from(new Set(plugins.flatMap((entry) => entry.categories))).sort(),
+    (): string[] =>
+      Array.from(
+        new Set(plugins.flatMap((entry: DirectoryEntry) => entry.categories))
+      ).sort(),
     [plugins]
   )
   const allPlatforms = useMemo(
-    () =>
-      Array.from(new Set(plugins.flatMap((entry) => entry.platforms))).sort(),
+    (): string[] =>
+      Array.from(
+        new Set(plugins.flatMap((entry: DirectoryEntry) => entry.platforms))
+      ).sort(),
     [plugins]
   )
 
@@ -379,11 +631,18 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     return plugins.filter((entry) => {
       if (query) {
         const haystack = [
+          entry.id,
           entry.name,
           entry.description,
           entry.repo,
+          entry.author,
+          entry.owner?.login,
+          entry.paseoVersionRequirement,
           ...entry.categories,
+          ...entry.platforms,
+          ...entry.caveats,
         ]
+          .filter((value): value is string => Boolean(value))
           .join(" ")
           .toLowerCase()
         if (!haystack.includes(query)) return false
@@ -450,22 +709,37 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       }),
     [nonStatusFiltered, effectiveStatusFilter, installationByEntryId]
   )
+  const defaultBrowseState = isDefaultBrowseState(
+    search,
+    categoryFilter,
+    platformFilter,
+    statusFilter
+  )
 
   const sorted = useMemo(
+    () => sortEntries(filtered, sortMode, installationByEntryId),
+    [filtered, sortMode, installationByEntryId]
+  )
+
+  const popularHighlights = useMemo(
     () =>
-      [...filtered].sort((a, b) => {
-        const aHasUpdate = installationByEntryId
-          .get(a.id)
-          ?.some((installation) => installation.updateState === "available")
-        const bHasUpdate = installationByEntryId
-          .get(b.id)
-          ?.some((installation) => installation.updateState === "available")
-        return (
-          Number(Boolean(bHasUpdate)) - Number(Boolean(aHasUpdate)) ||
-          (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)
-        )
-      }),
-    [filtered, installationByEntryId]
+      defaultBrowseState
+        ? sortEntries(filtered, "popular", installationByEntryId).slice(
+            0,
+            FEATURED_LIMIT
+          )
+        : [],
+    [defaultBrowseState, filtered, installationByEntryId]
+  )
+  const recentHighlights = useMemo(
+    () =>
+      defaultBrowseState
+        ? sortEntries(filtered, "recent", installationByEntryId).slice(
+            0,
+            FEATURED_LIMIT
+          )
+        : [],
+    [defaultBrowseState, filtered, installationByEntryId]
   )
 
   const styles = useMemo(
@@ -491,6 +765,14 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         color: theme.colors.foreground,
       },
       filtersBlock: { gap: 8 },
+      featuredBlock: { gap: 10 },
+      featuredSection: { gap: 10 },
+      featuredItems: { gap: 12 },
+      featuredHeader: {
+        color: theme.colors.foreground,
+        fontSize: 14,
+        fontWeight: "600" as const,
+      },
       emptyText: {
         color: theme.colors.foregroundMuted,
         textAlign: "center" as const,
@@ -554,12 +836,19 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         style={styles.searchInput}
         placeholderTextColor={theme.colors.foregroundMuted}
       />
+      <SortRow
+        options={SORT_OPTIONS}
+        selected={sortMode}
+        theme={theme}
+        onSelect={setSortMode}
+      />
       <StatusFilterRow
         options={statusOptions}
         selected={effectiveStatusFilter}
         theme={theme}
         onSelect={setStatusFilter}
       />
+
       <View style={styles.filtersBlock}>
         <FilterRow
           label="Category"
@@ -642,11 +931,55 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           No plugins match the current search and filters.
         </Text>
       ) : null}
-      <FlatList
+      {defaultBrowseState &&
+      (popularHighlights.length > 0 || recentHighlights.length > 0) ? (
+        <View style={styles.featuredBlock}>
+          {popularHighlights.length > 0 ? (
+            <View style={styles.featuredSection}>
+              <Text accessibilityRole="header" style={styles.featuredHeader}>
+                Popular
+              </Text>
+              <View style={styles.featuredItems}>
+                {popularHighlights.map((item) => (
+                  <PluginRow
+                    key={`popular-${item.id}`}
+                    entry={item}
+                    theme={theme}
+                    installations={installationByEntryId.get(item.id) ?? []}
+                    compact={layout.compact}
+                    onPress={() => setDetailEntry(item)}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
+          {recentHighlights.length > 0 ? (
+            <View style={styles.featuredSection}>
+              <Text accessibilityRole="header" style={styles.featuredHeader}>
+                Recently updated
+              </Text>
+              <View style={styles.featuredItems}>
+                {recentHighlights.map((item) => (
+                  <PluginRow
+                    key={`recent-${item.id}`}
+                    entry={item}
+                    theme={theme}
+                    installations={installationByEntryId.get(item.id) ?? []}
+                    compact={layout.compact}
+                    onPress={() => setDetailEntry(item)}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      <FlatList<DirectoryEntry>
         data={sorted}
-        keyExtractor={(entry) => entry.id}
+        keyExtractor={(entry: DirectoryEntry) => entry.id}
         contentContainerStyle={{ gap: 12 }}
-        renderItem={({ item }) => (
+        renderItem={({ item }: { item: DirectoryEntry }) => (
           <PluginRow
             entry={item}
             theme={theme}

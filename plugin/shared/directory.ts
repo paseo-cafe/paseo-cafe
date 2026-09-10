@@ -74,9 +74,9 @@ export const directorySettings = defineSettings({
 
 /**
  * Trimmed mirror of the PluginRecord shape served by https://paseo.cafe/api/plugins
- * (see src/lib/plugin-schema.ts and src/routes/api.plugins.ts in the site). Only
- * the fields this surface actually renders — zod drops the rest, so the site can
- * grow its own schema without breaking this plugin.
+ * (see src/lib/plugin-schema.ts and src/routes/api.plugins.ts in the site). Keep
+ * JSON-compatible manifest data so the client can render it without re-fetching
+ * or re-parsing the catalog payload.
  */
 export const directoryEntrySchema = z.object({
   id: z.string(),
@@ -95,7 +95,12 @@ export const directoryEntrySchema = z.object({
   // same way as a platform restriction, not left for someone to dig out of
   // the README or the manifest themselves.
   paseoVersionRequirement: z.string().optional(),
+  manifest: z.record(z.string(), z.json()).optional(),
   images: z.array(httpUrlSchema).default([]),
+  // Raw README markdown from the scanner. Keep it optional so older catalog
+  // payloads still parse, and bound it so the companion plugin never retains
+  // or renders an unbounded blob.
+  readmeText: z.string().max(200_000).optional(),
   // Pre-sanitized HTML rendered at scan time from the plugin's own README
   // (see src/lib/markdown.ts on the site) — this plugin has no HTML renderer,
   // so it's shown as stripped plain text (see stripHtml below) rather than
@@ -256,6 +261,32 @@ export function getInstallCommand(
 export function getSiteUrl(entry: Pick<DirectoryEntry, "id">): string {
   return `${SITE_URL}/plugins/${encodeURIComponent(entry.id)}`
 }
+
+const GITHUB_NEW_ISSUE_URL =
+  "https://github.com/paseo-cafe/paseo-cafe/issues/new"
+
+export function getReportPluginIssueUrl(
+  entry: Pick<DirectoryEntry, "id" | "url">
+): string {
+  const url = new URL(GITHUB_NEW_ISSUE_URL)
+  url.searchParams.set("title", `Report plugin: ${entry.id}`)
+  url.searchParams.set(
+    "body",
+    [
+      "## Problem",
+      "Describe the problem you saw, what you expected, and how to reproduce it.",
+      "",
+      `- Plugin ID: \`${entry.id}\``,
+      `- Source repository: ${entry.url}`,
+      `- Paseo listing: ${getSiteUrl(entry)}`,
+      "",
+      "## Additional context",
+      "",
+    ].join("\n")
+  )
+  return url.toString()
+}
+
 function githubRepoFromRemote(remote: string | undefined): string | undefined {
   if (!remote) return undefined
   const normalized = remote

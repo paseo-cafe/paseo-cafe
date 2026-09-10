@@ -11,6 +11,7 @@ import { Image, Pressable, Text, View } from "react-native"
 import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   getInstallCommand,
+  getReportPluginIssueUrl,
   getSiteUrl,
   HEALTH_LABELS,
   isValidInstallPath,
@@ -69,6 +70,17 @@ export function PluginDetailPage({
   const [confirmingUpdate, setConfirmingUpdate] =
     useState<InstalledPlugin | null>(null)
   const [showFullActionError, setShowFullActionError] = useState(false)
+  const [showManifest, setShowManifest] = useState(false)
+  const [showReadme, setShowReadme] = useState(false)
+
+  const manifestText = useMemo(
+    () =>
+      entry.manifest === undefined
+        ? undefined
+        : JSON.stringify(entry.manifest, null, 2),
+    [entry.manifest]
+  )
+  const readmeText = entry.readmeText?.length ? entry.readmeText : undefined
 
   const styles = useMemo(
     () => ({
@@ -287,6 +299,38 @@ export function PluginDetailPage({
         fontSize: 14,
         fontWeight: "600" as const,
       },
+      manifestHeaderRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        flexWrap: "wrap" as const,
+        gap: 8,
+      },
+      manifestViewer: {
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderRadius: 8,
+        padding: 12,
+        backgroundColor: theme.colors.surface1,
+      },
+      manifestText: {
+        color: theme.colors.foreground,
+        fontFamily: "monospace" as const,
+        fontSize: 12,
+        lineHeight: 18,
+      },
+      readmeHeaderRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        flexWrap: "wrap" as const,
+        gap: 8,
+      },
+      readmeViewer: {
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderRadius: 8,
+        padding: 12,
+        backgroundColor: theme.colors.surface1,
+      },
       secondaryButton: {
         paddingHorizontal: 14,
         paddingVertical: 10,
@@ -355,6 +399,7 @@ export function PluginDetailPage({
     isValidRepo(entry.repo) &&
     (entry.path === undefined || isValidInstallPath(entry.path))
   const actionPending = installing || updatingId !== null
+  const reportPluginUrl = getReportPluginIssueUrl(entry)
   const actionError = installations.length > 0 ? updateError : installError
   // The toggle and the clamp share one condition: a short error is never
   // clamped, so wrapping on a narrow screen cannot hide text with no way back.
@@ -510,45 +555,83 @@ export function PluginDetailPage({
           </View>
         ) : null}
 
+        {entry.images.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.label}>Screenshots</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Open screenshots gallery for ${entry.name}`}
+              onPress={onOpenGallery}
+              style={styles.gallery}
+            >
+              <View style={styles.galleryContent}>
+                {entry.images.slice(0, 3).map((image) => (
+                  <Image
+                    key={image}
+                    accessible={false}
+                    source={{ uri: image }}
+                    style={styles.galleryTile}
+                  />
+                ))}
+              </View>
+              <Text style={styles.errorActionText}>Open gallery</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {readmeText ? (
+          <View style={styles.section}>
+            <Text style={styles.label}>README</Text>
+            <View style={styles.readmeHeaderRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  showReadme
+                    ? `Hide README for ${entry.name}`
+                    : `Show README for ${entry.name}`
+                }
+                onPress={() => setShowReadme((current) => !current)}
+                style={styles.errorAction}
+              >
+                <Icon
+                  name={showReadme ? "ChevronUp" : "ChevronDown"}
+                  size={14}
+                  color={theme.colors.accent}
+                />
+                <Text style={styles.errorActionText}>
+                  {showReadme ? "Hide text" : "View raw text"}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Copy README text for ${entry.name}`}
+                onPress={async () => {
+                  const text = readmeText
+                  if (text === undefined) return
+                  await copyText(text)
+                  toast.show("Copied README text")
+                }}
+                style={styles.errorAction}
+              >
+                <Icon name="Copy" size={14} color={theme.colors.accent} />
+                <Text style={styles.errorActionText}>Copy text</Text>
+              </Pressable>
+            </View>
+            {showReadme ? (
+              <View style={styles.readmeViewer}>
+                <Text selectable style={styles.readmeText}>
+                  {readmeText}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {entry.scanError ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{entry.scanError}</Text>
           </View>
         ) : null}
-
-        {entry.images.length > 0 ? (
-          <View style={styles.section}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.gallery}
-              contentContainerStyle={styles.galleryContent}
-            >
-              {entry.images.map((image, index) => (
-                <Pressable
-                  key={image}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View all screenshots of ${entry.name}, starting at image ${index + 1}`}
-                  onPress={onOpenGallery}
-                >
-                  <Image
-                    source={{ uri: image }}
-                    style={styles.galleryTile}
-                    resizeMode="cover"
-                  />
-                </Pressable>
-              ))}
-            </ScrollView>
-            {entry.images.length > 1 ? (
-              <Pressable accessibilityRole="link" onPress={onOpenGallery}>
-                <Text style={styles.linkText}>
-                  View all {entry.images.length} screenshots →
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-
         <View style={styles.section}>
           <Text style={styles.label}>Install</Text>
           <View style={styles.commandRow}>
@@ -572,6 +655,52 @@ export function PluginDetailPage({
             </>
           ) : null}
         </View>
+
+        {manifestText ? (
+          <View style={styles.section}>
+            <Text style={styles.label}>Manifest</Text>
+            <View style={styles.manifestHeaderRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  showManifest
+                    ? `Hide manifest for ${entry.name}`
+                    : `Show manifest for ${entry.name}`
+                }
+                onPress={() => setShowManifest((current) => !current)}
+                style={styles.errorAction}
+              >
+                <Icon
+                  name={showManifest ? "ChevronUp" : "ChevronDown"}
+                  size={14}
+                  color={theme.colors.accent}
+                />
+                <Text style={styles.errorActionText}>
+                  {showManifest ? "Hide JSON" : "View JSON"}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Copy manifest JSON"
+                onPress={async () => {
+                  await copyText(manifestText)
+                  toast.show("Copied manifest JSON")
+                }}
+                style={styles.errorAction}
+              >
+                <Icon name="Copy" size={14} color={theme.colors.accent} />
+                <Text style={styles.errorActionText}>Copy JSON</Text>
+              </Pressable>
+            </View>
+            {showManifest ? (
+              <View style={styles.manifestViewer}>
+                <Text selectable style={styles.manifestText}>
+                  {manifestText}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         {!inventoryAvailable ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
@@ -665,11 +794,19 @@ export function PluginDetailPage({
           ) : null}
           <Pressable
             accessibilityRole="link"
-            accessibilityLabel={`Open ${entry.name} on GitHub`}
+            accessibilityLabel={`Open ${entry.name} repository`}
             style={styles.secondaryButton}
             onPress={() => openExternal(entry.url)}
           >
-            <Text style={styles.secondaryButtonText}>View repo</Text>
+            <Text style={styles.secondaryButtonText}>View repository</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Report ${entry.name} on GitHub`}
+            style={styles.secondaryButton}
+            onPress={() => openExternal(reportPluginUrl)}
+          >
+            <Text style={styles.secondaryButtonText}>Report plugin</Text>
           </Pressable>
         </View>
 
@@ -801,7 +938,7 @@ export function PluginDetailPage({
               style={styles.secondaryButton}
               onPress={() => openExternal(entry.url)}
             >
-              <Text style={styles.secondaryButtonText}>View repo</Text>
+              <Text style={styles.secondaryButtonText}>View repository</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -827,7 +964,7 @@ export function PluginDetailPage({
         title={`Update ${entry.name}?`}
         icon={<Icon name="RefreshCw" size={18} color={theme.colors.accent} />}
         open={confirmingUpdate !== null}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!open) setConfirmingUpdate(null)
         }}
       >
@@ -851,7 +988,7 @@ export function PluginDetailPage({
               style={styles.secondaryButton}
               onPress={() => openExternal(entry.url)}
             >
-              <Text style={styles.secondaryButtonText}>View repo</Text>
+              <Text style={styles.secondaryButtonText}>View repository</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
