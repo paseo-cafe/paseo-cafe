@@ -15,6 +15,9 @@ describe("renderMarkdownToHtml", () => {
     const html = await renderMarkdownToHtml(
       'Hello <script>alert("xss")</script> world'
     )
+    expect(html).toContain("Hello")
+    expect(html).toContain("world")
+    expect(html).toContain('alert("xss")')
     expect(html).not.toContain("<script")
     expect(html).not.toContain("</script>")
   })
