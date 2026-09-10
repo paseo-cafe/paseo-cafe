@@ -694,11 +694,6 @@ export async function searchDirectorySecurity(
   )
 }
 
-export async function installDirectoryPlugin(
-  input: RpcInput<typeof directoryInstallRpc>
-): Promise<RpcOutput<typeof directoryInstallRpc>> {
-  const { repo, path } = input
-
 interface DirectoryInstallerDependencies {
   runPaseo?: (
     args: readonly string[],

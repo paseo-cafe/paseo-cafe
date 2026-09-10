@@ -226,6 +226,7 @@ type UpdateStatusResult = {
 type InstallResult = {
   ok: boolean
   message: string
+  reportToken?: string
 }
 
 type UpdateResult = {
