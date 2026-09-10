@@ -106,6 +106,13 @@ export function normalizeDirectoryCategory(
   return normalizeDirectoryCategoryFilter(category) || "other"
 }
 
+/** Canonicalizes catalog categories while preserving their stable slug identity. */
+export function normalizeDirectoryCategories(
+  categories: readonly string[]
+): DirectoryCategory[] {
+  const present = new Set(categories.map(normalizeDirectoryCategory))
+  return DIRECTORY_CATEGORIES.filter((category) => present.has(category))
+}
 export const DIRECTORY_SORT_MODES = [
   "updates-first",
   "popular",
@@ -136,6 +143,34 @@ export type DirectoryBrowseSettings = z.infer<
 export const DEFAULT_DIRECTORY_BROWSE_SETTINGS =
   directoryBrowseSettingsSchema.parse({})
 
+function containsSameValues(
+  left: readonly string[],
+  right: readonly string[]
+): boolean {
+  const leftValues = new Set(left)
+  const rightValues = new Set(right)
+  if (leftValues.size !== rightValues.size) return false
+  for (const value of leftValues) {
+    if (!rightValues.has(value)) return false
+  }
+  return true
+}
+
+/** Compares persisted browse state using set semantics for multi-select filters. */
+export function directoryBrowseSettingsEqual(
+  left: DirectoryBrowseSettings,
+  right: DirectoryBrowseSettings
+): boolean {
+  return (
+    left.query === right.query &&
+    containsSameValues(left.categories, right.categories) &&
+    containsSameValues(left.platforms, right.platforms) &&
+    left.status === right.status &&
+    left.sort === right.sort &&
+    left.lastOpenedPluginId === right.lastOpenedPluginId
+  )
+}
+
 export function migrateDirectorySettings(
   values: unknown,
   fromVersion: number
@@ -157,10 +192,9 @@ export function migrateDirectorySettings(
 }
 
 /**
- * Which paseo.cafe deployment to read from — host-scoped so it's one setting
- * per daemon, editable from Settings → Plugins → Paseo Cafe without a
- * reload. Exists for local development (point at `bun run dev`) and for
- * anyone running a self-hosted fork of the directory.
+ * The SDK currently supports host-scoped settings only. Browse fields are
+ * deliberately limited to visible surface state, so search/filter/detail state
+ * survives a restart and is shared by clients connected to the same host.
  */
 export const directorySettings = defineSettings({
   id: "directory-settings",
@@ -168,9 +202,9 @@ export const directorySettings = defineSettings({
   version: 2,
   schema: z.object({
     directoryUrl: catalogUrlSchema.default(DEFAULT_DIRECTORY_URL),
-    // Optional keeps the settings screen's whole-document URL save compatible;
-    // the browse surface supplies these defaults when no state has been saved.
-    browse: directoryBrowseSettingsSchema.optional(),
+    browse: directoryBrowseSettingsSchema.default(
+      DEFAULT_DIRECTORY_BROWSE_SETTINGS
+    ),
   }),
   migrate: migrateDirectorySettings,
 })

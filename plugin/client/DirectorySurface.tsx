@@ -16,16 +16,16 @@ import type {
   InstalledPlugin,
 } from "../shared/directory"
 import {
-  DEFAULT_DIRECTORY_BROWSE_SETTINGS,
   DIRECTORY_CATEGORIES,
   DIRECTORY_CATEGORY_LABELS,
+  directoryBrowseSettingsEqual,
   directoryInstallRpc,
   directoryListRpc,
   directorySettings,
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
   findInstallations,
-  normalizeDirectoryCategory,
+  normalizeDirectoryCategories,
 } from "../shared/directory"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
@@ -41,17 +41,17 @@ function toggle<T>(set: ReadonlySet<T>, value: T): Set<T> {
   return next
 }
 
-interface FilterRowProps {
+interface FilterRowProps<T extends string> {
   label: string
-  options: string[]
-  selected: ReadonlySet<string>
+  options: readonly T[]
+  selected: ReadonlySet<T>
   theme: PluginTheme
-  formatOption?: (value: string) => string
-  onToggle: (value: string) => void
+  formatOption?: (value: T) => string
+  onToggle: (value: T) => void
   onClear: () => void
 }
 
-function FilterRow({
+function FilterRow<T extends string>({
   label,
   options,
   selected,
@@ -59,7 +59,7 @@ function FilterRow({
   formatOption,
   onToggle,
   onClear,
-}: FilterRowProps) {
+}: FilterRowProps<T>) {
   const styles = useMemo(
     () => ({
       row: {
@@ -469,10 +469,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     save: saveSettings,
     reload: reloadSettings,
   } = settings
-  const storedBrowse = settingsValues
-    ? (settingsValues.browse ?? DEFAULT_DIRECTORY_BROWSE_SETTINGS)
-    : null
-  const storedBrowseKey = storedBrowse ? JSON.stringify(storedBrowse) : null
+  const storedBrowse = settingsValues?.browse ?? null
   const browseSettings = useMemo<DirectoryBrowseSettings>(
     () => ({
       query: search,
@@ -512,8 +509,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       !settingsHydrated ||
       settingsValues === null ||
       settingsRevision === null ||
+      storedBrowse === null ||
       settingsSaving ||
-      storedBrowseKey === JSON.stringify(browseSettings)
+      directoryBrowseSettingsEqual(storedBrowse, browseSettings)
     ) {
       return
     }
@@ -537,7 +535,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     settingsRevision,
     settingsSaving,
     settingsValues,
-    storedBrowseKey,
+    storedBrowse,
   ])
 
   // Undefined until settings are readable: the handler then falls back to
@@ -688,14 +686,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     () =>
       catalogPlugins.map((entry) => ({
         ...entry,
-        categories: Array.from(
-          new Set(
-            entry.categories.map(
-              (category) =>
-                DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(category)]
-            )
-          )
-        ),
+        categories: normalizeDirectoryCategories(entry.categories),
       })),
     [catalogPlugins]
   )
@@ -733,11 +724,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     : []
 
   const allCategories = useMemo((): DirectoryCategory[] => {
-    const present = new Set(
-      plugins.flatMap((entry) =>
-        entry.categories.map(normalizeDirectoryCategory)
-      )
-    )
+    const present = new Set(plugins.flatMap((entry) => entry.categories))
     return DIRECTORY_CATEGORIES.filter((category) => present.has(category))
   }, [plugins])
   const allPlatforms = useMemo(
@@ -760,6 +747,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           entry.author,
           entry.owner?.login,
           entry.paseoVersionRequirement,
+          ...entry.categories.map(
+            (category) => DIRECTORY_CATEGORY_LABELS[category]
+          ),
           ...entry.categories,
           ...entry.platforms,
           ...entry.caveats,
@@ -771,9 +761,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       }
       if (
         categoryFilter.size > 0 &&
-        !entry.categories.some((category) =>
-          categoryFilter.has(normalizeDirectoryCategory(category))
-        )
+        !entry.categories.some((category) => categoryFilter.has(category))
       )
         return false
       if (
@@ -996,13 +984,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                 options={allCategories}
                 selected={categoryFilter}
                 theme={theme}
-                formatOption={(value) =>
-                  DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(value)]
-                }
-                onToggle={(value) =>
-                  setCategoryFilter((prev) =>
-                    toggle(prev, normalizeDirectoryCategory(value))
-                  )
+                formatOption={(category) => DIRECTORY_CATEGORY_LABELS[category]}
+                onToggle={(category) =>
+                  setCategoryFilter((prev) => toggle(prev, category))
                 }
                 onClear={() => setCategoryFilter(new Set())}
               />

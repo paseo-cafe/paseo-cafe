@@ -8,8 +8,13 @@ import {
 } from "@getpaseo/plugin/client/react-native"
 import { useMemo, useState } from "react"
 import { Image, Pressable, Text, View } from "react-native"
-import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
+import type {
+  DirectoryCategory,
+  DirectoryEntry,
+  InstalledPlugin,
+} from "../shared/directory"
 import {
+  DIRECTORY_CATEGORY_LABELS,
   getInstallCommand,
   getReportPluginIssueUrl,
   getSiteUrl,
@@ -382,7 +387,13 @@ export function PluginDetailPage({
   )
 
   const command = getInstallCommand(entry)
-  const tags = [...entry.categories, ...entry.platforms]
+  const tags = [
+    ...entry.categories.map(
+      (category) =>
+        DIRECTORY_CATEGORY_LABELS[category as DirectoryCategory] ?? category
+    ),
+    ...entry.platforms,
+  ]
   const limitationsText = entry.limitationsNotesHtml
     ? stripHtml(entry.limitationsNotesHtml)
     : undefined
@@ -395,7 +406,12 @@ export function PluginDetailPage({
     entry.caveats.length > 0 ||
     !!limitationsText
   const health = entry.health
-  const securityStatus = entry.security?.status ?? "unknown"
+  const security = entry.security
+  const securityStatus = security?.status ?? "unknown"
+  const securityAttestation =
+    security && (security.status === "passed" || security.status === "failed")
+      ? security
+      : undefined
   const securityStatusLabel =
     securityStatus === "passed"
       ? "Passed"
@@ -408,9 +424,9 @@ export function PluginDetailPage({
       : securityStatus === "failed"
         ? theme.colors.statusDanger
         : theme.colors.statusWarning
-  const securityFindingsSummary = entry.security
-    ? `${entry.security.blockingFindings} blocking · ${entry.security.advisoryFindings} advisory`
-    : "Finding counts unavailable"
+  const securityFindingsSummary = securityAttestation
+    ? `${securityAttestation.blockingFindings} blocking · ${securityAttestation.advisoryFindings} advisory`
+    : undefined
   const healthValues = Object.keys(HEALTH_LABELS).map(
     (key) => health?.[key as keyof NonNullable<DirectoryEntry["health"]>]
   )
@@ -432,8 +448,8 @@ export function PluginDetailPage({
         }`
   const sourceUpdatedDate = formatDate(entry.repoMeta?.pushedAt)
   const catalogScannedDate = formatDate(entry.scannedAt)
-  const securityScannedDate = formatDate(entry.security?.scannedAt)
-  const securityReportUrl = entry.security?.reportUrl
+  const securityScannedDate = formatDate(securityAttestation?.scannedAt)
+  const securityReportUrl = securityAttestation?.reportUrl
   const installable =
     isValidRepo(entry.repo) &&
     (entry.path === undefined || isValidInstallPath(entry.path))
@@ -935,26 +951,20 @@ export function PluginDetailPage({
                 Security scan: {securityStatusLabel}
               </Text>
             </View>
-            {!entry.security ? (
+            {!securityAttestation ? (
               <Text style={styles.alertBody}>
-                No published security scan is available. Finding counts and the
-                scan date are unknown.
+                No published security scan is available for this plugin yet.
               </Text>
             ) : (
               <>
-                {securityStatus === "unknown" ? (
-                  <Text style={styles.alertBody}>
-                    The published scan does not report a pass or fail result.
-                  </Text>
-                ) : null}
                 <Text style={styles.alertBody}>
-                  Blocking findings: {entry.security.blockingFindings} ·
-                  Advisory findings: {entry.security.advisoryFindings}
+                  Blocking findings: {securityAttestation.blockingFindings} ·
+                  Advisory findings: {securityAttestation.advisoryFindings}
                 </Text>
                 <Text selectable style={styles.alertBody}>
                   Scanned {securityScannedDate ?? "Unknown"}
-                  {entry.security.commit
-                    ? ` at commit ${entry.security.commit}`
+                  {securityAttestation.commit
+                    ? ` at commit ${securityAttestation.commit}`
                     : ""}
                   .
                 </Text>
@@ -1055,9 +1065,16 @@ export function PluginDetailPage({
               </Text>
             ) : null}
             <Text style={styles.modalText}>Health: {healthSummary}</Text>
-            <Text style={styles.modalText}>
-              Security: {securityStatusLabel} · {securityFindingsSummary}
-            </Text>
+            {securityFindingsSummary ? (
+              <Text style={styles.modalText}>
+                Security: {securityStatusLabel} · {securityFindingsSummary}
+              </Text>
+            ) : (
+              <Text style={styles.modalText}>
+                Security: No published security scan is available for this
+                plugin yet.
+              </Text>
+            )}
           </View>
           <View style={styles.alert}>
             <View style={styles.alertTitleRow}>

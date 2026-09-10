@@ -3,7 +3,11 @@ import { Icon } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Image, Pressable, Text, View } from "react-native"
 import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
-import { HEALTH_LABELS } from "../shared/directory"
+import {
+  DIRECTORY_CATEGORY_LABELS,
+  HEALTH_LABELS,
+  normalizeDirectoryCategory,
+} from "../shared/directory"
 
 interface PluginRowProps {
   entry: DirectoryEntry
@@ -38,7 +42,7 @@ function formatCompactNumber(value: number): string {
   return `${value}`
 }
 
-function getHealthBadge(entry: DirectoryEntry): BadgeTone | null {
+export function getHealthBadge(entry: DirectoryEntry): BadgeTone | null {
   if (entry.scanError) {
     return { text: "Scan issue", color: "danger" }
   }
@@ -47,19 +51,17 @@ function getHealthBadge(entry: DirectoryEntry): BadgeTone | null {
   const values = Object.keys(HEALTH_LABELS).map(
     (key) => entry.health?.[key as keyof NonNullable<DirectoryEntry["health"]>]
   )
-  const reported = values.some((value) => value !== undefined)
-  if (!reported) {
-    return { text: "Health unreported", color: "muted" }
+  const failed = values.filter((value) => value === false).length
+  if (failed > 0) {
+    return {
+      text: `Health ${failed} warning${failed === 1 ? "" : "s"}`,
+      color: "warning",
+    }
   }
-
-  const missing = values.filter((value) => value !== true).length
-  if (missing === 0) {
-    return { text: "Health OK", color: "success" }
+  if (values.some((value) => value === undefined)) {
+    return { text: "Health incomplete", color: "muted" }
   }
-  return {
-    text: `Health ${missing} warning${missing === 1 ? "" : "s"}`,
-    color: "warning",
-  }
+  return { text: "Health OK", color: "success" }
 }
 
 // Deliberately no per-row Install button: with the whole card opening the
@@ -153,7 +155,13 @@ export function PluginRow({
     [theme, compact]
   )
 
-  const tags = [...entry.categories, ...entry.platforms]
+  const tags = [
+    ...entry.categories.map(
+      (category) =>
+        DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(category)]
+    ),
+    ...entry.platforms,
+  ]
   const hasTagsRow = tags.length > 0
 
   const updateCount = installations.filter(

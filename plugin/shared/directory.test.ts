@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 import {
   DEFAULT_DIRECTORY_BROWSE_SETTINGS,
-  DIRECTORY_CATEGORIES,
+  DIRECTORY_CATEGORY_LABELS,
+  type DirectoryCategory,
   directoryAttachments,
+  directoryBrowseSettingsEqual,
   directoryBrowseSettingsSchema,
   directoryEntrySchema,
   directoryListRpc,
@@ -17,6 +19,7 @@ import {
   isValidInstallPath,
   isValidRepo,
   migrateDirectorySettings,
+  normalizeDirectoryCategories,
   normalizeDirectoryCategory,
   stripHtml,
 } from "./directory"
@@ -130,23 +133,24 @@ describe("catalog URL transport policy", () => {
 })
 
 describe("directory taxonomy and browse settings", () => {
-  it("uses the canonical taxonomy and maps free-form categories to Other", () => {
-    expect(DIRECTORY_CATEGORIES).toEqual([
-      "automation",
-      "browser",
+  it("normalizes catalog categories without replacing stable slugs with labels", () => {
+    const labelsWithPunctuation: Record<DirectoryCategory, string> = {
+      ...DIRECTORY_CATEGORY_LABELS,
+      "code-review": "Code Review & QA / Security",
+    }
+    const categories = normalizeDirectoryCategories([
+      " Code Review ",
       "code-review",
-      "git",
-      "github",
-      "monitoring",
-      "orchestration",
-      "productivity",
-      "provider",
-      "theme",
-      "other",
     ])
-    expect(normalizeDirectoryCategory(" Code Review ")).toBe("code-review")
+
+    expect(categories).toEqual(["code-review"])
+    expect(
+      categories.map((category) => ({
+        slug: category,
+        label: labelsWithPunctuation[category],
+      }))
+    ).toEqual([{ slug: "code-review", label: "Code Review & QA / Security" }])
     expect(normalizeDirectoryCategory("unrecognized-category")).toBe("other")
-    expect(normalizeDirectoryCategory("")).toBe("other")
   })
 
   it("fills missing browse fields with durable defaults", () => {
@@ -156,11 +160,44 @@ describe("directory taxonomy and browse settings", () => {
     })
   })
 
+  it("parses current settings with a complete browse state", () => {
+    expect(
+      directorySettings.schema.parse({
+        directoryUrl: "https://catalog.internal/api/plugins",
+      }).browse
+    ).toEqual(DEFAULT_DIRECTORY_BROWSE_SETTINGS)
+  })
+
+  it("treats reordered category selections as the same persisted state", () => {
+    const left = {
+      ...DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      categories: ["automation", "code-review"] as DirectoryCategory[],
+    }
+    const right = {
+      ...DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      categories: ["code-review", "automation"] as DirectoryCategory[],
+    }
+
+    expect(directoryBrowseSettingsEqual(left, right)).toBe(true)
+    expect(
+      directoryBrowseSettingsEqual(left, {
+        ...right,
+        categories: ["automation"],
+      })
+    ).toBe(false)
+    expect(
+      directoryBrowseSettingsEqual(left, { ...right, query: "changed" })
+    ).toBe(false)
+  })
+
   it("migrates version 1 settings without losing the directory URL", () => {
     const directoryUrl = "https://catalog.internal/api/plugins"
     const migrated = migrateDirectorySettings({ directoryUrl }, 1)
 
-    expect(directorySettings.version).toBe(2)
+    expect(migrated).toEqual({
+      directoryUrl,
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+    })
     expect(directorySettings.schema.parse(migrated)).toEqual({
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
