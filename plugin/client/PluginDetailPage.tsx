@@ -603,7 +603,11 @@ export function PluginDetailPage({
               onPress={onOpenGallery}
               style={styles.gallery}
             >
-              <View style={styles.galleryContent}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.galleryContent}
+              >
                 {entry.images.slice(0, 3).map((image) => (
                   <Image
                     key={image}
@@ -612,7 +616,7 @@ export function PluginDetailPage({
                     style={styles.galleryTile}
                   />
                 ))}
-              </View>
+              </ScrollView>
               <Text style={styles.errorActionText}>Open gallery</Text>
             </Pressable>
           </View>

@@ -23,6 +23,7 @@ import { listPlugins } from "@/lib/plugins-data"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
 import { SITE_NAME, SITE_REPO, SITE_URL } from "@/lib/site"
+import { HOME_SEARCH_DEFAULT } from "@/routes/index"
 
 function buildReportIssueUrl(plugin: {
   id: string
@@ -100,7 +101,7 @@ function PluginDetail() {
       />
       <Link
         to="/"
-        search={{ q: "", category: "", sort: "popular" }}
+        search={HOME_SEARCH_DEFAULT}
         className="flex w-fit items-center gap-1 text-foreground/60 text-sm hover:text-foreground"
       >
         <IconArrowLeft className="size-4" /> All plugins

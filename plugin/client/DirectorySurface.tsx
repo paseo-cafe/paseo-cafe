@@ -894,6 +894,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         color: theme.colors.foreground,
       },
       filtersBlock: { gap: 8 },
+      listHeader: { gap: 12 },
       featuredBlock: { gap: 10 },
       featuredSection: { gap: 10 },
       featuredItems: { gap: 12 },
@@ -949,172 +950,192 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           updateMutation.mutate({ entry: detailEntry, installation })
         }
         onOpenGallery={() => setGalleryEntry(detailEntry)}
-        onBack={() => setDetailEntry(null)}
+        onBack={() => {
+          setLastOpenedPluginId(null)
+          setDetailEntry(null)
+        }}
       />
     )
   }
 
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Paseo Cafe</Text>
-      <Text style={styles.subtitle}>Browse and install Paseo plugins.</Text>
-      <TextInput
-        placeholder="Search plugins…"
-        value={search}
-        onChangeText={(value) => setSearch(value.slice(0, 200))}
-        style={styles.searchInput}
-        placeholderTextColor={theme.colors.foregroundMuted}
-      />
-      <SortRow
-        options={SORT_OPTIONS}
-        selected={sortMode}
-        theme={theme}
-        onSelect={setSortMode}
-      />
-      <StatusFilterRow
-        options={statusOptions}
-        selected={effectiveStatusFilter}
-        theme={theme}
-        onSelect={setStatusFilter}
-      />
-
-      <View style={styles.filtersBlock}>
-        <FilterRow
-          label="Category"
-          options={allCategories}
-          selected={categoryFilter}
-          theme={theme}
-          formatOption={(value) =>
-            DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(value)]
-          }
-          onToggle={(value) =>
-            setCategoryFilter((prev) =>
-              toggle(prev, normalizeDirectoryCategory(value))
-            )
-          }
-          onClear={() => setCategoryFilter(new Set())}
-        />
-        <FilterRow
-          label="Platform"
-          options={allPlatforms}
-          selected={platformFilter}
-          theme={theme}
-          onToggle={(value) => setPlatformFilter((prev) => toggle(prev, value))}
-          onClear={() => setPlatformFilter(new Set())}
-        />
-      </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Refresh Paseo Cafe catalog"
-        disabled={
-          settingsPending ||
-          refreshMutation.isPending ||
-          directoryQuery.isFetching
-        }
-        style={styles.refreshButton}
-        onPress={() => refreshMutation.mutate()}
-      >
-        <Text style={styles.refreshText}>
-          {refreshMutation.isPending || directoryQuery.isFetching
-            ? "Refreshing…"
-            : "Refresh"}
-        </Text>
-      </Pressable>
-      {settingsPending ? (
-        <Text style={styles.emptyText}>Loading Paseo Cafe settings…</Text>
-      ) : null}
-      {updateStatusQuery.isFetching ? (
-        <Text style={styles.emptyText}>Checking for plugin updates…</Text>
-      ) : null}
-      {updateStatusQuery.isError ? (
-        <Text accessibilityRole="alert" style={styles.emptyText}>
-          Update status is unavailable: {updateStatusQuery.error.message}
-        </Text>
-      ) : null}
-      {settings.status === "error" || settings.status === "invalid" ? (
-        <Text accessibilityRole="alert" style={styles.emptyText}>
-          Paseo Cafe settings need attention, so the default catalog is in use:{" "}
-          {settings.error}
-        </Text>
-      ) : null}
-      {directoryQuery.data?.installationError ? (
-        <Text accessibilityRole="alert" style={styles.emptyText}>
-          Couldn't check installed plugins:{" "}
-          {directoryQuery.data.installationError}
-        </Text>
-      ) : null}
-      {directoryQuery.isPending && !settingsPending ? (
-        <Text style={styles.emptyText}>Loading plugins…</Text>
-      ) : null}
-      {directoryQuery.isError ? (
-        <Text accessibilityRole="alert" style={styles.emptyText}>
-          Couldn't reach Paseo Cafe: {directoryQuery.error.message}
-        </Text>
-      ) : null}
-      {directoryQuery.data ? (
-        <Text style={styles.emptyText}>
-          Catalog generated {directoryQuery.data.fetchedAt.slice(0, 10)}.
-        </Text>
-      ) : null}
-      {directoryQuery.isSuccess ? (
-        <Text accessibilityLiveRegion="polite" style={styles.emptyText}>
-          Showing {sorted.length} of {nonStatusFiltered.length} matching
-          plugins.
-        </Text>
-      ) : null}
-      {directoryQuery.isSuccess && sorted.length === 0 ? (
-        <Text style={styles.emptyText}>
-          No plugins match the current search and filters.
-        </Text>
-      ) : null}
-      {defaultBrowseState &&
-      (popularHighlights.length > 0 || recentHighlights.length > 0) ? (
-        <View style={styles.featuredBlock}>
-          {popularHighlights.length > 0 ? (
-            <View style={styles.featuredSection}>
-              <Text accessibilityRole="header" style={styles.featuredHeader}>
-                Popular
-              </Text>
-              <View style={styles.featuredItems}>
-                {popularHighlights.map((item) => (
-                  <PluginRow
-                    key={`popular-${item.id}`}
-                    entry={item}
-                    theme={theme}
-                    installations={installationByEntryId.get(item.id) ?? []}
-                    compact={layout.compact}
-                    onPress={() => openPlugin(item)}
-                  />
-                ))}
-              </View>
-            </View>
-          ) : null}
-          {recentHighlights.length > 0 ? (
-            <View style={styles.featuredSection}>
-              <Text accessibilityRole="header" style={styles.featuredHeader}>
-                Recently updated
-              </Text>
-              <View style={styles.featuredItems}>
-                {recentHighlights.map((item) => (
-                  <PluginRow
-                    key={`recent-${item.id}`}
-                    entry={item}
-                    theme={theme}
-                    installations={installationByEntryId.get(item.id) ?? []}
-                    compact={layout.compact}
-                    onPress={() => openPlugin(item)}
-                  />
-                ))}
-              </View>
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-
       <FlatList<DirectoryEntry>
         data={sorted}
         keyExtractor={(entry: DirectoryEntry) => entry.id}
         contentContainerStyle={{ gap: 12 }}
+        ListHeaderComponent={
+          <View style={styles.listHeader}>
+            <Text style={styles.title}>Paseo Cafe</Text>
+            <Text style={styles.subtitle}>
+              Browse and install Paseo plugins.
+            </Text>
+            <TextInput
+              placeholder="Search plugins…"
+              value={search}
+              onChangeText={(value) => setSearch(value.slice(0, 200))}
+              style={styles.searchInput}
+              placeholderTextColor={theme.colors.foregroundMuted}
+            />
+            <SortRow
+              options={SORT_OPTIONS}
+              selected={sortMode}
+              theme={theme}
+              onSelect={setSortMode}
+            />
+            <StatusFilterRow
+              options={statusOptions}
+              selected={effectiveStatusFilter}
+              theme={theme}
+              onSelect={setStatusFilter}
+            />
+
+            <View style={styles.filtersBlock}>
+              <FilterRow
+                label="Category"
+                options={allCategories}
+                selected={categoryFilter}
+                theme={theme}
+                formatOption={(value) =>
+                  DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(value)]
+                }
+                onToggle={(value) =>
+                  setCategoryFilter((prev) =>
+                    toggle(prev, normalizeDirectoryCategory(value))
+                  )
+                }
+                onClear={() => setCategoryFilter(new Set())}
+              />
+              <FilterRow
+                label="Platform"
+                options={allPlatforms}
+                selected={platformFilter}
+                theme={theme}
+                onToggle={(value) =>
+                  setPlatformFilter((prev) => toggle(prev, value))
+                }
+                onClear={() => setPlatformFilter(new Set())}
+              />
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Refresh Paseo Cafe catalog"
+              disabled={
+                settingsPending ||
+                refreshMutation.isPending ||
+                directoryQuery.isFetching
+              }
+              style={styles.refreshButton}
+              onPress={() => refreshMutation.mutate()}
+            >
+              <Text style={styles.refreshText}>
+                {refreshMutation.isPending || directoryQuery.isFetching
+                  ? "Refreshing…"
+                  : "Refresh"}
+              </Text>
+            </Pressable>
+            {settingsPending ? (
+              <Text style={styles.emptyText}>Loading Paseo Cafe settings…</Text>
+            ) : null}
+            {updateStatusQuery.isFetching ? (
+              <Text style={styles.emptyText}>Checking for plugin updates…</Text>
+            ) : null}
+            {updateStatusQuery.isError ? (
+              <Text accessibilityRole="alert" style={styles.emptyText}>
+                Update status is unavailable: {updateStatusQuery.error.message}
+              </Text>
+            ) : null}
+            {settings.status === "error" || settings.status === "invalid" ? (
+              <Text accessibilityRole="alert" style={styles.emptyText}>
+                Paseo Cafe settings need attention, so the default catalog is in
+                use: {settings.error}
+              </Text>
+            ) : null}
+            {directoryQuery.data?.installationError ? (
+              <Text accessibilityRole="alert" style={styles.emptyText}>
+                Couldn't check installed plugins:{" "}
+                {directoryQuery.data.installationError}
+              </Text>
+            ) : null}
+            {directoryQuery.isPending && !settingsPending ? (
+              <Text style={styles.emptyText}>Loading plugins…</Text>
+            ) : null}
+            {directoryQuery.isError ? (
+              <Text accessibilityRole="alert" style={styles.emptyText}>
+                Couldn't reach Paseo Cafe: {directoryQuery.error.message}
+              </Text>
+            ) : null}
+            {directoryQuery.data ? (
+              <Text style={styles.emptyText}>
+                Catalog generated {directoryQuery.data.fetchedAt.slice(0, 10)}.
+              </Text>
+            ) : null}
+            {directoryQuery.isSuccess ? (
+              <Text accessibilityLiveRegion="polite" style={styles.emptyText}>
+                Showing {sorted.length} of {nonStatusFiltered.length} matching
+                plugins.
+              </Text>
+            ) : null}
+            {directoryQuery.isSuccess && sorted.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No plugins match the current search and filters.
+              </Text>
+            ) : null}
+            {defaultBrowseState &&
+            (popularHighlights.length > 0 || recentHighlights.length > 0) ? (
+              <View style={styles.featuredBlock}>
+                {popularHighlights.length > 0 ? (
+                  <View style={styles.featuredSection}>
+                    <Text
+                      accessibilityRole="header"
+                      style={styles.featuredHeader}
+                    >
+                      Popular
+                    </Text>
+                    <View style={styles.featuredItems}>
+                      {popularHighlights.map((item) => (
+                        <PluginRow
+                          key={`popular-${item.id}`}
+                          entry={item}
+                          theme={theme}
+                          installations={
+                            installationByEntryId.get(item.id) ?? []
+                          }
+                          compact={layout.compact}
+                          onPress={() => openPlugin(item)}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+                {recentHighlights.length > 0 ? (
+                  <View style={styles.featuredSection}>
+                    <Text
+                      accessibilityRole="header"
+                      style={styles.featuredHeader}
+                    >
+                      Recently updated
+                    </Text>
+                    <View style={styles.featuredItems}>
+                      {recentHighlights.map((item) => (
+                        <PluginRow
+                          key={`recent-${item.id}`}
+                          entry={item}
+                          theme={theme}
+                          installations={
+                            installationByEntryId.get(item.id) ?? []
+                          }
+                          compact={layout.compact}
+                          onPress={() => openPlugin(item)}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        }
         renderItem={({ item }: { item: DirectoryEntry }) => (
           <PluginRow
             entry={item}

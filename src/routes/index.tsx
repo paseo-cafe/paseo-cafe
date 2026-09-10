@@ -20,17 +20,29 @@ import {
 import { seo } from "@/lib/seo"
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
 
+export const HOME_SEARCH_DEFAULT = {
+  q: "",
+  category: "",
+  sort: "popular",
+} as const
+
 const sortValues = ["popular", "updated", "az"] as const
 type SortValue = (typeof sortValues)[number]
+
+function normalizeCategoryFilter(category: string): Category | "" {
+  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
+  return Object.hasOwn(CATEGORY_LABELS, normalized)
+    ? (normalized as Category)
+    : ""
+}
+
 const searchSchema = z.object({
-  q: z.string().catch(""),
+  q: z.string().catch(HOME_SEARCH_DEFAULT.q),
   category: z
     .string()
-    .catch("")
-    .transform((category) =>
-      category.trim() ? normalizeCategory(category) : ""
-    ),
-  sort: z.enum(sortValues).catch("popular"),
+    .catch(HOME_SEARCH_DEFAULT.category)
+    .transform(normalizeCategoryFilter),
+  sort: z.enum(sortValues).catch(HOME_SEARCH_DEFAULT.sort),
   page: z.coerce
     .number()
     .int()

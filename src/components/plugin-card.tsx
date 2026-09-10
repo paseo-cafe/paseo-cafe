@@ -63,34 +63,30 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
           <CardDescription className="line-clamp-2">
             {plugin.description || "No description available."}
           </CardDescription>
-          {plugin.owner || plugin.health || plugin.repoMeta ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="sr-only">Freshness and health</span>
-              {plugin.owner ? (
-                <span className="flex items-center gap-1.5 text-foreground/50 text-xs">
-                  <img
-                    src={plugin.owner.avatarUrl}
-                    alt=""
-                    className="size-4 rounded-full"
-                  />
-                  {plugin.owner.login}
-                </span>
-              ) : null}
-              <Badge
-                variant={
-                  plugin.health.updatedRecently ? "secondary" : "outline"
-                }
-              >
-                {plugin.health.updatedRecently ? "Fresh" : "Stale"}
-              </Badge>
-              <Badge variant={healthIsComplete ? "secondary" : "destructive"}>
-                {healthIsComplete ? "Healthy" : "Needs review"}
-              </Badge>
-              {plugin.repoMeta?.archived ? (
-                <Badge variant="destructive">Archived</Badge>
-              ) : null}
-            </div>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="sr-only">Freshness and health</span>
+            {plugin.owner ? (
+              <span className="flex items-center gap-1.5 text-foreground/50 text-xs">
+                <img
+                  src={plugin.owner.avatarUrl}
+                  alt=""
+                  className="size-4 rounded-full"
+                />
+                {plugin.owner.login}
+              </span>
+            ) : null}
+            <Badge
+              variant={plugin.health.updatedRecently ? "secondary" : "outline"}
+            >
+              {plugin.health.updatedRecently ? "Fresh" : "Stale"}
+            </Badge>
+            <Badge variant={healthIsComplete ? "secondary" : "outline"}>
+              {healthIsComplete ? "Healthy" : "Incomplete health checks"}
+            </Badge>
+            {plugin.repoMeta?.archived ? (
+              <Badge variant="destructive">Archived</Badge>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-1.5">
           {plugin.paseoVersionRequirement ? (

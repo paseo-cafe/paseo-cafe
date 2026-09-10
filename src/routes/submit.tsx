@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { seo } from "@/lib/seo"
 import { SITE_REPO } from "@/lib/site"
+import { HOME_SEARCH_DEFAULT } from "@/routes/index"
 
 export const Route = createFileRoute("/submit")({
   head: () =>
@@ -262,9 +263,7 @@ function SubmitPage() {
       <div className="flex flex-wrap items-center gap-4">
         <Button
           nativeButton={false}
-          render={
-            <Link to="/" search={{ q: "", category: "", sort: "popular" }} />
-          }
+          render={<Link to="/" search={HOME_SEARCH_DEFAULT} />}
         >
           Browse existing plugins <IconArrowRight className="size-4" />
         </Button>
