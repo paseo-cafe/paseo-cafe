@@ -23,6 +23,7 @@ import { join } from "node:path"
 import { z } from "zod"
 import {
   extractReadmeImages,
+  isTrustedRemoteImageUrl,
   MAX_README_IMAGES,
   resolveGitHubAssetImages,
 } from "../src/lib/images.ts"
@@ -199,9 +200,10 @@ export async function scanOne(
       ).sha
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
+      console.warn(`  ! commit resolution failed for ${entry.repo}: ${reason}`)
       revisionError =
         `default branch commit unavailable; scanned ${branch} without security ` +
-        `attestation or repository-hosted images: ${reason}`
+        "attestation or repository-hosted images"
     }
 
     const contentRef = revision ?? branch
@@ -284,7 +286,9 @@ export async function scanOne(
       : []
     const readmeImages = [...readmeImageRefs, ...readmeAssetImages].flatMap(
       (ref) => {
-        if (/^https?:\/\//i.test(ref)) return [ref]
+        if (/^https?:\/\//i.test(ref)) {
+          return isTrustedRemoteImageUrl(ref) ? [ref] : []
+        }
         if (!revision) return []
         const rootRelative = ref.startsWith("/")
         const cleaned = ref
@@ -382,10 +386,11 @@ export async function scanOne(
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     const location = `${entry.repo}${entry.path ? `/${entry.path}` : ""}`
+    console.warn(`  ! scan failed for ${location}: ${reason}`)
     const message =
       error instanceof GitHubNotFoundError
         ? `repo/path not found on GitHub: ${location}`
-        : `scan failed: ${reason}`
+        : `scan failed while reading repository: ${location}`
     return pluginRecordSchema.parse({ ...base, scanError: message })
   }
 }

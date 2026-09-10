@@ -61,6 +61,7 @@ export const registryEntrySchema = z
      */
     path: z
       .string()
+      .max(500)
       .refine(isValidCatalogPath, "path must be a safe repository subpath")
       .optional(),
     /** Optional curator/author-assigned categories, refined over time. */

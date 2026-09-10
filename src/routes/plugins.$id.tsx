@@ -10,28 +10,46 @@ import { PluginTrustAlert } from "@/components/plugin-trust-alert"
 import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
 import { formatDateTime } from "@/lib/format-date"
 import { serializePluginJsonLd } from "@/lib/json-ld"
-import { listPlugins } from "@/lib/plugins-data"
+import { getPlugin } from "@/lib/plugins-data"
 import { seo } from "@/lib/seo"
+import { SITE_URL } from "@/lib/site"
 
 export const Route = createFileRoute("/plugins/$id")({
   component: PluginDetail,
   loader: ({ params }) => {
-    const plugins = listPlugins()
-    const plugin = plugins.find((p) => p.id === params.id)
+    const plugin = getPlugin(params.id)
     if (!plugin) throw notFound()
     return plugin
   },
-  head: ({ loaderData }) =>
-    loaderData
-      ? seo({
-          title: loaderData.name,
-          description:
-            loaderData.description || `${loaderData.name} — a paseo.sh plugin.`,
-          path: `/plugins/${loaderData.id}`,
-          image: `/og/${loaderData.id}.png`,
-          type: "article",
-        })
-      : {},
+  head: ({ loaderData }) => {
+    if (!loaderData) return {}
+    const metadata = seo({
+      title: loaderData.name,
+      description:
+        loaderData.description || `${loaderData.name} — a paseo.sh plugin.`,
+      path: `/plugins/${loaderData.id}`,
+      image: `/og/${loaderData.id}.png`,
+      type: "article",
+    })
+    return {
+      ...metadata,
+      links: [
+        ...metadata.links,
+        {
+          rel: "alternate",
+          type: "text/markdown",
+          href: `${SITE_URL}/plugins/${loaderData.id}.md`,
+          title: `${loaderData.name} agent-readable listing`,
+        },
+        {
+          rel: "describedby",
+          type: "application/json",
+          href: `${SITE_URL}/api/plugin/${loaderData.id}.json`,
+          title: `${loaderData.name} JSON listing`,
+        },
+      ],
+    }
+  },
 })
 
 function PluginDetail() {

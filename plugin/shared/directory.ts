@@ -356,9 +356,9 @@ const directoryHealthShape = {
 
 /**
  * Trimmed mirror of the PluginRecord shape served by https://paseo.cafe/api/plugins
- * (see src/lib/plugin-schema.ts and src/routes/api.plugins.ts in the site). Keep
- * JSON-compatible manifest data so the client can render it without re-fetching
- * or re-parsing the catalog payload.
+ * (see src/lib/directory-api.ts in the site). Keep JSON-compatible manifest
+ * data so the client can render it without re-fetching or re-parsing the
+ * catalog payload.
  */
 export const directoryEntrySchema = z.object({
   id: z.string().max(200),

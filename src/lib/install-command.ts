@@ -8,9 +8,13 @@ import { getCatalogInstallCommand } from "../../plugin/shared/catalog"
  * This never depends on README parsing, so it's always correct even when
  * an author's own install instructions are missing, stale, or inconsistent.
  */
+
 export function getInstallCommand(
   plugin: Pick<PluginRecord, "repo" | "path" | "repoMeta">
 ): string {
+  if ((plugin.path?.length ?? 0) > 500) {
+    throw new Error("Install source identity exceeds registry limits")
+  }
   const command = getCatalogInstallCommand({
     repo: plugin.repo,
     path: plugin.path,

@@ -36,4 +36,22 @@ describe("getInstallCommand", () => {
       "paseo plugin add someone/their-plugin"
     )
   })
+
+  it("rejects shell metacharacters in unvalidated input", () => {
+    expect(() =>
+      getInstallCommand({
+        repo: "someone/their-plugin",
+        path: "plugin; echo 'unsafe'",
+      })
+    ).toThrow("Invalid plugin install target")
+  })
+
+  it("rejects an overlong path instead of emitting a different command", () => {
+    expect(() =>
+      getInstallCommand({
+        repo: "someone/their-plugin",
+        path: "x".repeat(501),
+      })
+    ).toThrow("exceeds registry limits")
+  })
 })

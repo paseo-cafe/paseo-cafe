@@ -27,10 +27,26 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
    ignored, never-hand-edited records and public assets. See
    `.github/workflows/deploy-pages.yml`.
 4. The build imports the generated `data/plugins.json` via `src/lib/plugins-data.ts`, prerenders
-   every public page, and emits the directory API as the static `/api/plugins` asset.
+   every public page, and emits the catalog's machine interfaces: `/llms.txt`, `/llms-full.txt`,
+   per-plugin Markdown at `/plugins/<id>.md`, OpenAPI at `/openapi.json`, the full JSON catalog at
+   `/api/plugins`, and focused JSON records at `/api/plugin/<id>.json`.
 5. **`.github/workflows/deploy-pages.yml`** refreshes and verifies the generated data and assets,
    builds `.output/public`, and publishes that artifact to GitHub Pages. The deployed site has no
    application server or runtime GitHub API access.
+
+## Agent and API access
+
+All machine-readable outputs are generated from the same scanned plugin records as the website, so
+new and updated registry entries require no additional documentation work. Start with
+[`/llms.txt`](https://paseo.cafe/llms.txt) for the compact index or
+[`/openapi.json`](https://paseo.cafe/openapi.json) for the JSON API contract.
+`/llms-full.txt` contains bounded, catalog-generated facts for bulk ingestion. Repository-provided
+README text appears only in the individual Markdown listing, after an explicit trust boundary.
+
+
+Because production is a static GitHub Pages deployment, canonical plugin pages cannot negotiate on
+the HTTP `Accept` header. Each HTML plugin page advertises an explicit `text/markdown` alternate at
+`/plugins/<id>.md`; explicit URLs work consistently for agents and ordinary HTTP clients.
 
 ## Submitting a plugin
 
@@ -51,6 +67,8 @@ itself at `/submit`. The short version — add one file, `registry/<your-plugin-
 Requirements, checked automatically by CI:
 
 - The registry filename is a lowercase kebab-case plugin ID.
+- `path`, when present, is at most 500 characters and uses the shared safe repository-path
+  validation applied by both the site and companion plugin.
 - Your repo (at `path`, if given) contains a valid `paseo-plugin.json` with the same `id`.
 
 The plugin name comes from the registry filename after it is validated against the manifest ID. Description, version, license, screenshots,
