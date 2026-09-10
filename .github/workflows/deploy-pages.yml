@@ -21,9 +21,8 @@ jobs:
     timeout-minutes: 35
     permissions:
       contents: read
-      # configure-pages below reads this repo's Pages settings — and creates
-      # the site on a fork that has never deployed one.
-      pages: write
+      # configure-pages below reads this repo's Pages settings.
+      pages: read
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -34,11 +33,12 @@ jobs:
       # domain and is served from the root; a fork's project site is served
       # from https://<owner>.github.io/<repo>/. Everything that bakes a URL or
       # a path into the output reads these two outputs — see src/lib/site.ts.
+      # Requires Pages to be turned on for the repo with "GitHub Actions" as the
+      # source — a one-time click, since creating a Pages site needs repo admin
+      # and GITHUB_TOKEN does not have it.
       - name: Resolve this deployment's URL and base path
         id: pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
-        with:
-          enablement: true
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2

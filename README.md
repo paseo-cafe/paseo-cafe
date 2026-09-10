@@ -48,6 +48,15 @@ Because production is a static GitHub Pages deployment, canonical plugin pages c
 the HTTP `Accept` header. Each HTML plugin page advertises an explicit `text/markdown` alternate at
 `/plugins/<id>.md`; explicit URLs work consistently for agents and ordinary HTTP clients.
 
+## Running your own copy
+
+Fork it, turn on GitHub Pages (Settings → Pages → Source: **GitHub Actions**), then run the
+**Enrich and deploy to GitHub Pages** workflow. Nothing needs editing: the workflow asks
+`actions/configure-pages` where the deployment lives and passes that to the scan and the build, so
+a fork publishes correct links, canonical URLs and a sitemap for its own
+`https://<owner>.github.io/<repo>/` — while the canonical site, which has a custom domain, keeps
+serving from the root. See `VITE_SITE_URL`/`VITE_BASE_PATH` in `src/lib/site.ts`.
+
 ## Submitting a plugin
 
 The full walkthrough (with a prefilled "create this file on GitHub" button) lives on the site
