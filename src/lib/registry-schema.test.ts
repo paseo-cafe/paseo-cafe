@@ -35,6 +35,19 @@ describe("registryEntrySchema", () => {
     expect(result.success).toBe(true)
   })
 
+  it.each([
+    "../plugin",
+    "/plugin",
+    "plugin//nested",
+    "plugin;curl-attacker",
+    "plugin with spaces",
+    "x".repeat(501),
+  ])("rejects unsafe plugin path %j", (path) => {
+    expect(
+      registryEntrySchema.safeParse({ repo: "owner/repo", path }).success
+    ).toBe(false)
+  })
+
   it("rejects an unknown platform", () => {
     const result = registryEntrySchema.safeParse({
       repo: "owner/repo",
@@ -72,6 +85,15 @@ describe("registryEntrySchema", () => {
     })
     expect(result.success).toBe(false)
   })
+
+  it.each(["../plugin", "plugin/../../outside", "plugin; echo pwn"])(
+    "rejects unsafe plugin path %s",
+    (path) => {
+      expect(
+        registryEntrySchema.safeParse({ repo: "owner/repo", path }).success
+      ).toBe(false)
+    }
+  )
 
   it("rejects a redundant registry id field", () => {
     const result = registryEntrySchema.safeParse({

@@ -15,15 +15,21 @@ import type {
 } from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
+  DIRECTORY_PLATFORM_LABELS,
   getInstallCommand,
+  getInstallRef,
   getReportPluginIssueUrl,
+  getRepositoryOwner,
+  getRepositoryUrl,
+  getRepositoryUrlAtRef,
   getSiteUrl,
+  HEALTH_KEYS,
   HEALTH_LABELS,
   isOfficialPlugin,
-  isValidInstallPath,
-  isValidRepo,
   stripHtml,
 } from "../shared/directory"
+import { ExpandableSection } from "./ExpandableSection"
+import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 import { openExternal } from "./web"
 
 interface PluginDetailPageProps {
@@ -76,7 +82,6 @@ export function PluginDetailPage({
   const [confirmingUpdate, setConfirmingUpdate] =
     useState<InstalledPlugin | null>(null)
   const [showFullActionError, setShowFullActionError] = useState(false)
-  const [showManifest, setShowManifest] = useState(false)
   const [showReadme, setShowReadme] = useState(false)
 
   const manifestText = useMemo(
@@ -91,40 +96,64 @@ export function PluginDetailPage({
   const styles = useMemo(
     () => ({
       screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-      content: { padding: compact ? 16 : 24, gap: 16, maxWidth: 860 },
+      content: {
+        width: "100%" as const,
+        maxWidth: 960,
+        alignSelf: "center" as const,
+        padding: compact ? 16 : 24,
+        gap: 16,
+      },
       backRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
         gap: 4,
         marginBottom: 4,
       },
-      backText: { color: theme.colors.accent, fontSize: 14 },
+      backText: {
+        color: theme.colors.accent,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 14,
+      },
       headerRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
         gap: 10,
         flexWrap: "wrap" as const,
       },
-      avatar: { width: 32, height: 32, borderRadius: 16 },
+      ownerRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 6,
+      },
+      avatar: { width: 20, height: 20, borderRadius: 10 },
+      ownerText: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 12,
+      },
       title: {
         color: theme.colors.foreground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: compact ? 22 : 28,
         fontWeight: "700" as const,
+        letterSpacing: -0.6,
         flexShrink: 1,
       },
       errorBadge: {
-        borderRadius: 999,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 8,
         paddingVertical: 2,
         backgroundColor: theme.colors.statusDanger,
       },
       errorBadgeText: {
         color: theme.colors.accentForeground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 11,
         fontWeight: "600" as const,
       },
       description: {
         color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 14,
         lineHeight: 20,
       },
@@ -134,20 +163,25 @@ export function PluginDetailPage({
         gap: 6,
       },
       tag: {
-        borderRadius: 999,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 8,
         paddingVertical: 2,
         backgroundColor: theme.colors.surface2,
       },
-      tagText: { color: theme.colors.foregroundMuted, fontSize: 11 },
+      tagText: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 11,
+      },
       requirementTag: {
-        borderRadius: 999,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 8,
         paddingVertical: 2,
         backgroundColor: theme.colors.accent,
       },
       requirementTagText: {
         color: theme.colors.accentForeground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 11,
         fontWeight: "600" as const,
       },
@@ -162,8 +196,16 @@ export function PluginDetailPage({
         alignItems: "center" as const,
         gap: 4,
       },
-      metaText: { color: theme.colors.foregroundMuted, fontSize: 12 },
-      linkText: { color: theme.colors.accent, fontSize: 12 },
+      metaText: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 12,
+      },
+      linkText: {
+        color: theme.colors.accent,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 12,
+      },
       siteButton: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
@@ -171,11 +213,12 @@ export function PluginDetailPage({
         alignSelf: "flex-start" as const,
         paddingHorizontal: 16,
         paddingVertical: 12,
-        borderRadius: 10,
+        borderRadius: CAFE_CONTROL_RADIUS,
         backgroundColor: theme.colors.accent,
       },
       siteButtonText: {
         color: theme.colors.accentForeground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 15,
         fontWeight: "700" as const,
       },
@@ -183,7 +226,7 @@ export function PluginDetailPage({
         gap: 6,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: 10,
+        borderRadius: CAFE_CONTROL_RADIUS,
         padding: 12,
         backgroundColor: theme.colors.surface1,
       },
@@ -194,45 +237,54 @@ export function PluginDetailPage({
       },
       alertTitle: {
         color: theme.colors.foreground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 13,
         fontWeight: "600" as const,
       },
       alertBody: {
         color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 13,
         lineHeight: 19,
       },
       caveatLine: {
         color: theme.colors.statusWarning,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 13,
         lineHeight: 18,
       },
       readmeLabel: {
         color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 10,
+        fontWeight: "600" as const,
         textTransform: "uppercase" as const,
-        letterSpacing: 0.5,
+        letterSpacing: 0.8,
         marginTop: 8,
         marginBottom: 4,
       },
       readmeText: {
         color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 12,
         lineHeight: 18,
-        fontFamily: "monospace" as const,
       },
       errorBox: {
         borderWidth: 1,
         borderColor: theme.colors.statusDanger,
-        borderRadius: 10,
+        borderRadius: CAFE_CONTROL_RADIUS,
         padding: 12,
         gap: 8,
         backgroundColor: theme.colors.surface1,
       },
-      errorText: { color: theme.colors.statusDanger, fontSize: 13 },
+      errorText: {
+        color: theme.colors.statusDanger,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 13,
+      },
       errorDetails: {
         color: theme.colors.foreground,
-        fontFamily: "monospace" as const,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 12,
         lineHeight: 18,
       },
@@ -248,6 +300,7 @@ export function PluginDetailPage({
       },
       errorActionText: {
         color: theme.colors.accent,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 12,
         fontWeight: "600" as const,
       },
@@ -256,15 +309,17 @@ export function PluginDetailPage({
       galleryTile: {
         width: compact ? 220 : 280,
         aspectRatio: 16 / 9,
-        borderRadius: 10,
+        borderRadius: CAFE_CONTROL_RADIUS,
         backgroundColor: theme.colors.surface2,
       },
       section: { gap: 6 },
       label: {
         color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 11,
+        fontWeight: "600" as const,
         textTransform: "uppercase" as const,
-        letterSpacing: 0.5,
+        letterSpacing: 0.8,
       },
       commandRow: {
         flexDirection: "row" as const,
@@ -273,10 +328,10 @@ export function PluginDetailPage({
       },
       command: {
         flex: 1,
-        fontFamily: "monospace" as const,
+        fontFamily: CAFE_MONO_FONT,
         color: theme.colors.foreground,
         backgroundColor: theme.colors.surface1,
-        borderRadius: 8,
+        borderRadius: CAFE_CONTROL_RADIUS,
         padding: 10,
         fontSize: 12,
       },
@@ -284,7 +339,7 @@ export function PluginDetailPage({
         alignItems: "center" as const,
         justifyContent: "center" as const,
         paddingHorizontal: 12,
-        borderRadius: 8,
+        borderRadius: CAFE_CONTROL_RADIUS,
         borderWidth: 1,
         borderColor: theme.colors.border,
       },
@@ -296,31 +351,26 @@ export function PluginDetailPage({
       button: {
         paddingHorizontal: 14,
         paddingVertical: 10,
-        borderRadius: 8,
+        borderRadius: CAFE_CONTROL_RADIUS,
         backgroundColor: theme.colors.accent,
         opacity: installing || updatingId !== null ? 0.6 : 1,
       },
       buttonText: {
         color: theme.colors.accentForeground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 14,
         fontWeight: "600" as const,
-      },
-      manifestHeaderRow: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        flexWrap: "wrap" as const,
-        gap: 8,
       },
       manifestViewer: {
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: 8,
+        borderRadius: CAFE_CONTROL_RADIUS,
         padding: 12,
         backgroundColor: theme.colors.surface1,
       },
       manifestText: {
         color: theme.colors.foreground,
-        fontFamily: "monospace" as const,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 12,
         lineHeight: 18,
       },
@@ -333,29 +383,34 @@ export function PluginDetailPage({
       readmeViewer: {
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: 8,
+        borderRadius: CAFE_CONTROL_RADIUS,
         padding: 12,
         backgroundColor: theme.colors.surface1,
       },
       secondaryButton: {
         paddingHorizontal: 14,
         paddingVertical: 10,
-        borderRadius: 8,
+        borderRadius: CAFE_CONTROL_RADIUS,
         borderWidth: 1,
         borderColor: theme.colors.border,
       },
-      secondaryButtonText: { color: theme.colors.foreground, fontSize: 14 },
+      secondaryButtonText: {
+        color: theme.colors.foreground,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 14,
+      },
       installationList: { gap: 8 },
       installationCard: {
         gap: 8,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: 8,
+        borderRadius: CAFE_CONTROL_RADIUS,
         padding: 10,
         backgroundColor: theme.colors.surface1,
       },
       installationTitle: {
         color: theme.colors.foreground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 13,
         fontWeight: "600" as const,
       },
@@ -370,16 +425,22 @@ export function PluginDetailPage({
         gap: 6,
         width: compact ? ("100%" as const) : ("48%" as const),
       },
-      healthText: { fontSize: 13 },
-      footer: { color: theme.colors.foregroundMuted, fontSize: 11 },
+      healthText: { fontFamily: CAFE_MONO_FONT, fontSize: 13 },
+      footer: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 11,
+      },
       modalBody: { gap: 16 },
       modalTitle: {
         color: theme.colors.foreground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 15,
         fontWeight: "600" as const,
       },
       modalText: {
         color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 13,
         lineHeight: 19,
       },
@@ -388,12 +449,25 @@ export function PluginDetailPage({
   )
 
   const command = getInstallCommand(entry)
+  const installRef = getInstallRef(entry.repoMeta?.defaultBranch)
+  const repositoryUrl = getRepositoryUrl(entry)
+  const updateRepositoryUrl = confirmingUpdate?.latestCommit
+    ? getRepositoryUrlAtRef(entry, confirmingUpdate.latestCommit)
+    : repositoryUrl
+  const repositoryOwner = getRepositoryOwner(entry.repo)
+  const ownerMetadataMatchesRepository =
+    entry.owner?.login?.toLowerCase() === repositoryOwner.toLowerCase()
   const tags = [
     ...entry.categories.map(
       (category) =>
         DIRECTORY_CATEGORY_LABELS[category as DirectoryCategory] ?? category
     ),
-    ...entry.platforms,
+    ...entry.platforms.map(
+      (platform) =>
+        DIRECTORY_PLATFORM_LABELS[
+          platform as keyof typeof DIRECTORY_PLATFORM_LABELS
+        ] ?? platform
+    ),
   ]
   const limitationsText = entry.limitationsNotesHtml
     ? stripHtml(entry.limitationsNotesHtml)
@@ -425,9 +499,7 @@ export function PluginDetailPage({
   const securityFindingsSummary = securityAttestation
     ? `${securityAttestation.blockingFindings} blocking · ${securityAttestation.advisoryFindings} advisory`
     : undefined
-  const healthValues = Object.keys(HEALTH_LABELS).map(
-    (key) => health?.[key as keyof NonNullable<DirectoryEntry["health"]>]
-  )
+  const healthValues = HEALTH_KEYS.map((key) => health?.[key])
   const knownHealthChecks = healthValues.filter(
     (value) => value !== undefined
   ).length
@@ -448,9 +520,9 @@ export function PluginDetailPage({
   const catalogScannedDate = formatDate(entry.scannedAt)
   const securityScannedDate = formatDate(securityAttestation?.scannedAt)
   const securityReportUrl = securityAttestation?.reportUrl
-  const installable =
-    isValidRepo(entry.repo) &&
-    (entry.path === undefined || isValidInstallPath(entry.path))
+  const missingAttestationBranch =
+    securityAttestation?.commit !== undefined && installRef === undefined
+  const installable = command !== undefined && !missingAttestationBranch
   const actionPending = installing || updatingId !== null
   const reportPluginUrl = getReportPluginIssueUrl(entry)
   const actionError = installations.length > 0 ? updateError : installError
@@ -474,19 +546,28 @@ export function PluginDetailPage({
         </Pressable>
 
         <View style={styles.headerRow}>
-          {entry.owner?.avatarUrl ? (
-            <Image
-              accessible={false}
-              source={{ uri: entry.owner.avatarUrl }}
-              style={styles.avatar}
-            />
-          ) : null}
           <Text style={styles.title}>{entry.name}</Text>
           {entry.scanError ? (
             <View style={styles.errorBadge}>
               <Text style={styles.errorBadgeText}>needs attention</Text>
             </View>
           ) : null}
+        </View>
+        <View style={styles.ownerRow}>
+          {ownerMetadataMatchesRepository && entry.owner?.avatarUrl ? (
+            <Image
+              accessible={false}
+              source={{ uri: entry.owner.avatarUrl }}
+              style={styles.avatar}
+            />
+          ) : (
+            <Icon
+              name="Github"
+              size={16}
+              color={theme.colors.foregroundMuted}
+            />
+          )}
+          <Text style={styles.ownerText}>by {repositoryOwner}</Text>
         </View>
 
         {entry.description ? (
@@ -534,7 +615,8 @@ export function PluginDetailPage({
           ) : null}
           <Pressable
             accessibilityRole="link"
-            onPress={() => openExternal(entry.url)}
+            accessibilityLabel={`Open ${entry.name} repository`}
+            onPress={() => openExternal(repositoryUrl)}
           >
             <Text style={styles.linkText}>{entry.repo} ↗</Text>
           </Pressable>
@@ -587,7 +669,16 @@ export function PluginDetailPage({
             </View>
             {entry.platforms.length > 0 ? (
               <Text style={styles.alertBody}>
-                Supported platforms: {entry.platforms.join(", ")}.
+                Supported platforms:{" "}
+                {entry.platforms
+                  .map(
+                    (platform) =>
+                      DIRECTORY_PLATFORM_LABELS[
+                        platform as keyof typeof DIRECTORY_PLATFORM_LABELS
+                      ] ?? platform
+                  )
+                  .join(", ")}
+                .
               </Text>
             ) : null}
             {entry.caveats.map((caveat) => (
@@ -688,18 +779,22 @@ export function PluginDetailPage({
         <View style={styles.section}>
           <Text style={styles.label}>Install</Text>
           <View style={styles.commandRow}>
-            <Text style={styles.command}>{command}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Copy install command"
-              style={styles.copyButton}
-              onPress={async () => {
-                await copyText(command)
-                toast.show("Copied install command")
-              }}
-            >
-              <Icon name="Copy" size={16} color={theme.colors.foreground} />
-            </Pressable>
+            <Text style={styles.command}>
+              {command ?? "Unavailable: invalid repository or plugin path"}
+            </Text>
+            {command ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Copy install command"
+                style={styles.copyButton}
+                onPress={async () => {
+                  await copyText(command)
+                  toast.show("Copied install command")
+                }}
+              >
+                <Icon name="Copy" size={16} color={theme.colors.foreground} />
+              </Pressable>
+            ) : null}
           </View>
           {installNotesText ? (
             <>
@@ -710,28 +805,12 @@ export function PluginDetailPage({
         </View>
 
         {manifestText ? (
-          <View style={styles.section}>
-            <Text style={styles.label}>Manifest</Text>
-            <View style={styles.manifestHeaderRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showManifest
-                    ? `Hide manifest for ${entry.name}`
-                    : `Show manifest for ${entry.name}`
-                }
-                onPress={() => setShowManifest((current) => !current)}
-                style={styles.errorAction}
-              >
-                <Icon
-                  name={showManifest ? "ChevronUp" : "ChevronDown"}
-                  size={14}
-                  color={theme.colors.accent}
-                />
-                <Text style={styles.errorActionText}>
-                  {showManifest ? "Hide JSON" : "View JSON"}
-                </Text>
-              </Pressable>
+          <ExpandableSection
+            title="Paseo manifest"
+            subtitle="Pretty-printed JSON"
+            theme={theme}
+          >
+            <View style={styles.section}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Copy manifest JSON"
@@ -744,15 +823,13 @@ export function PluginDetailPage({
                 <Icon name="Copy" size={14} color={theme.colors.accent} />
                 <Text style={styles.errorActionText}>Copy JSON</Text>
               </Pressable>
-            </View>
-            {showManifest ? (
               <View style={styles.manifestViewer}>
                 <Text selectable style={styles.manifestText}>
                   {manifestText}
                 </Text>
               </View>
-            ) : null}
-          </View>
+            </View>
+          </ExpandableSection>
         ) : null}
 
         {!inventoryAvailable ? (
@@ -849,7 +926,7 @@ export function PluginDetailPage({
             accessibilityRole="link"
             accessibilityLabel={`Open ${entry.name} repository`}
             style={styles.secondaryButton}
-            onPress={() => openExternal(entry.url)}
+            onPress={() => openExternal(repositoryUrl)}
           >
             <Text style={styles.secondaryButtonText}>View repository</Text>
           </Pressable>
@@ -866,8 +943,9 @@ export function PluginDetailPage({
         {inventoryAvailable && installations.length === 0 && !installable ? (
           <View accessibilityRole="alert" style={styles.errorBox}>
             <Text style={styles.errorText}>
-              This listing has an invalid repository or plugin subpath and
-              cannot be installed.
+              {missingAttestationBranch
+                ? "This security-attested listing lacks valid branch metadata. Refresh or update the catalog before installing."
+                : "This listing has an invalid repository or plugin subpath and cannot be installed."}
             </Text>
           </View>
         ) : null}
@@ -926,8 +1004,11 @@ export function PluginDetailPage({
           </View>
         ) : null}
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Security</Text>
+        <ExpandableSection
+          title="Security scan"
+          subtitle={securityStatusLabel}
+          theme={theme}
+        >
           <View style={styles.alert}>
             <View style={styles.alertTitleRow}>
               <Icon
@@ -980,14 +1061,18 @@ export function PluginDetailPage({
               </>
             )}
           </View>
-        </View>
+        </ExpandableSection>
 
         {health ? (
-          <View style={styles.section}>
-            <Text style={styles.label}>Health checks</Text>
+          <ExpandableSection
+            title="Health checks"
+            subtitle={healthSummary}
+            theme={theme}
+          >
             <View style={styles.healthGrid}>
-              {Object.entries(HEALTH_LABELS).map(([key, label]) => {
-                const ok = health[key as keyof typeof health] === true
+              {HEALTH_KEYS.map((key) => {
+                const label = HEALTH_LABELS[key]
+                const ok = health[key] === true
                 return (
                   <View key={key} style={styles.healthItem}>
                     <Icon
@@ -1015,7 +1100,7 @@ export function PluginDetailPage({
                 )
               })}
             </View>
-          </View>
+          </ExpandableSection>
         ) : null}
 
         {entry.scannedAt ? (
@@ -1035,19 +1120,26 @@ export function PluginDetailPage({
           <View style={styles.section}>
             <Text style={styles.label}>Source repository</Text>
             <Text selectable style={styles.modalText}>
-              {entry.url}
+              {repositoryUrl}
             </Text>
           </View>
           <View style={styles.section}>
             <Text style={styles.label}>Install command</Text>
             <View style={styles.commandRow}>
               <Text selectable style={styles.command}>
-                {command}
+                {command ?? "Unavailable: invalid catalog target"}
               </Text>
             </View>
           </View>
           <View style={styles.section}>
             <Text style={styles.label}>Freshness and status</Text>
+            {securityAttestation?.commit && installRef ? (
+              <Text style={styles.modalText}>
+                Before installation, Paseo Cafe verifies that {installRef} still
+                points to scanned commit{" "}
+                {securityAttestation.commit.slice(0, 12)}.
+              </Text>
+            ) : null}
             {sourceUpdatedDate ? (
               <Text style={styles.modalText}>
                 Repository updated: {sourceUpdatedDate}
@@ -1114,7 +1206,7 @@ export function PluginDetailPage({
               accessibilityRole="link"
               accessibilityLabel={`Open ${entry.name} repository`}
               style={styles.secondaryButton}
-              onPress={() => openExternal(entry.url)}
+              onPress={() => openExternal(repositoryUrl)}
             >
               <Text style={styles.secondaryButtonText}>View repository</Text>
             </Pressable>
@@ -1167,11 +1259,18 @@ export function PluginDetailPage({
             Updating replaces trusted, unsandboxed plugin code on this Paseo
             host. Review the source before continuing.
           </Text>
+          {confirmingUpdate?.latestCommit ? (
+            <Text style={styles.modalText}>
+              Review commit {confirmingUpdate.latestCommit.slice(0, 12)} before
+              updating.
+            </Text>
+          ) : null}
           <View style={styles.actionsRow}>
             <Pressable
               accessibilityRole="link"
+              accessibilityLabel={`Open ${entry.name} repository`}
               style={styles.secondaryButton}
-              onPress={() => openExternal(entry.url)}
+              onPress={() => openExternal(updateRepositoryUrl)}
             >
               <Text style={styles.secondaryButtonText}>View repository</Text>
             </Pressable>

@@ -20,15 +20,38 @@ import {
   type Platform,
 } from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
-import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
 
 const SECTION_LIMIT = 6
 const PAGE_SIZE = 12
 
 export const Route = createFileRoute("/")({
   validateSearch: routeSearchSchema,
-  head: () =>
-    seo({ title: SITE_NAME, description: SITE_DESCRIPTION, path: "/" }),
+  head: () => {
+    const metadata = seo({
+      title: SITE_NAME,
+      description: SITE_DESCRIPTION,
+      path: "/",
+    })
+    return {
+      ...metadata,
+      links: [
+        ...metadata.links,
+        {
+          rel: "alternate",
+          type: "text/plain",
+          href: `${SITE_URL}/llms.txt`,
+          title: "LLM-readable catalog index",
+        },
+        {
+          rel: "service-desc",
+          type: "application/vnd.oai.openapi+json",
+          href: `${SITE_URL}/openapi.json`,
+          title: "Catalog OpenAPI document",
+        },
+      ],
+    }
+  },
   component: App,
   loader: () => listPlugins(),
 })

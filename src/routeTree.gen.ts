@@ -10,16 +10,36 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LlmsFullDottxtRouteImport } from './routes/llms-full[.]txt'
+import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as OpenapiDotjsonRouteImport } from './routes/openapi[.]json'
 import { Route as PluginsRouteImport } from './routes/plugins'
 import { Route as SubmitRouteImport } from './routes/submit'
 import { Route as ApiPluginsRouteImport } from './routes/api.plugins'
 import { Route as PluginsIndexRouteImport } from './routes/plugins.index'
 import { Route as PluginsIdRouteImport } from './routes/plugins.$id'
+import { Route as PluginsChar123idChar125DotmdRouteImport } from './routes/plugins.{$id}[.]md'
 import { Route as UserUsernameRouteImport } from './routes/user.$username'
+import { Route as ApiPluginChar123idChar125DotjsonRouteImport } from './routes/api.plugin.{$id}[.]json'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmsFullDottxtRoute = LlmsFullDottxtRouteImport.update({
+  id: '/llms-full.txt',
+  path: '/llms-full.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OpenapiDotjsonRoute = OpenapiDotjsonRouteImport.update({
+  id: '/openapi.json',
+  path: '/openapi.json',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PluginsRoute = PluginsRouteImport.update({
@@ -47,74 +67,120 @@ const PluginsIdRoute = PluginsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => PluginsRoute,
 } as any)
+const PluginsChar123idChar125DotmdRoute =
+  PluginsChar123idChar125DotmdRouteImport.update({
+    id: '/{$id}.md',
+    path: '/{$id}.md',
+    getParentRoute: () => PluginsRoute,
+  } as any)
 const UserUsernameRoute = UserUsernameRouteImport.update({
   id: '/user/$username',
   path: '/user/$username',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPluginChar123idChar125DotjsonRoute =
+  ApiPluginChar123idChar125DotjsonRouteImport.update({
+    id: '/api/plugin/{$id}.json',
+    path: '/api/plugin/{$id}.json',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/openapi.json': typeof OpenapiDotjsonRoute
   '/plugins': typeof PluginsRouteWithChildren
   '/submit': typeof SubmitRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
+  '/plugins/{$id}.md': typeof PluginsChar123idChar125DotmdRoute
   '/user/$username': typeof UserUsernameRoute
   '/plugins/': typeof PluginsIndexRoute
+  '/api/plugin/{$id}.json': typeof ApiPluginChar123idChar125DotjsonRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/openapi.json': typeof OpenapiDotjsonRoute
   '/submit': typeof SubmitRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
+  '/plugins/{$id}.md': typeof PluginsChar123idChar125DotmdRoute
   '/user/$username': typeof UserUsernameRoute
   '/plugins': typeof PluginsIndexRoute
+  '/api/plugin/{$id}.json': typeof ApiPluginChar123idChar125DotjsonRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/openapi.json': typeof OpenapiDotjsonRoute
   '/plugins': typeof PluginsRouteWithChildren
   '/submit': typeof SubmitRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
+  '/plugins/{$id}.md': typeof PluginsChar123idChar125DotmdRoute
   '/user/$username': typeof UserUsernameRoute
   '/plugins/': typeof PluginsIndexRoute
+  '/api/plugin/{$id}.json': typeof ApiPluginChar123idChar125DotjsonRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/openapi.json'
     | '/plugins'
     | '/submit'
     | '/api/plugins'
     | '/plugins/$id'
+    | '/plugins/{$id}.md'
     | '/user/$username'
     | '/plugins/'
+    | '/api/plugin/{$id}.json'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/openapi.json'
     | '/submit'
     | '/api/plugins'
     | '/plugins/$id'
+    | '/plugins/{$id}.md'
     | '/user/$username'
     | '/plugins'
+    | '/api/plugin/{$id}.json'
   id:
     | '__root__'
     | '/'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/openapi.json'
     | '/plugins'
     | '/submit'
     | '/api/plugins'
     | '/plugins/$id'
+    | '/plugins/{$id}.md'
     | '/user/$username'
     | '/plugins/'
+    | '/api/plugin/{$id}.json'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LlmsFullDottxtRoute: typeof LlmsFullDottxtRoute
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
+  OpenapiDotjsonRoute: typeof OpenapiDotjsonRoute
   PluginsRoute: typeof PluginsRouteWithChildren
   SubmitRoute: typeof SubmitRoute
   ApiPluginsRoute: typeof ApiPluginsRoute
   UserUsernameRoute: typeof UserUsernameRoute
+  ApiPluginChar123idChar125DotjsonRoute: typeof ApiPluginChar123idChar125DotjsonRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -124,6 +190,27 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms-full.txt': {
+      id: '/llms-full.txt'
+      path: '/llms-full.txt'
+      fullPath: '/llms-full.txt'
+      preLoaderRoute: typeof LlmsFullDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/openapi.json': {
+      id: '/openapi.json'
+      path: '/openapi.json'
+      fullPath: '/openapi.json'
+      preLoaderRoute: typeof OpenapiDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/plugins': {
@@ -161,6 +248,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PluginsIdRouteImport
       parentRoute: typeof PluginsRoute
     }
+    '/plugins/{$id}.md': {
+      id: '/plugins/{$id}.md'
+      path: '/{$id}.md'
+      fullPath: '/plugins/{$id}.md'
+      preLoaderRoute: typeof PluginsChar123idChar125DotmdRouteImport
+      parentRoute: typeof PluginsRoute
+    }
     '/user/$username': {
       id: '/user/$username'
       path: '/user/$username'
@@ -168,16 +262,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UserUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/plugin/{$id}.json': {
+      id: '/api/plugin/{$id}.json'
+      path: '/api/plugin/{$id}.json'
+      fullPath: '/api/plugin/{$id}.json'
+      preLoaderRoute: typeof ApiPluginChar123idChar125DotjsonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface PluginsRouteChildren {
   PluginsIdRoute: typeof PluginsIdRoute
+  PluginsChar123idChar125DotmdRoute: typeof PluginsChar123idChar125DotmdRoute
   PluginsIndexRoute: typeof PluginsIndexRoute
 }
 
 const PluginsRouteChildren: PluginsRouteChildren = {
   PluginsIdRoute: PluginsIdRoute,
+  PluginsChar123idChar125DotmdRoute: PluginsChar123idChar125DotmdRoute,
   PluginsIndexRoute: PluginsIndexRoute,
 }
 
@@ -186,10 +289,14 @@ const PluginsRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LlmsFullDottxtRoute: LlmsFullDottxtRoute,
+  LlmsDottxtRoute: LlmsDottxtRoute,
+  OpenapiDotjsonRoute: OpenapiDotjsonRoute,
   PluginsRoute: PluginsRouteWithChildren,
   SubmitRoute: SubmitRoute,
   ApiPluginsRoute: ApiPluginsRoute,
   UserUsernameRoute: UserUsernameRoute,
+  ApiPluginChar123idChar125DotjsonRoute: ApiPluginChar123idChar125DotjsonRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

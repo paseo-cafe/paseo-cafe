@@ -291,8 +291,25 @@ describe("scanOne", () => {
     })
     expect(record.url).toBe("https://github.com/acme/widgets/tree/main/plugin")
     expect(record.security).toBeUndefined()
-    expect(record.images).toEqual(["https://cdn.example.com/hosted.png"])
+    expect(record.images).toEqual([])
     expect(record.scanError).toContain("default branch commit unavailable")
+    expect(record.scanError).not.toContain("temporary outage")
+  })
+
+  it("publishes a generic scan error without upstream response details", async () => {
+    const registryRoot = exampleRegistry()
+    vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response("internal service at 10.0.0.7 failed", { status: 500 })
+    ) as typeof fetch
+
+    const record = await scanOne("example.json", {}, registryRoot)
+
+    expect(record.scanError).toBe(
+      "scan failed while reading repository: acme/widgets/plugin"
+    )
+    expect(record.scanError).not.toContain("10.0.0.7")
   })
 
   it("uses the default branch for human links and the commit for attestations and raw assets", async () => {
@@ -316,7 +333,6 @@ describe("scanOne", () => {
     expect(record.security).toEqual(security)
     expect(record.images).toEqual([
       `https://raw.githubusercontent.com/acme/widgets/${REVISION}/plugin/images/local.png`,
-      "https://cdn.example.com/hosted.png",
     ])
     expect(record.scanError).toBeUndefined()
   })

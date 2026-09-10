@@ -1,4 +1,15 @@
 import { z } from "zod"
+import {
+  CATALOG_CATEGORIES,
+  CATALOG_CATEGORY_LABELS,
+  CATALOG_PLATFORM_LABELS,
+  CATALOG_PLATFORMS,
+  type CatalogCategory,
+  type CatalogPlatform,
+  isValidCatalogPath,
+  isValidCatalogRepository,
+  normalizeCatalogCategory,
+} from "../../plugin/shared/catalog"
 
 /**
  * Platforms a plugin is known to run on. There's no upstream standard for
@@ -7,50 +18,17 @@ import { z } from "zod"
  * scripts/scan.ts should prefer that over this the same way it already
  * prefers package.json/paseo-plugin.json over registry defaults elsewhere.
  */
-export const PLATFORMS = ["macos", "linux", "windows"] as const
-export type Platform = (typeof PLATFORMS)[number]
-export const PLATFORM_LABELS: Record<Platform, string> = {
-  macos: "macOS",
-  linux: "Linux",
-  windows: "Windows",
-}
+export const PLATFORMS = CATALOG_PLATFORMS
+export type Platform = CatalogPlatform
+export const PLATFORM_LABELS: Record<Platform, string> = CATALOG_PLATFORM_LABELS
 
 /** Stable taxonomy used by catalog filters. Registry records keep their source values. */
-export const CATEGORIES = [
-  "automation",
-  "browser",
-  "code-review",
-  "git",
-  "github",
-  "monitoring",
-  "orchestration",
-  "productivity",
-  "provider",
-  "theme",
-  "other",
-] as const
-export type Category = (typeof CATEGORIES)[number]
-export const CATEGORY_LABELS: Record<Category, string> = {
-  automation: "Automation",
-  browser: "Browser",
-  "code-review": "Code Review",
-  git: "Git",
-  github: "GitHub",
-  monitoring: "Monitoring",
-  orchestration: "Orchestration",
-  productivity: "Productivity",
-  provider: "Provider",
-  theme: "Theme",
-  other: "Other",
-}
+export const CATEGORIES = CATALOG_CATEGORIES
+export type Category = CatalogCategory
+export const CATEGORY_LABELS: Record<Category, string> = CATALOG_CATEGORY_LABELS
 
 /** Maps free-form registry categories to the stable catalog taxonomy. */
-export function normalizeCategory(category: string): Category {
-  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
-  return Object.hasOwn(CATEGORY_LABELS, normalized)
-    ? (normalized as Category)
-    : "other"
-}
+export const normalizeCategory = normalizeCatalogCategory
 
 export const registryIdSchema = z
   .string()
@@ -73,12 +51,19 @@ export const registryEntrySchema = z
     /** GitHub "owner/repo". Just the repo, not a full URL. */
     repo: z
       .string()
-      .regex(/^[\w.-]+\/[\w.-]+$/, "repo must be in the form 'owner/repo'"),
+      .refine(
+        isValidCatalogRepository,
+        "repo must be a valid GitHub owner/repo"
+      ),
     /**
      * Subpath within the repo containing paseo-plugin.json, for authors who
      * publish several plugins from one repo. Omit for single-plugin repos.
      */
-    path: z.string().optional(),
+    path: z
+      .string()
+      .max(500)
+      .refine(isValidCatalogPath, "path must be a safe repository subpath")
+      .optional(),
     /** Optional curator/author-assigned categories, refined over time. */
     categories: z.array(z.string().min(1)).default([]),
     /**

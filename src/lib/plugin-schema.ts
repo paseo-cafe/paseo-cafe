@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { PLATFORMS } from "@/lib/registry-schema"
+import type { CatalogHealthCheck } from "../../plugin/shared/catalog"
 
 /**
  * The enriched, generated record for one plugin. Never hand-authored — the
@@ -7,14 +8,16 @@ import { PLATFORMS } from "@/lib/registry-schema"
  * reading the plugin's paseo-plugin.json, package.json, README, LICENSE,
  * images/, and the GitHub repo API. The site only ever reads this shape.
  */
-export const pluginHealthSchema = z.object({
+const pluginHealthShape = {
   manifestValid: z.boolean(),
   hasReadme: z.boolean(),
   hasLicense: z.boolean(),
   hasTests: z.boolean(),
   hasTypecheckScript: z.boolean(),
   updatedRecently: z.boolean(),
-})
+} satisfies Record<CatalogHealthCheck, z.ZodType<boolean>>
+
+export const pluginHealthSchema = z.object(pluginHealthShape)
 
 const httpUrlSchema = z
   .string()

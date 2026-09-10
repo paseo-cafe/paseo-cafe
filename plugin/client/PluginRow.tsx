@@ -5,9 +5,11 @@ import { Image, Pressable, Text, View } from "react-native"
 import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
-  HEALTH_LABELS,
+  DIRECTORY_PLATFORM_LABELS,
+  HEALTH_KEYS,
   normalizeDirectoryCategory,
 } from "../shared/directory"
+import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 
 interface PluginRowProps {
   entry: DirectoryEntry
@@ -48,9 +50,7 @@ export function getHealthBadge(entry: DirectoryEntry): BadgeTone | null {
   }
   if (!entry.health) return null
 
-  const values = Object.keys(HEALTH_LABELS).map(
-    (key) => entry.health?.[key as keyof NonNullable<DirectoryEntry["health"]>]
-  )
+  const values = HEALTH_KEYS.map((key) => entry.health?.[key])
   const failed = values.filter((value) => value === false).length
   if (failed > 0) {
     return {
@@ -79,8 +79,8 @@ export function PluginRow({
       row: {
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: 10,
-        padding: compact ? 12 : 16,
+        borderRadius: CAFE_CONTROL_RADIUS,
+        padding: compact ? 12 : 14,
         gap: 8,
         backgroundColor: theme.colors.surface1,
       },
@@ -93,12 +93,14 @@ export function PluginRow({
       avatar: { width: 20, height: 20, borderRadius: 10 },
       name: {
         color: theme.colors.foreground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 16,
         fontWeight: "600" as const,
+        letterSpacing: -0.2,
         flexShrink: 1,
       },
       statusBadge: {
-        borderRadius: 999,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 8,
         paddingVertical: 2,
         backgroundColor: theme.colors.surface2,
@@ -107,6 +109,7 @@ export function PluginRow({
         color: updateAvailable
           ? theme.colors.statusWarning
           : theme.colors.statusSuccess,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 11,
         fontWeight: "600" as const,
       }),
@@ -120,7 +123,7 @@ export function PluginRow({
         flexDirection: "row" as const,
         alignItems: "center" as const,
         gap: 4,
-        borderRadius: 999,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 8,
         paddingVertical: 2,
         backgroundColor: theme.colors.surface2,
@@ -136,21 +139,31 @@ export function PluginRow({
                 : tone === "accent"
                   ? theme.colors.accent
                   : theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 11,
       }),
-      description: { color: theme.colors.foregroundMuted, fontSize: 13 },
+      description: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 13,
+        lineHeight: 19,
+      },
       tagsRow: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
         gap: 6,
       },
       tag: {
-        borderRadius: 999,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 8,
         paddingVertical: 2,
         backgroundColor: theme.colors.surface2,
       },
-      tagText: { color: theme.colors.foregroundMuted, fontSize: 11 },
+      tagText: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 11,
+      },
     }),
     [theme, compact]
   )
@@ -160,7 +173,12 @@ export function PluginRow({
       (category) =>
         DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(category)]
     ),
-    ...entry.platforms,
+    ...entry.platforms.map(
+      (platform) =>
+        DIRECTORY_PLATFORM_LABELS[
+          platform as keyof typeof DIRECTORY_PLATFORM_LABELS
+        ] ?? platform
+    ),
   ]
   const hasTagsRow = tags.length > 0
 

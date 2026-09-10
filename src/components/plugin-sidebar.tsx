@@ -13,11 +13,13 @@ import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
 import { formatDate } from "@/lib/format-date"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { pluginOwnerLogin } from "@/lib/plugin-schema"
+import { pluginRepositoryUrl } from "@/lib/plugin-source"
 import { normalizeCategory, PLATFORM_LABELS } from "@/lib/registry-schema"
 import { buildReportIssueUrl } from "@/lib/report-issue-url"
 
 export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
   const username = pluginOwnerLogin(plugin)
+  const repositoryUrl = pluginRepositoryUrl(plugin)
 
   return (
     <aside className="flex flex-col gap-6 bg-card p-3 lg:sticky lg:top-20 lg:w-1/3 lg:shrink-0 lg:self-start">
@@ -42,7 +44,7 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
 
       <div className="flex flex-col gap-1.5 text-sm">
         <a
-          href={plugin.url}
+          href={repositoryUrl}
           target="_blank"
           rel="noreferrer"
           className="flex items-center gap-1.5 text-foreground hover:underline"
