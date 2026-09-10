@@ -1,6 +1,10 @@
+import { execFileSync } from "node:child_process"
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { boundedReport } from "./publish.ts"
-import { renderReport } from "./scan.ts"
+import { checkoutTargetRepository, renderReport } from "./scan.ts"
 import {
   REPORT_DETAILS_OPEN,
   type SecurityFinding,
@@ -40,6 +44,58 @@ function boundaryFinding(path: string): SecurityFinding {
     message: "cross-runtime import boundary violated",
   }
 }
+
+describe("target checkout", () => {
+  it("scans the immutable target commit instead of repository HEAD", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-checkout-"))
+    const source = join(root, "source")
+    const destination = join(root, "checkout")
+    execFileSync("git", ["init", "--quiet", source])
+    writeFileSync(join(source, "value.txt"), "selected")
+    execFileSync("git", ["add", "value.txt"], { cwd: source })
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=Scanner Test",
+        "-c",
+        "user.email=scanner@example.com",
+        "commit",
+        "--quiet",
+        "-m",
+        "selected",
+      ],
+      { cwd: source }
+    )
+    const selected = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: source,
+      encoding: "utf8",
+    }).trim()
+    writeFileSync(join(source, "value.txt"), "new head")
+    execFileSync("git", ["add", "value.txt"], { cwd: source })
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=Scanner Test",
+        "-c",
+        "user.email=scanner@example.com",
+        "commit",
+        "--quiet",
+        "-m",
+        "head",
+      ],
+      { cwd: source }
+    )
+
+    expect(checkoutTargetRepository(source, selected, destination)).toBe(
+      selected
+    )
+    expect(readFileSync(join(destination, "value.txt"), "utf8")).toBe(
+      "selected"
+    )
+  })
+})
 
 describe("security report", () => {
   it("renders each rule's guidance once across all plugins", () => {

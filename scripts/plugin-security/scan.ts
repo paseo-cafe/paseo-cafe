@@ -59,6 +59,49 @@ function main() {
     process.exitCode = 1
   }
 }
+function runGit(
+  args: string[],
+  cwd: string | undefined,
+  env: NodeJS.ProcessEnv
+): string {
+  const result = spawnSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
+    cwd,
+    env,
+    encoding: "utf8",
+    timeout: CLONE_TIMEOUT_MS,
+  })
+  if (result.status !== 0)
+    throw new Error(
+      result.error?.message ||
+        result.stderr ||
+        result.stdout ||
+        "git command failed"
+    )
+  return result.stdout.trim()
+}
+
+export function checkoutTargetRepository(
+  source: string,
+  commit: string,
+  destination: string,
+  env: NodeJS.ProcessEnv = scrubEnv()
+): string {
+  runGit(["init", "--quiet", destination], undefined, env)
+  runGit(
+    ["fetch", "--depth=1", "--filter=blob:none", "--no-tags", source, commit],
+    destination,
+    env
+  )
+  runGit(
+    ["checkout", "--quiet", "--detach", "--force", "FETCH_HEAD"],
+    destination,
+    env
+  )
+  const actualCommit = runGit(["rev-parse", "HEAD"], destination, env)
+  if (actualCommit !== commit)
+    throw new Error(`checked out ${actualCommit}, expected ${commit}`)
+  return actualCommit
+}
 
 function scanTarget(
   target: SecurityTarget,
@@ -67,38 +110,12 @@ function scanTarget(
   const temp = mkdtempSync(join(tmpdir(), "paseo-plugin-security-"))
   try {
     const repoDir = join(temp, "repo")
-    const env = scrubEnv()
-    const clone = spawnSync(
-      "git",
-      [
-        "-c",
-        "core.hooksPath=/dev/null",
-        "clone",
-        "--depth=1",
-        "--filter=blob:none",
-        "--no-tags",
-        "--single-branch",
-        `https://github.com/${target.repo}.git`,
-        repoDir,
-      ],
-      { env, encoding: "utf8", timeout: CLONE_TIMEOUT_MS }
+    const commit = checkoutTargetRepository(
+      `https://github.com/${target.repo}.git`,
+      target.commit,
+      repoDir,
+      scrubEnv()
     )
-    if (clone.status !== 0) {
-      throw new Error(
-        clone.error?.message ||
-          clone.stderr ||
-          clone.stdout ||
-          "git clone failed"
-      )
-    }
-    const rev = spawnSync("git", ["rev-parse", "HEAD"], {
-      cwd: repoDir,
-      env,
-      encoding: "utf8",
-    })
-    if (rev.status !== 0) {
-      throw new Error(rev.stderr || rev.stdout || "git rev-parse failed")
-    }
     const staticResult = scanStaticFiles({
       root: repoDir,
       pluginPath: target.path ?? ".",
@@ -109,7 +126,7 @@ function scanTarget(
       (finding) => finding.blocking
     ).length
     return {
-      commit: rev.stdout.trim(),
+      commit,
       scannedAt: generatedAt,
       status: blockingFindings ? "failed" : "passed",
       blockingFindings,

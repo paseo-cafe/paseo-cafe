@@ -82,7 +82,21 @@ describe("scanStaticFiles", () => {
       scanStaticFiles({ root: legacy }).findings.map(
         ({ tool, ruleId }) => `${tool}/${ruleId}`
       )
-    ).toEqual(["entrypoint/legacy-index", "manifest/missing"])
+    ).toEqual(["manifest/missing", "entrypoint/legacy-index"])
+
+    writeFileSync(
+      join(legacy, "paseo-plugin.json"),
+      JSON.stringify({ id: "plugin", requirements: { paseo: ">=0.8.0" } })
+    )
+    writeFileSync(
+      join(legacy, "index.server.ts"),
+      "export default () => () => {}"
+    )
+    expect(
+      scanStaticFiles({ root: legacy, registryId: "plugin" }).findings.some(
+        ({ ruleId }) => ruleId === "legacy-index"
+      )
+    ).toBe(false)
   })
 
   it("ignores nested index files outside the plugin root", () => {
@@ -215,14 +229,84 @@ describe("scanStaticFiles", () => {
       ({ ruleId, path }) => `${ruleId}:${path}`
     )
 
-    expect(findings).toEqual([
-      "unsupported-sdk-import:client/private.ts",
-      "runtime-module-import:index.client.ts",
-      "runtime-module-import:index.client.ts",
-      "invalid-module-location:index.client.ts",
-      "runtime-module-import:index.server.ts",
-      "runtime-module-import:shared/contract.ts",
-    ])
+    expect(findings.sort()).toEqual(
+      [
+        "unsupported-sdk-import:client/private.ts",
+        "runtime-module-import:index.client.ts",
+        "runtime-module-import:index.client.ts",
+        "invalid-module-location:index.client.ts",
+        "runtime-module-import:index.server.ts",
+        "runtime-module-import:shared/contract.ts",
+      ].sort()
+    )
+  })
+  it("checks absolute and triple-slash imports without rejecting valid barrels", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    mkdirSync(join(root, "client", "node_modules", "dependency"), {
+      recursive: true,
+    })
+    mkdirSync(join(root, "node_modules", "root-dependency"), {
+      recursive: true,
+    })
+    mkdirSync(join(root, "server"))
+    mkdirSync(join(root, "shared"))
+    writeFileSync(
+      join(root, "paseo-plugin.json"),
+      JSON.stringify({ id: "plugin", requirements: { paseo: ">=0.8.0" } })
+    )
+    writeFileSync(
+      join(root, "tsconfig.json"),
+      JSON.stringify({
+        compilerOptions: {
+          baseUrl: ".",
+          paths: { "#server/*": ["server/*"] },
+        },
+      })
+    )
+    writeFileSync(
+      join(root, "index.client.ts"),
+      'import "./client"\nimport "/tmp/outside.ts"\nimport "#server/handler"\nimport "constructor"\nimport "root-dependency"'
+    )
+    writeFileSync(
+      join(root, "client", "index.ts"),
+      'import "./node_modules/dependency"\nexport default 1'
+    )
+    writeFileSync(
+      join(root, "client", "node_modules", "dependency", "index.js"),
+      'require("node:fs")'
+    )
+    writeFileSync(
+      join(root, "node_modules", "root-dependency", "package.json"),
+      JSON.stringify({ name: "root-dependency", main: "index.js" })
+    )
+    writeFileSync(
+      join(root, "node_modules", "root-dependency", "index.js"),
+      'require("node:child_process")'
+    )
+    writeFileSync(
+      join(root, "shared", "contract.ts"),
+      '/// <reference path="../server/handler.ts" />'
+    )
+    writeFileSync(
+      join(root, "server", "handler.ts"),
+      '/// <reference types="@tanstack/react-query" />'
+    )
+
+    const findings = scanStaticFiles({
+      root,
+      registryId: "plugin",
+    }).findings.map(({ ruleId, path }) => `${ruleId}:${path}`)
+
+    expect(findings.sort()).toEqual(
+      [
+        "invalid-module-location:index.client.ts",
+        "cross-runtime-import:index.client.ts",
+        "runtime-module-import:client/node_modules/dependency/index.js",
+        "runtime-module-import:node_modules/root-dependency/index.js",
+        "runtime-module-import:server/handler.ts",
+        "cross-runtime-import:shared/contract.ts",
+      ].sort()
+    )
   })
 
   it("flags symlinks", () => {
@@ -286,5 +370,33 @@ describe("scanStaticFiles", () => {
 
     expect(result.findings.some((f) => f.ruleId === "size-limit")).toBe(true)
     expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
+  })
+
+  it("stops reading before exceeding the aggregate byte limit", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    writeFileSync(join(root, "first.bin"), Buffer.alloc(1_100_000))
+    writeFileSync(join(root, "second.bin"), Buffer.alloc(1_100_000))
+
+    const result = scanStaticFiles({ root })
+
+    expect(result.files).toBe(1)
+    expect(result.bytes).toBe(1_100_000)
+    expect(
+      result.findings.some((finding) => finding.ruleId === "incomplete")
+    ).toBe(true)
+  })
+
+  it("stops reading after the global file-count limit", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    for (let index = 0; index < 250; index += 1)
+      writeFileSync(join(root, `${index.toString().padStart(3, "0")}.txt`), "x")
+
+    const result = scanStaticFiles({ root })
+
+    expect(result.files).toBe(200)
+    expect(result.bytes).toBe(200)
+    expect(
+      result.findings.some((finding) => finding.ruleId === "incomplete")
+    ).toBe(true)
   })
 })
