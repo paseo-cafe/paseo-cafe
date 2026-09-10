@@ -23,7 +23,8 @@ export const OFFICIAL_GITHUB_ORG = "paseo-cafe"
 // for a repo it doesn't actually point the install action at.
 export function isOfficialPlugin(entry: { repo: string }): boolean {
   return (
-    entry.repo.split("/")[0]?.toLowerCase() === OFFICIAL_GITHUB_ORG.toLowerCase()
+    entry.repo.split("/")[0]?.toLowerCase() ===
+    OFFICIAL_GITHUB_ORG.toLowerCase()
   )
 }
 const MAX_HTTP_URL_LENGTH = 2_048
