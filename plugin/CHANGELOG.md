@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/paseo-cafe/paseo-cafe/compare/v0.1.0...v0.1.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **plugin:** sanitize Electron environment for CLI calls ([#47](https://github.com/paseo-cafe/paseo-cafe/issues/47)) ([5fa5851](https://github.com/paseo-cafe/paseo-cafe/commit/5fa585110a8dfffc354da2819dbb86bda249838b))
+
 ## 0.1.0 (2026-09-10)
 
 
