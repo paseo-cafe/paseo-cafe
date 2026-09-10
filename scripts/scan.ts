@@ -30,6 +30,7 @@ import { renderMarkdownToHtml } from "../src/lib/markdown.ts"
 import type { PluginRecord, PluginSecurity } from "../src/lib/plugin-schema.ts"
 import {
   gitCommitSchema,
+  pluginOwnerLogin,
   pluginRecordSchema,
   pluginSecuritySchema,
 } from "../src/lib/plugin-schema.ts"
@@ -410,6 +411,10 @@ function writeSitemap(records: PluginRecord[]) {
     { path: "/submit", changefreq: "monthly" },
   ]
 
+  // One entry per distinct owner login — /user/$username pages are indexable
+  // too, same as a plugin's own page (see plugins-data.ts's listPluginsByOwner).
+  const ownerLogins = [...new Set(records.map(pluginOwnerLogin))].sort()
+
   const urls = [
     ...staticPages.map(
       ({ path, changefreq }) =>
@@ -418,6 +423,10 @@ function writeSitemap(records: PluginRecord[]) {
     ...records.map(
       (r) =>
         `  <url><loc>${SITE_URL}/plugins/${r.id}</loc><lastmod>${(r.repoMeta?.pushedAt ?? r.scannedAt).slice(0, 10)}</lastmod></url>`
+    ),
+    ...ownerLogins.map(
+      (login) =>
+        `  <url><loc>${SITE_URL}/user/${encodeURIComponent(login)}</loc></url>`
     ),
   ]
 
