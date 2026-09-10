@@ -11,6 +11,49 @@ const MARKDOWN_IMAGE_RE =
 // A raw <img src="..."> tag — same GitHub-README-as-HTML pattern as <video src> in videos.ts.
 const IMG_TAG_RE = /<img[^>]*\ssrc=["']([^"'<>]+)["'][^>]*>/gi
 
+// Status badges (npm version, build, license, coverage, etc.) are valid
+// markdown images and match MARKDOWN_IMAGE_RE/IMG_TAG_RE just like a real
+// screenshot, but they don't belong in a media gallery. Filter by known
+// badge-hosting domains rather than by file extension — badges are almost
+// always .svg, but so are plenty of legitimate diagrams/screenshots.
+const BADGE_HOSTS = new Set([
+  "img.shields.io",
+  "shields.io",
+  "badge.fury.io",
+  "badgen.net",
+  "forthebadge.com",
+  "coveralls.io",
+  "codecov.io",
+  "travis-ci.org",
+  "travis-ci.com",
+  "circleci.com",
+  "david-dm.org",
+  "deepsource.io",
+  "snyk.io",
+  "visitor-badge.glitch.me",
+  "static.pepy.tech",
+  "img.badgesize.io",
+])
+
+function isBadgeImage(url: string): boolean {
+  let hostname: string
+  try {
+    hostname = new URL(url).hostname.toLowerCase()
+  } catch {
+    // Relative path — can't be a badge host.
+    return false
+  }
+  if (BADGE_HOSTS.has(hostname)) return true
+  // GitHub Actions workflow status badge, e.g.
+  // github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg
+  if (
+    hostname === "github.com" &&
+    /\/workflows\/.*badge\.svg(?:[?#]|$)/i.test(url)
+  )
+    return true
+  return false
+}
+
 /**
  * Best-effort extraction of image references from a README: markdown image
  * syntax and raw <img> tags. Deliberately broader than an images/ directory
@@ -37,7 +80,8 @@ export function extractReadmeImages(readme: string): string[] {
       !trimmed ||
       assetLinks.has(trimmed) ||
       seen.has(trimmed) ||
-      images.length >= MAX_README_IMAGES
+      images.length >= MAX_README_IMAGES ||
+      isBadgeImage(trimmed)
     ) {
       return
     }

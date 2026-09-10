@@ -1,9 +1,9 @@
-import { IconBrandGithub, IconPuzzle } from "@tabler/icons-react"
+import { IconBrandGithub } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
 import { ModeToggle } from "@/components/mode-toggle"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
 import { SITE_NAME, SITE_REPO } from "@/lib/site"
-import { HOME_SEARCH_DEFAULT } from "@/routes/index"
 
 export function SiteHeader() {
   const isMobile = useIsMobile()
@@ -17,7 +17,7 @@ export function SiteHeader() {
           className="flex flex-col justify-center"
         >
           <span className="flex items-center gap-2 font-medium">
-            <IconPuzzle className="size-5" />
+            <img src="/favicon.svg" alt="" className="size-5" />
             {!isMobile ? SITE_NAME : null}
           </span>
         </Link>

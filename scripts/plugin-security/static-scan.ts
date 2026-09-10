@@ -1,6 +1,15 @@
 #!/usr/bin/env bun
-import { lstatSync, readdirSync, readFileSync } from "node:fs"
-import { dirname, join, normalize, relative, resolve } from "node:path"
+import { existsSync, lstatSync, opendirSync, readFileSync } from "node:fs"
+import { isBuiltin } from "node:module"
+import {
+  dirname,
+  isAbsolute,
+  join,
+  normalize,
+  relative,
+  resolve,
+  win32,
+} from "node:path"
 import * as semver from "semver"
 import * as ts from "typescript"
 import type { SecurityFinding } from "./shared.ts"
@@ -19,13 +28,153 @@ export type StaticScanOutput = {
 const MAX_FILES = 200
 const MAX_BYTES = 2_000_000
 const MAX_DEPTH = 6
+type ScanState = {
+  files: number
+  bytes: number
+  incomplete: boolean
+  manifest: boolean
+  clientEntry: boolean
+  serverEntry: boolean
+  legacyEntry: string | null
+  sources: Map<string, string>
+}
+
+const PLUGIN_ID = /^[a-z][a-z0-9-]*$/
+const CODE_MODULE = /\.[cm]?[jt]sx?$/
+const RUNTIME_ENTRY = /^index\.(client|server)\.(?:ts|tsx)$/
+const LEGACY_ENTRY = /^index\.(?:ts|tsx)$/
+const CLIENT_ONLY_SDK: Record<string, true> = {
+  "@getpaseo/plugin/client": true,
+  "@getpaseo/plugin/client/ui": true,
+  "@getpaseo/plugin/client/react-native": true,
+}
+const SERVER_ONLY_SDK: Record<string, true> = {
+  "@getpaseo/plugin/server": true,
+  "@getpaseo/plugin/server/provider": true,
+  "@getpaseo/plugin/server/acp": true,
+}
+const SUPPORTED_SDK: Record<string, true> = {
+  "@getpaseo/plugin": true,
+  ...CLIENT_ONLY_SDK,
+  ...SERVER_ONLY_SDK,
+}
+const CLIENT_ONLY_MODULE =
+  /^(?:(?:@types\/)?react(?:-dom|-native)?|use-sync-external-store|@tanstack\/react-query)(?:\/|$)/
+type ImportResolver = (
+  specifier: string,
+  importer: string
+) => string | undefined
+
+function createImportResolver(directory: string): ImportResolver {
+  const configFile = ts.findConfigFile(directory, ts.sys.fileExists)
+  const config = configFile
+    ? ts.getParsedCommandLineOfConfigFile(
+        configFile,
+        {},
+        {
+          ...ts.sys,
+          onUnRecoverableConfigFileDiagnostic(diagnostic) {
+            throw new Error(
+              ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")
+            )
+          },
+        }
+      )
+    : undefined
+  const options = {
+    ...config?.options,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    allowJs: true,
+  }
+  const cache = ts.createModuleResolutionCache(
+    directory,
+    (file) => file,
+    options
+  )
+  return (specifier, importer) => {
+    const resolvedModule = ts.resolveModuleName(
+      specifier,
+      importer,
+      options,
+      ts.sys,
+      cache
+    ).resolvedModule
+    return resolvedModule?.resolvedFileName
+  }
+}
 
 export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
   const root = resolve(input.root, input.pluginPath ?? ".")
-  const state = { files: 0, bytes: 0, incomplete: false }
+  const state: ScanState = {
+    files: 0,
+    bytes: 0,
+    incomplete: false,
+    manifest: false,
+    clientEntry: false,
+    serverEntry: false,
+    legacyEntry: null,
+    sources: new Map(),
+  }
   const findings: SecurityFinding[] = []
   const buildCommands: string[][] = []
-  walk(root, root, 0, state, findings, buildCommands, input.registryId)
+  const resolveImport = createImportResolver(root)
+  walk(
+    root,
+    root,
+    0,
+    state,
+    findings,
+    buildCommands,
+    resolveImport,
+    input.registryId
+  )
+  const checkedImports = new Set<string>()
+  for (const [path, content] of state.sources)
+    scanBoundaries(
+      content,
+      path,
+      root,
+      resolveImport,
+      findings,
+      state.sources,
+      checkedImports
+    )
+  if (!state.manifest)
+    findings.push(
+      finding(
+        "manifest",
+        "missing",
+        "high",
+        true,
+        "paseo-plugin.json",
+        "plugin manifest is missing"
+      )
+    )
+  if (!state.clientEntry && !state.serverEntry) {
+    if (state.legacyEntry)
+      findings.push(
+        finding(
+          "entrypoint",
+          "legacy-index",
+          "high",
+          true,
+          state.legacyEntry,
+          "legacy-only index.ts or index.tsx is rejected"
+        )
+      )
+    else
+      findings.push(
+        finding(
+          "entrypoint",
+          "missing",
+          "high",
+          true,
+          ".",
+          "plugin has no Paseo 0.8 runtime entry"
+        )
+      )
+  }
   if (state.incomplete)
     findings.push(
       finding(
@@ -44,56 +193,85 @@ function walk(
   base: string,
   dir: string,
   depth: number,
-  state: { files: number; bytes: number; incomplete: boolean },
+  state: ScanState,
   findings: SecurityFinding[],
   buildCommands: string[][],
+  resolveImport: ImportResolver,
   registryId?: string
-) {
+): boolean {
   if (depth > MAX_DEPTH) {
     state.incomplete = true
-    return
+    return false
   }
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name)
-    const rel = relative(base, full) || entry.name
-    if (entry.isDirectory() && entry.name === ".git") continue
-    if (entry.isSymbolicLink()) {
-      state.incomplete = true
-      findings.push(
-        finding("scanner", "symlink", "high", true, rel, "symlink rejected")
-      )
-      continue
-    }
-    const meta = lstatSync(full)
-    if (meta.size > MAX_BYTES) {
-      state.incomplete = true
-      findings.push(
-        finding(
-          "scanner",
-          "size-limit",
-          "high",
-          true,
-          rel,
-          "file exceeds size budget"
+  const directory = opendirSync(dir)
+  try {
+    for (
+      let entry = directory.readSync();
+      entry !== null;
+      entry = directory.readSync()
+    ) {
+      const full = join(dir, entry.name)
+      const rel = relative(base, full) || entry.name
+      if (entry.isDirectory() && entry.name === ".git") continue
+      if (entry.isSymbolicLink()) {
+        state.incomplete = true
+        findings.push(
+          finding("scanner", "symlink", "high", true, rel, "symlink rejected")
         )
-      )
-      continue
+        continue
+      }
+      const meta = lstatSync(full)
+      if (entry.isDirectory()) {
+        if (
+          !walk(
+            base,
+            full,
+            depth + 1,
+            state,
+            findings,
+            buildCommands,
+            resolveImport,
+            registryId
+          )
+        )
+          return false
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (meta.size > MAX_BYTES) {
+        state.incomplete = true
+        findings.push(
+          finding(
+            "scanner",
+            "size-limit",
+            "high",
+            true,
+            rel,
+            "file exceeds size budget"
+          )
+        )
+        return false
+      }
+      if (state.files >= MAX_FILES || state.bytes + meta.size > MAX_BYTES) {
+        state.incomplete = true
+        return false
+      }
+      state.files += 1
+      state.bytes += meta.size
+      const content = readFileSync(full, "utf8")
+      if (rel === "paseo-plugin.json") {
+        state.manifest = true
+        validateManifest(content, rel, registryId, findings, buildCommands)
+      }
+      const entryMatch = RUNTIME_ENTRY.exec(rel)
+      if (entryMatch?.[1] === "client") state.clientEntry = true
+      if (entryMatch?.[1] === "server") state.serverEntry = true
+      if (LEGACY_ENTRY.test(rel)) state.legacyEntry = rel
+      if (CODE_MODULE.test(rel)) state.sources.set(rel, content)
     }
-    if (entry.isDirectory()) {
-      walk(base, full, depth + 1, state, findings, buildCommands, registryId)
-      continue
-    }
-    if (!entry.isFile()) continue
-    state.files += 1
-    if (state.files > MAX_FILES) state.incomplete = true
-    const content = readFileSync(full, "utf8")
-    state.bytes += meta.size
-    if (state.bytes > MAX_BYTES) state.incomplete = true
-    if (entry.name === "paseo-plugin.json")
-      validateManifest(content, rel, registryId, findings, buildCommands)
-    if (/^(?:index\.(?:client|server)\.(?:ts|tsx)|index\.ts)$/.test(rel))
-      validateEntrypoint(entry.name, rel, findings)
-    scanBoundaries(content, rel, findings)
+    return true
+  } finally {
+    directory.closeSync()
   }
 }
 
@@ -105,10 +283,14 @@ function validateManifest(
   buildCommands: string[][]
 ) {
   try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const value = JSON.parse(raw) as unknown
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw new Error("manifest must be an object")
+    const parsed = value as Record<string, unknown>
     if (
       typeof parsed.id !== "string" ||
-      (registryId && parsed.id !== registryId)
+      !PLUGIN_ID.test(parsed.id) ||
+      (registryId !== undefined && parsed.id !== registryId)
     )
       findings.push(
         finding(
@@ -117,40 +299,62 @@ function validateManifest(
           "high",
           true,
           path,
-          "manifest id must match registry id"
+          "manifest id must be lowercase kebab-case and match registry id"
         )
       )
     const req = parsed.requirements
-    if (req !== undefined) {
-      if (!req || typeof req !== "object" || Array.isArray(req))
-        findings.push(
-          finding(
-            "manifest",
-            "requirements",
-            "high",
-            true,
-            path,
-            "requirements must be an object"
-          )
+    if (req === undefined) {
+      findings.push(
+        finding(
+          "manifest",
+          "requirements.paseo",
+          "high",
+          true,
+          path,
+          "requirements.paseo is required for Paseo 0.8 plugins"
         )
-      else {
-        const paseo = (req as { paseo?: unknown }).paseo
-        if (
-          paseo !== undefined &&
-          (typeof paseo !== "string" ||
-            !semver.validRange(paseo, { loose: false }))
+      )
+    } else if (!req || typeof req !== "object" || Array.isArray(req)) {
+      findings.push(
+        finding(
+          "manifest",
+          "requirements",
+          "high",
+          true,
+          path,
+          "requirements must be an object"
         )
+      )
+    } else {
+      const requirements = req as Record<string, unknown>
+      for (const key of Object.keys(requirements))
+        if (key !== "paseo")
           findings.push(
             finding(
               "manifest",
-              "requirements.paseo",
+              "requirements.unknown",
               "high",
               true,
               path,
-              "invalid requirements.paseo semver range"
+              `unknown manifest requirement ${key}`
             )
           )
-      }
+      const paseo = requirements.paseo
+      const range =
+        typeof paseo === "string" && paseo.trim().length > 0
+          ? semver.validRange(paseo, { loose: false })
+          : null
+      if (!range || !semver.intersects(range, ">=0.8.0"))
+        findings.push(
+          finding(
+            "manifest",
+            "requirements.paseo",
+            "high",
+            true,
+            path,
+            "requirements.paseo must be a valid range targeting Paseo 0.8 or newer"
+          )
+        )
     }
     if (parsed.build !== undefined) {
       if (
@@ -160,7 +364,7 @@ function validateManifest(
           (cmd) =>
             Array.isArray(cmd) &&
             cmd.length > 0 &&
-            cmd.every((arg) => typeof arg === "string" && arg.length > 0)
+            cmd.every((arg) => typeof arg === "string" && arg.trim().length > 0)
         )
       )
         findings.push(
@@ -181,8 +385,8 @@ function validateManifest(
           finding(
             "manifest",
             `unknown:${key}`,
-            "medium",
-            false,
+            "high",
+            true,
             path,
             `unknown manifest key ${key}`
           )
@@ -193,28 +397,12 @@ function validateManifest(
     )
   }
 }
-function validateEntrypoint(
-  name: string,
-  path: string,
-  findings: SecurityFinding[]
-) {
-  if (name === "index.ts")
-    findings.push(
-      finding(
-        "entrypoint",
-        "legacy-index",
-        "high",
-        true,
-        path,
-        "legacy-only index.ts is rejected"
-      )
-    )
-}
 type PluginRuntime = "client" | "server" | "shared"
+type PluginModuleLocation = PluginRuntime | "invalid"
 
-function runtimeForPath(path: string): PluginRuntime | null {
+function runtimeOwnerForPath(path: string): PluginRuntime | null {
   const parts = path.split(/[\\/]/)
-  const directory = parts.length > 1 ? parts[0] : undefined
+  const directory = parts[0]
   if (
     directory === "client" ||
     directory === "server" ||
@@ -223,24 +411,96 @@ function runtimeForPath(path: string): PluginRuntime | null {
     return directory
 
   const filename = parts.at(-1)
-  if (/^index\.client\.(?:ts|tsx)$/.test(filename ?? "")) return "client"
-  if (/^index\.server\.(?:ts|tsx)$/.test(filename ?? "")) return "server"
+  if (parts.length === 1 && /^index\.client\.(?:ts|tsx)$/.test(filename ?? ""))
+    return "client"
+  if (parts.length === 1 && /^index\.server\.(?:ts|tsx)$/.test(filename ?? ""))
+    return "server"
   return null
 }
 
-function importedRuntime(
-  path: string,
-  specifier: string
-): PluginRuntime | null {
-  if (specifier.startsWith("."))
-    return runtimeForPath(normalize(join(dirname(path), specifier)))
+function runtimeForPath(path: string): PluginModuleLocation | null {
+  const parts = path.split(/[\\/]/)
+  if (parts[0] === "..") return "invalid"
+  if (parts.includes("node_modules")) return null
+  return runtimeOwnerForPath(path) ?? "invalid"
+}
 
-  const directory = specifier.split("/")[0]
-  return directory === "client" ||
-    directory === "server" ||
-    directory === "shared"
-    ? directory
-    : null
+function containsPath(directory: string, path: string): boolean {
+  const nested = relative(directory, path)
+  return nested === "" || (!nested.startsWith("..") && !isAbsolute(nested))
+}
+
+function dependencyName(specifier: string): string {
+  const segments = specifier.split("/")
+  return specifier.startsWith("@")
+    ? segments.slice(0, 2).join("/")
+    : segments[0]
+}
+
+function isExternalDependency(
+  base: string,
+  specifier: string,
+  resolvedPath: string
+): boolean {
+  const expectedName = dependencyName(specifier)
+  for (
+    let directory = dirname(resolvedPath);
+    ;
+    directory = dirname(directory)
+  ) {
+    const manifestPath = join(directory, "package.json")
+    if (existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+          name?: unknown
+        }
+        if (manifest.name === expectedName)
+          return (
+            !containsPath(base, directory) && !containsPath(directory, base)
+          )
+      } catch {
+        return false
+      }
+    }
+    const parent = dirname(directory)
+    if (parent === directory) return false
+  }
+}
+
+type ImportedModule = {
+  location: PluginModuleLocation | null
+  path?: string
+}
+
+function importedModule(
+  base: string,
+  path: string,
+  specifier: string,
+  resolveImport: ImportResolver
+): ImportedModule {
+  if (win32.isAbsolute(specifier) && !isAbsolute(specifier))
+    return { location: "invalid" }
+  const resolvedImport = specifier.startsWith(".")
+    ? resolveImport(specifier, resolve(base, path))
+    : isAbsolute(specifier)
+      ? specifier
+      : resolveImport(specifier, resolve(base, path))
+  const importedPath = resolvedImport
+    ? relative(base, resolvedImport)
+    : specifier.startsWith(".")
+      ? normalize(join(dirname(path), specifier))
+      : undefined
+  if (!importedPath) return { location: null }
+  const location = runtimeForPath(importedPath)
+  if (
+    location === "invalid" &&
+    !specifier.startsWith(".") &&
+    !isAbsolute(specifier) &&
+    resolvedImport &&
+    isExternalDependency(base, specifier, resolvedImport)
+  )
+    return { location: null }
+  return { location, path: importedPath }
 }
 
 function crossesRuntimeBoundary(
@@ -252,32 +512,136 @@ function crossesRuntimeBoundary(
   return target === "client"
 }
 
+function runtimeSpecifierViolation(
+  source: PluginRuntime,
+  specifier: string
+): "unsupported-sdk-import" | "runtime-module-import" | null {
+  if (
+    (specifier === "@getpaseo/plugin" ||
+      specifier.startsWith("@getpaseo/plugin/") ||
+      specifier === "@paseo/plugin" ||
+      specifier.startsWith("@paseo/plugin/")) &&
+    !Object.hasOwn(SUPPORTED_SDK, specifier)
+  )
+    return "unsupported-sdk-import"
+  if (
+    source !== "server" &&
+    (isBuiltin(specifier) || specifier === "@types/node")
+  )
+    return "runtime-module-import"
+  if (source !== "server" && Object.hasOwn(SERVER_ONLY_SDK, specifier))
+    return "runtime-module-import"
+  if (
+    source !== "client" &&
+    (Object.hasOwn(CLIENT_ONLY_SDK, specifier) ||
+      CLIENT_ONLY_MODULE.test(specifier))
+  )
+    return "runtime-module-import"
+  return null
+}
+
+function isHostProvidedModule(specifier: string): boolean {
+  return (
+    Object.hasOwn(SUPPORTED_SDK, specifier) ||
+    /^(?:zod|react|react-native|@tanstack\/react-query)(?:\/|$)/.test(
+      specifier
+    ) ||
+    isBuiltin(specifier) ||
+    specifier === "@types/node"
+  )
+}
+
 function scanBoundaries(
   content: string,
   path: string,
-  findings: SecurityFinding[]
+  base: string,
+  resolveImport: ImportResolver,
+  findings: SecurityFinding[],
+  sources: Map<string, string>,
+  checked: Set<string>,
+  inheritedOwner?: PluginRuntime
 ) {
-  if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(path)) return
-  const source = runtimeForPath(path)
-  if (!source) return
+  if (!CODE_MODULE.test(path)) return
+  const location = runtimeForPath(path)
+  if (location === "invalid") return
+  const owner = location ?? inheritedOwner ?? runtimeOwnerForPath(path)
+  if (!owner) return
+  const visitKey = `${owner}:${path}`
+  if (checked.has(visitKey)) return
+  checked.add(visitKey)
 
-  const imports = ts.preProcessFile(content, true, true).importedFiles
-  if (
-    imports.some(({ fileName }) => {
-      const target = importedRuntime(path, fileName)
-      return target !== null && crossesRuntimeBoundary(source, target)
-    })
-  )
-    findings.push(
-      finding(
-        "boundary",
-        "cross-runtime-import",
-        "high",
-        true,
-        path,
-        "cross-runtime import boundary violated"
+  const imports = ts.preProcessFile(content, true, true)
+  const specifiers = [
+    ...imports.importedFiles.map(({ fileName }) => fileName),
+    ...imports.referencedFiles.map(({ fileName }) =>
+      fileName.startsWith(".") ||
+      isAbsolute(fileName) ||
+      win32.isAbsolute(fileName)
+        ? fileName
+        : `./${fileName}`
+    ),
+    ...imports.typeReferenceDirectives.flatMap(({ fileName }) => [
+      fileName,
+      `@types/${fileName.replace(/^@/, "").replace("/", "__")}`,
+    ]),
+  ]
+  for (const specifier of specifiers) {
+    const ruleId = runtimeSpecifierViolation(owner, specifier)
+    if (ruleId) {
+      findings.push(
+        finding(
+          "boundary",
+          ruleId,
+          "high",
+          true,
+          path,
+          `${specifier} cannot be imported from ${owner} code`
+        )
       )
+      continue
+    }
+    if (isHostProvidedModule(specifier)) continue
+    const imported = importedModule(base, path, specifier, resolveImport)
+    if (imported.location === "invalid")
+      findings.push(
+        finding(
+          "boundary",
+          "invalid-module-location",
+          "high",
+          true,
+          path,
+          `plugin module import must stay under client/, server/, or shared/: ${specifier}`
+        )
+      )
+    else if (
+      imported.location &&
+      crossesRuntimeBoundary(owner, imported.location)
     )
+      findings.push(
+        finding(
+          "boundary",
+          "cross-runtime-import",
+          "high",
+          true,
+          path,
+          `${owner} code cannot import ${imported.location} code: ${specifier}`
+        )
+      )
+    if (imported.location === null && imported.path) {
+      const dependency = sources.get(imported.path)
+      if (dependency !== undefined)
+        scanBoundaries(
+          dependency,
+          imported.path,
+          base,
+          resolveImport,
+          findings,
+          sources,
+          checked,
+          owner
+        )
+    }
+  }
 }
 function finding(
   tool: string,

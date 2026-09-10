@@ -10,8 +10,8 @@ import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
+import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
-import { HOME_SEARCH_DEFAULT } from "@/routes/index"
 import appCss from "../styles.css?url"
 
 export const Route = createRootRoute({

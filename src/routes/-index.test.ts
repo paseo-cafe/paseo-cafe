@@ -3,7 +3,7 @@ import {
   clampCatalogPage,
   HOME_SEARCH_DEFAULT,
   parseCatalogSearch,
-} from "./index"
+} from "@/lib/catalog-search"
 
 describe("catalog search parameters", () => {
   it("supplies required defaults and coerces integer page strings", () => {

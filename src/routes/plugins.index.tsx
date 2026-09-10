@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
-import { HOME_SEARCH_DEFAULT } from "@/routes/index"
+import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
 
 // The listing now lives on the home route ("/") — this just keeps
 // bookmarked/external links to /plugins working.

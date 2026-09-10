@@ -19,6 +19,7 @@ import {
   getReportPluginIssueUrl,
   getSiteUrl,
   HEALTH_LABELS,
+  isOfficialPlugin,
   isValidInstallPath,
   isValidRepo,
   stripHtml,
@@ -401,10 +402,7 @@ export function PluginDetailPage({
     ? stripHtml(entry.installNotesHtml)
     : undefined
   const hasCaveatsSection =
-    !!entry.paseoVersionRequirement ||
-    entry.platforms.length > 0 ||
-    entry.caveats.length > 0 ||
-    !!limitationsText
+    entry.platforms.length > 0 || entry.caveats.length > 0 || !!limitationsText
   const health = entry.health
   const security = entry.security
   const securityStatus = security?.status ?? "unknown"
@@ -556,24 +554,26 @@ export function PluginDetailPage({
           <Text style={styles.siteButtonText}>View on paseo.cafe</Text>
         </Pressable>
 
-        <View style={styles.alert}>
-          <View style={styles.alertTitleRow}>
-            <Icon
-              name="AlertTriangle"
-              size={14}
-              color={theme.colors.statusWarning}
-            />
-            <Text style={styles.alertTitle}>
-              Community-submitted — not owned or vetted by paseo.cafe
+        {!isOfficialPlugin(entry) ? (
+          <View style={styles.alert}>
+            <View style={styles.alertTitleRow}>
+              <Icon
+                name="AlertTriangle"
+                size={14}
+                color={theme.colors.statusWarning}
+              />
+              <Text style={styles.alertTitle}>
+                Community-submitted — not owned or vetted by paseo.cafe
+              </Text>
+            </View>
+            <Text style={styles.alertBody}>
+              This listing is generated automatically from the plugin's own
+              public repository. Paseo plugins are trusted, unsandboxed code
+              with filesystem, process, and network access — read the source at{" "}
+              {entry.repo} before installing.
             </Text>
           </View>
-          <Text style={styles.alertBody}>
-            This listing is generated automatically from the plugin's own public
-            repository. Paseo plugins are trusted, unsandboxed code with
-            filesystem, process, and network access — read the source at{" "}
-            {entry.repo} before installing.
-          </Text>
-        </View>
+        ) : null}
 
         {hasCaveatsSection ? (
           <View style={styles.alert}>
@@ -585,12 +585,6 @@ export function PluginDetailPage({
               />
               <Text style={styles.alertTitle}>Caveats</Text>
             </View>
-            {entry.paseoVersionRequirement ? (
-              <Text style={styles.alertBody}>
-                Requires Paseo {entry.paseoVersionRequirement} — from this
-                plugin's own paseo-plugin.json.
-              </Text>
-            ) : null}
             {entry.platforms.length > 0 ? (
               <Text style={styles.alertBody}>
                 Supported platforms: {entry.platforms.join(", ")}.
@@ -1111,7 +1105,7 @@ export function PluginDetailPage({
             {limitationsText ? (
               <Text style={styles.readmeText}>{limitationsText}</Text>
             ) : null}
-            {!hasCaveatsSection ? (
+            {!hasCaveatsSection && !entry.paseoVersionRequirement ? (
               <Text style={styles.modalText}>No catalog caveats reported.</Text>
             ) : null}
           </View>
