@@ -4,6 +4,9 @@ import { createFileRoute, redirect } from "@tanstack/react-router"
 // bookmarked/external links to /plugins working.
 export const Route = createFileRoute("/plugins/")({
   beforeLoad: () => {
-    throw redirect({ to: "/" })
+    throw redirect({
+      to: "/",
+      search: { q: "", category: "", sort: "popular" },
+    })
   },
 })

@@ -9,6 +9,7 @@ import {
   IconX,
 } from "@tabler/icons-react"
 import { createFileRoute, Link, notFound } from "@tanstack/react-router"
+import { CopyBlock } from "@/components/copy-block"
 import { CopyCommand } from "@/components/copy-command"
 import { MediaGallery } from "@/components/media-gallery"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -21,7 +22,34 @@ import type { PluginHealth } from "@/lib/plugin-schema"
 import { listPlugins } from "@/lib/plugins-data"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
-import { SITE_NAME } from "@/lib/site"
+import { SITE_NAME, SITE_REPO, SITE_URL } from "@/lib/site"
+
+function buildReportIssueUrl(plugin: {
+  id: string
+  name: string
+  url: string
+}) {
+  const issueUrl = new URL(`https://github.com/${SITE_REPO}/issues/new`)
+  issueUrl.searchParams.set(
+    "title",
+    `Report plugin: ${plugin.name} (${plugin.id})`
+  )
+  issueUrl.searchParams.set(
+    "body",
+    [
+      `Plugin ID: ${plugin.id}`,
+      `Source repository URL: ${plugin.url}`,
+      `Listing URL: ${new URL(
+        `/plugins/${encodeURIComponent(plugin.id)}`,
+        SITE_URL
+      ).toString()}`,
+      "",
+      "Please describe the problem here.",
+    ].join("\n")
+  )
+
+  return issueUrl.toString()
+}
 
 export const Route = createFileRoute("/plugins/$id")({
   component: PluginDetail,
@@ -55,6 +83,10 @@ const HEALTH_LABELS: Record<keyof PluginHealth, string> = {
 
 function PluginDetail() {
   const plugin = Route.useLoaderData()
+  const manifestJson = plugin.manifest
+    ? JSON.stringify(plugin.manifest, null, 2)
+    : null
+  const security = plugin.security
 
   return (
     <div className="flex flex-col gap-8">
@@ -68,6 +100,7 @@ function PluginDetail() {
       />
       <Link
         to="/"
+        search={{ q: "", category: "", sort: "popular" }}
         className="flex w-fit items-center gap-1 text-foreground/60 text-sm hover:text-foreground"
       >
         <IconArrowLeft className="size-4" /> All plugins
@@ -142,6 +175,15 @@ function PluginDetail() {
           className="flex items-center gap-1 text-foreground hover:underline"
         >
           <IconBrandGithub className="size-4" /> {plugin.repo}
+          <IconExternalLink className="size-3.5" />
+        </a>
+        <a
+          href={buildReportIssueUrl(plugin)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1 text-foreground hover:underline"
+        >
+          <IconAlertTriangle className="size-4" /> Report plugin
           <IconExternalLink className="size-3.5" />
         </a>
       </div>
@@ -222,6 +264,24 @@ function PluginDetail() {
       ) : null}
 
       <MediaGallery plugin={plugin} />
+      {manifestJson ? (
+        <details className="rounded-none border border-border bg-card px-4 py-3">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium text-foreground/70 text-sm [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              <span>Paseo manifest</span>
+              <span className="font-normal text-foreground/40">
+                Pretty-printed JSON
+              </span>
+            </span>
+            <span className="text-foreground/40 text-xs uppercase tracking-wide">
+              Expand
+            </span>
+          </summary>
+          <div className="mt-3">
+            <CopyBlock code={manifestJson} label="Manifest JSON" />
+          </div>
+        </details>
+      ) : null}
 
       <div>
         <h2 className="mb-2 font-medium text-foreground/60 text-sm">Install</h2>
@@ -243,6 +303,22 @@ function PluginDetail() {
         ) : null}
       </div>
 
+      {plugin.readmeHtml ? (
+        <div className="mt-3 border-border border-l-2 pl-4">
+          <p className="mb-1 text-foreground/40 text-xs uppercase tracking-wide">
+            README
+          </p>
+          {/* readmeHtml is sanitized at scan time (src/lib/markdown.ts) from the plugin's
+              original README markdown before it's ever written to data/plugins.json —
+              never render raw third-party markdown here, and never parse HTML client-side. */}
+          <div
+            className="prose prose-sm dark:prose-invert max-w-none prose-pre:rounded-none prose-pre:bg-muted"
+            /* biome-ignore lint/security/noDangerouslySetInnerHtml: The scan pipeline sanitizes this HTML with rehype-sanitize. */
+            dangerouslySetInnerHTML={{ __html: plugin.readmeHtml }}
+          />
+        </div>
+      ) : null}
+
       <Separator />
 
       <div>
@@ -263,6 +339,70 @@ function PluginDetail() {
             </li>
           ))}
         </ul>
+      </div>
+      <div>
+        <h2 className="mb-3 font-medium text-foreground/60 text-sm">
+          Security scan
+        </h2>
+        <Alert>
+          {security?.status === "passed" ? (
+            <IconCheck />
+          ) : security?.status === "failed" ? (
+            <IconX />
+          ) : (
+            <IconAlertTriangle />
+          )}
+          <AlertTitle className="flex flex-wrap items-center gap-2">
+            <span>Security scan</span>
+            <Badge
+              variant={
+                security?.status === "passed"
+                  ? "default"
+                  : security?.status === "failed"
+                    ? "destructive"
+                    : "outline"
+              }
+            >
+              {security?.status === "passed"
+                ? "Passed"
+                : security?.status === "failed"
+                  ? "Failed"
+                  : "Unknown"}
+            </Badge>
+          </AlertTitle>
+          <AlertDescription className="space-y-3">
+            {security?.status === "unknown" || !security?.status ? (
+              <p>
+                No published security scan is available for this plugin yet.
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">
+                Blocking findings: {security?.blockingFindings ?? "Unknown"}
+              </Badge>
+              <Badge variant="secondary">
+                Advisory findings: {security?.advisoryFindings ?? "Unknown"}
+              </Badge>
+            </div>
+            <p>
+              Scanned{" "}
+              {security?.scannedAt
+                ? formatDateTime(security.scannedAt)
+                : "Unknown"}
+              {security?.commit ? ` at commit ${security.commit}` : ""}.
+            </p>
+            {security?.reportUrl ? (
+              <a
+                href={security.reportUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-foreground hover:underline"
+              >
+                Open security report <IconExternalLink className="size-3.5" />
+              </a>
+            ) : null}
+          </AlertDescription>
+        </Alert>
       </div>
 
       <p className="text-foreground/40 text-xs">

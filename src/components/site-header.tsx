@@ -10,7 +10,11 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-10 border-border/60 border-b bg-background/80 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-4">
-        <Link to="/" className="flex flex-col justify-center">
+        <Link
+          to="/"
+          search={{ q: "", category: "", sort: "popular" }}
+          className="flex flex-col justify-center"
+        >
           <span className="flex items-center gap-2 font-medium">
             <IconPuzzle className="size-5" />
             {!isMobile ? SITE_NAME : null}
@@ -19,6 +23,7 @@ export function SiteHeader() {
         <nav className="flex items-center gap-4 text-foreground/70 text-sm">
           <Link
             to="/"
+            search={{ q: "", category: "", sort: "popular" }}
             className="hover:text-foreground"
             activeProps={{ className: "text-foreground" }}
           >

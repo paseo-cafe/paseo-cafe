@@ -17,6 +17,13 @@ import type { PluginRecord } from "@/lib/plugin-schema"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 
 export function PluginCard({ plugin }: { plugin: PluginRecord }) {
+  const healthIsComplete =
+    plugin.health.manifestValid &&
+    plugin.health.hasReadme &&
+    plugin.health.hasLicense &&
+    plugin.health.hasTests &&
+    plugin.health.hasTypecheckScript
+
   return (
     <Link to="/plugins/$id" params={{ id: plugin.id }} className="block">
       <Card className="h-full pt-0 transition-shadow hover:shadow-md">
@@ -43,7 +50,7 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
             </div>
           ) : null}
         </div>
-        <CardHeader>
+        <CardHeader className="gap-2">
           <div className="flex items-center justify-between gap-2">
             <CardTitle>{plugin.name}</CardTitle>
             {plugin.repoMeta ? (
@@ -53,17 +60,35 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
               </span>
             ) : null}
           </div>
-          <CardDescription className="line-clamp-3">
+          <CardDescription className="line-clamp-2">
             {plugin.description || "No description available."}
           </CardDescription>
-          {plugin.owner ? (
-            <div className="flex items-center gap-1.5 text-foreground/50 text-xs">
-              <img
-                src={plugin.owner.avatarUrl}
-                alt=""
-                className="size-4 rounded-full"
-              />
-              {plugin.owner.login}
+          {plugin.owner || plugin.health || plugin.repoMeta ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="sr-only">Freshness and health</span>
+              {plugin.owner ? (
+                <span className="flex items-center gap-1.5 text-foreground/50 text-xs">
+                  <img
+                    src={plugin.owner.avatarUrl}
+                    alt=""
+                    className="size-4 rounded-full"
+                  />
+                  {plugin.owner.login}
+                </span>
+              ) : null}
+              <Badge
+                variant={
+                  plugin.health.updatedRecently ? "secondary" : "outline"
+                }
+              >
+                {plugin.health.updatedRecently ? "Fresh" : "Stale"}
+              </Badge>
+              <Badge variant={healthIsComplete ? "secondary" : "destructive"}>
+                {healthIsComplete ? "Healthy" : "Needs review"}
+              </Badge>
+              {plugin.repoMeta?.archived ? (
+                <Badge variant="destructive">Archived</Badge>
+              ) : null}
             </div>
           ) : null}
         </CardHeader>

@@ -44,10 +44,21 @@ export const Route = createRootRoute({
         removed from the registry.
       </p>
       <div className="mt-2 flex gap-3">
-        <Button nativeButton={false} render={<Link to="/" />}>
+        <Button
+          nativeButton={false}
+          render={
+            <Link to="/" search={{ q: "", category: "", sort: "popular" }} />
+          }
+        >
           Go home
         </Button>
-        <Button nativeButton={false} variant="outline" render={<Link to="/" />}>
+        <Button
+          nativeButton={false}
+          variant="outline"
+          render={
+            <Link to="/" search={{ q: "", category: "", sort: "popular" }} />
+          }
+        >
           Browse plugins
         </Button>
       </div>
