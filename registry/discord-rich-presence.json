@@ -1,7 +1,7 @@
 {
   "repo": "sleeyax/paseo-plugins",
   "path": "plugins/discord-rich-presence",
-  "categories": ["productivity"],
+  "categories": ["other"],
   "platforms": ["linux", "macos"],
   "caveats": [
     "The Paseo daemon and the Discord app have to run on the same machine.",
