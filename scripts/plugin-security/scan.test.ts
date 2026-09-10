@@ -123,6 +123,31 @@ describe("security report", () => {
     expect(report).not.toContain("MiB")
   })
 
+  it("provides remediation for Paseo 0.8 compatibility findings", () => {
+    const findings: SecurityFinding[] = [
+      ["manifest", "missing"],
+      ["manifest", "requirements.unknown"],
+      ["entrypoint", "missing"],
+      ["boundary", "invalid-module-location"],
+      ["boundary", "runtime-module-import"],
+      ["boundary", "unsupported-sdk-import"],
+    ].map(([tool, ruleId]) => ({
+      tool,
+      ruleId,
+      severity: "high",
+      blocking: true,
+      path: ".",
+      message: "incompatible with Paseo 0.8",
+    }))
+
+    const report = renderReport(
+      securityResults({ example: pluginResult(findings) })
+    )
+
+    for (const finding of findings)
+      expect(report).toContain(`### \`${finding.tool}/${finding.ruleId}\``)
+  })
+
   it("fails report generation when a rule has no guidance", () => {
     const finding = { ...boundaryFinding("client/file.ts"), ruleId: "new-rule" }
     const results = securityResults({ example: pluginResult([finding]) })
