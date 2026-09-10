@@ -16,10 +16,15 @@ const SITE_URL = "https://paseo.cafe"
 // src/lib/site.ts's OFFICIAL_GITHUB_ORG/isOfficialPlugin — kept as a local
 // copy since this package doesn't import from the web app's src/ tree.
 export const OFFICIAL_GITHUB_ORG = "paseo-cafe"
-export function isOfficialPlugin(entry: {
-  owner?: { login?: string }
-}): boolean {
-  return entry.owner?.login?.toLowerCase() === OFFICIAL_GITHUB_ORG.toLowerCase()
+// Derived from `repo`, not `entry.owner.login` — a custom catalog is
+// untrusted input, and those two fields aren't validated against each
+// other. Binding this to `repo` ties the trust badge to the same field the
+// install command uses, so a catalog can't claim official-org ownership
+// for a repo it doesn't actually point the install action at.
+export function isOfficialPlugin(entry: { repo: string }): boolean {
+  return (
+    entry.repo.split("/")[0]?.toLowerCase() === OFFICIAL_GITHUB_ORG.toLowerCase()
+  )
 }
 const MAX_HTTP_URL_LENGTH = 2_048
 const httpUrlSchema = z
