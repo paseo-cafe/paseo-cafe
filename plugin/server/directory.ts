@@ -57,9 +57,17 @@ const updateStatusCache = new Map<
 
 export function buildPaseoInvocation(
   args: readonly string[],
-  platform = process.platform
-): { executable: string; args: string[] } {
-  if (platform !== "win32") return { executable: "paseo", args: [...args] }
+  platform = process.platform,
+  env = process.env
+): { executable: string; args: string[]; env: NodeJS.ProcessEnv } {
+  const childEnv = { ...env }
+  // A plugin subprocess launched by the packaged Electron app inherits this.
+  // Passing it back to the AppImage makes Electron treat "plugin" as a Node
+  // entrypoint instead of dispatching the Paseo CLI.
+  delete childEnv.ELECTRON_RUN_AS_NODE
+  if (platform !== "win32") {
+    return { executable: "paseo", args: [...args], env: childEnv }
+  }
   const tokens = ["paseo", ...args].map((value) => {
     if (
       value.includes(String.fromCharCode(0)) ||
@@ -75,12 +83,16 @@ export function buildPaseoInvocation(
   return {
     executable: process.env.ComSpec || "cmd.exe",
     args: ["/d", "/s", "/c", tokens.join(" ")],
+    env: childEnv,
   }
 }
 
 async function execPaseo(args: readonly string[], timeout: number) {
   const invocation = buildPaseoInvocation(args)
-  return execFileAsync(invocation.executable, invocation.args, { timeout })
+  return execFileAsync(invocation.executable, invocation.args, {
+    timeout,
+    env: invocation.env,
+  })
 }
 
 async function execGit(

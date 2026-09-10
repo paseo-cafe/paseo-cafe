@@ -388,10 +388,16 @@ describe("update target validation", () => {
 })
 
 describe("Paseo CLI invocation", () => {
-  it("uses direct argv execution on Unix", () => {
-    expect(buildPaseoInvocation(["plugin", "ls", "--json"], "linux")).toEqual({
+  it("disables inherited Electron Node mode on Unix", () => {
+    expect(
+      buildPaseoInvocation(["plugin", "ls", "--json"], "linux", {
+        ELECTRON_RUN_AS_NODE: "1",
+        PATH: "/usr/bin",
+      })
+    ).toEqual({
       executable: "paseo",
       args: ["plugin", "ls", "--json"],
+      env: { PATH: "/usr/bin" },
     })
   })
 
