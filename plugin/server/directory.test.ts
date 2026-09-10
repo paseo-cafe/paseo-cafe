@@ -112,6 +112,18 @@ describe("listDirectory", () => {
 })
 
 describe("catalog transport policy", () => {
+  it("rejects an untrusted explicit URL before fetching it", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+    await expect(
+      listDirectory({
+        baseUrl: "http://catalog.internal/api/plugins",
+        force: true,
+      })
+    ).rejects.toThrow("Catalog URL must use HTTPS, or HTTP on localhost.")
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it("fails closed when fetching a catalog encounters a redirect", async () => {
     const trustedUrl = "https://catalog.example/api/plugins"
     const fetchSpy = vi

@@ -289,7 +289,12 @@ function resolveDirectoryUrl(baseUrl: string | undefined): string {
   // PASEO_CAFE_DIRECTORY_URL is a lower-priority escape hatch for contexts that
   // cannot persist plugin settings yet (CI, headless smoke tests). The settings
   // override wins because it is reachable from the running app.
-  if (baseUrl) return baseUrl
+  if (baseUrl) {
+    if (!isTrustedCatalogUrl(baseUrl)) {
+      throw new Error("Catalog URL must use HTTPS, or HTTP on localhost.")
+    }
+    return baseUrl
+  }
   const fromEnv = process.env.PASEO_CAFE_DIRECTORY_URL
   if (!fromEnv) return DEFAULT_DIRECTORY_URL
   // Unlike the settings value this never passed a schema, so it gets the same

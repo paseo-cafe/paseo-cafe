@@ -154,7 +154,7 @@ export const directoryListRpc = defineRpc({
 
 export const directoryUpdateStatusRpc = defineRpc({
   name: "directory.update-status",
-  input: z.object({ baseUrl: httpUrlSchema.optional() }),
+  input: z.object({ baseUrl: catalogUrlSchema.optional() }),
   output: z.object({
     installations: z.array(installedPluginSchema).max(500),
   }),

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
+  directoryListRpc,
+  directorySettings,
+  directoryUpdateStatusRpc,
   getInstallCommand,
   getSiteUrl,
   isTrustedCatalogUrl,
@@ -51,6 +54,20 @@ describe("catalog URL transport policy", () => {
     "not a URL",
   ])("rejects untrusted catalog URL %s", (url) => {
     expect(isTrustedCatalogUrl(url)).toBe(false)
+  })
+
+  it("rejects untrusted URLs at every caller-controlled catalog schema", () => {
+    const url = "http://catalog.internal/api/plugins"
+
+    expect(
+      directorySettings.schema.safeParse({ directoryUrl: url }).success
+    ).toBe(false)
+    expect(directoryListRpc.input.safeParse({ baseUrl: url }).success).toBe(
+      false
+    )
+    expect(
+      directoryUpdateStatusRpc.input.safeParse({ baseUrl: url }).success
+    ).toBe(false)
   })
 })
 
