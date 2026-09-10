@@ -1,7 +1,4 @@
 {
   "repo": "nerveband/paseo-provider-usage",
-  "categories": [
-    "monitoring",
-    "provider"
-  ]
+  "categories": ["monitoring", "provider"]
 }

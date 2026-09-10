@@ -1,7 +1,4 @@
 {
   "repo": "jeroenfrenken/paseo-k8s",
-  "categories": [
-    "monitoring",
-    "automation"
-  ]
+  "categories": ["monitoring", "automation"]
 }

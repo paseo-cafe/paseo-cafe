@@ -1,8 +1,5 @@
 {
   "repo": "NaruForge/Paseo-Plugin",
   "path": "plugins/command-deck",
-  "categories": [
-    "productivity",
-    "other"
-  ]
+  "categories": ["productivity", "other"]
 }

@@ -1,8 +1,5 @@
 {
   "repo": "itsjustanks/paseo-plugin-9router",
   "path": "apps/paseo",
-  "categories": [
-    "provider",
-    "productivity"
-  ]
+  "categories": ["provider", "productivity"]
 }
