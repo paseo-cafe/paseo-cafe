@@ -257,47 +257,6 @@ describe("Cafe service", () => {
     expect(stored).toEqual({ reports: 3, installs: 3 })
   })
 
-  it("migrates existing install totals into the lifecycle schema", async () => {
-    const stub = counterStub()
-    await runInDurableObject(stub, (_instance: InstallCounter, state) => {
-      state.storage.sql.exec(`
-        DROP TABLE daily_counts;
-        CREATE TABLE daily_counts (
-          day TEXT NOT NULL,
-          plugin_id TEXT NOT NULL,
-          count INTEGER NOT NULL,
-          PRIMARY KEY (day, plugin_id)
-        ) WITHOUT ROWID;
-        INSERT INTO daily_counts (day, plugin_id, count)
-        VALUES ('2026-01-01', '${CATALOG_IDS[0]}', 4);
-        DELETE FROM service_metadata WHERE key = 'schema_version';
-        INSERT INTO service_metadata (key, value)
-        VALUES ('tracking_since', '2026-01-01T00:00:00.000Z')
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value;
-      `)
-    })
-    await evictDurableObject(stub)
-
-    const response = await exports.default.fetch(`${SERVICE_URL}/v1/counts`)
-    const snapshot = (await response.json()) as {
-      counts: Record<string, number>
-      updates: Record<string, number>
-      uninstalls: Record<string, number>
-    }
-    expect(snapshot.counts[CATALOG_IDS[0]]).toBe(4)
-    expect(snapshot.updates[CATALOG_IDS[0]]).toBe(0)
-    expect(snapshot.uninstalls[CATALOG_IDS[0]]).toBe(0)
-    const columns = await runInDurableObject(
-      stub,
-      (_instance: InstallCounter, state) =>
-        state.storage.sql
-          .exec<{ name: string }>("PRAGMA table_info(daily_counts)")
-          .toArray()
-          .map(({ name }) => name)
-    )
-    expect(columns).toContain("event_type")
-  })
-
   it("withholds the current UTC day and publishes complete prior-day counts", async () => {
     expect((await lifecycleRequest(CATALOG_IDS[0])).status).toBe(204)
 
@@ -363,7 +322,7 @@ describe("Cafe service", () => {
       uninstalls: Record<string, number>
     }
     expect(published).toEqual({
-      schemaVersion: 2,
+      schemaVersion: 1,
       asOf: cutoff,
       trackingSince: `${new Date(priorDayTime).toISOString().slice(0, 10)}T00:00:00.000Z`,
       counts: Object.fromEntries(

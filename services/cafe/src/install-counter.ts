@@ -9,7 +9,7 @@ const MIN_ALARM_DELAY_MS = 60_000
 type RecordResult = "accepted" | "duplicate" | "quota"
 
 export interface CountSnapshot {
-  schemaVersion: 2
+  schemaVersion: 1
   asOf: string | null
   trackingSince: string | null
   counts: Record<string, number>
@@ -41,51 +41,23 @@ export class InstallCounter extends DurableObject<LimitEnv> {
   constructor(ctx: DurableObjectState, env: LimitEnv) {
     super(ctx, env)
     this.limits = dailyLimits(env)
-
-    this.ctx.storage.transactionSync(() => {
-      this.ctx.storage.sql.exec(`
-        CREATE TABLE IF NOT EXISTS accepted_nonces (
-          nonce TEXT PRIMARY KEY,
-          accepted_at_ms INTEGER NOT NULL
-        ) WITHOUT ROWID;
-        CREATE INDEX IF NOT EXISTS accepted_nonces_by_time
-          ON accepted_nonces (accepted_at_ms);
-        CREATE TABLE IF NOT EXISTS service_metadata (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        ) WITHOUT ROWID;
-      `)
-      const columns = this.ctx.storage.sql
-        .exec<{ name: string }>("PRAGMA table_info(daily_counts)")
-        .toArray()
-      if (columns.length === 0) {
-        this.createLifecycleCountsTable()
-      } else if (!columns.some(({ name }) => name === "event_type")) {
-        this.ctx.storage.sql.exec(
-          "ALTER TABLE daily_counts RENAME TO legacy_daily_counts"
-        )
-        this.createLifecycleCountsTable()
-        this.ctx.storage.sql.exec(`
-          INSERT INTO daily_counts (day, plugin_id, event_type, count)
-          SELECT day, plugin_id, 'install', count FROM legacy_daily_counts;
-          DROP TABLE legacy_daily_counts;
-        `)
-      }
-      this.ctx.storage.sql.exec(
-        `INSERT INTO service_metadata (key, value) VALUES ('schema_version', '2')
-         ON CONFLICT (key) DO UPDATE SET value = excluded.value`
-      )
-    })
-  }
-
-  private createLifecycleCountsTable(): void {
     this.ctx.storage.sql.exec(`
-      CREATE TABLE daily_counts (
+      CREATE TABLE IF NOT EXISTS accepted_nonces (
+        nonce TEXT PRIMARY KEY,
+        accepted_at_ms INTEGER NOT NULL
+      ) WITHOUT ROWID;
+      CREATE INDEX IF NOT EXISTS accepted_nonces_by_time
+        ON accepted_nonces (accepted_at_ms);
+      CREATE TABLE IF NOT EXISTS daily_counts (
         day TEXT NOT NULL,
         plugin_id TEXT NOT NULL,
         event_type TEXT NOT NULL CHECK (event_type IN ('install', 'update', 'uninstall')),
         count INTEGER NOT NULL CHECK (count >= 0),
         PRIMARY KEY (day, plugin_id, event_type)
+      ) WITHOUT ROWID;
+      CREATE TABLE IF NOT EXISTS service_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
       ) WITHOUT ROWID;
     `)
   }
@@ -174,7 +146,7 @@ export class InstallCounter extends DurableObject<LimitEnv> {
 
     if (!trackingSince) {
       return {
-        schemaVersion: 2,
+        schemaVersion: 1,
         asOf: null,
         trackingSince: null,
         counts: {},
@@ -187,7 +159,7 @@ export class InstallCounter extends DurableObject<LimitEnv> {
     const cutoff = `${cutoffDay}T00:00:00.000Z`
     if (trackingSince >= cutoff) {
       return {
-        schemaVersion: 2,
+        schemaVersion: 1,
         asOf: null,
         trackingSince: null,
         counts: {},
@@ -226,7 +198,7 @@ export class InstallCounter extends DurableObject<LimitEnv> {
     }
 
     return {
-      schemaVersion: 2,
+      schemaVersion: 1,
       asOf: cutoff,
       trackingSince,
       counts,

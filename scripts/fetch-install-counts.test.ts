@@ -30,7 +30,7 @@ function fixture() {
 }
 
 const responseBody = {
-  schemaVersion: 2,
+  schemaVersion: 1,
   asOf: "2026-09-10T00:00:00.000Z",
   trackingSince: "2026-09-08T12:00:00.000Z",
   updates: { "alpha-plugin": 1, "beta-plugin": 0 },
@@ -87,7 +87,7 @@ describe("fetch-install-counts", () => {
     })
 
     expect(snapshot).toEqual({
-      schemaVersion: 2,
+      schemaVersion: 1,
       status: "unavailable",
       attemptedAt: "2026-09-11T01:00:00.000Z",
       fetchedAt: null,
@@ -133,7 +133,7 @@ describe("fetch-install-counts", () => {
     writeFileSync(
       paths.outputPath,
       JSON.stringify({
-        schemaVersion: 2,
+        schemaVersion: 1,
         status: "available",
         attemptedAt: "2026-09-10T01:00:00.000Z",
         fetchedAt: "2026-09-10T01:00:00.000Z",
@@ -157,7 +157,7 @@ describe("fetch-install-counts", () => {
   it("restores the deployed snapshot when the service is unavailable", async () => {
     const paths = fixture()
     const deployed = {
-      schemaVersion: 2,
+      schemaVersion: 1,
       status: "available",
       attemptedAt: "2026-09-10T01:00:00.000Z",
       fetchedAt: "2026-09-10T01:00:00.000Z",
@@ -198,7 +198,7 @@ describe("fetch-install-counts", () => {
     })
 
     expect(snapshot).toEqual({
-      schemaVersion: 2,
+      schemaVersion: 1,
       status: "unavailable",
       attemptedAt: "2026-09-11T01:00:00.000Z",
       fetchedAt: null,

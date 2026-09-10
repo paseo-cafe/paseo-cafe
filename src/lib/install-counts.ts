@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { registryIdSchema } from "./registry-schema"
 
-export const INSTALL_COUNTS_SCHEMA_VERSION = 2 as const
+export const INSTALL_COUNTS_SCHEMA_VERSION = 1 as const
 
 const utcTimestampSchema = z
   .string()
@@ -18,26 +18,6 @@ const utcTimestampSchema = z
   )
 
 const safeCountSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
-
-const legacyCafeCountsSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    asOf: utcTimestampSchema.nullable(),
-    trackingSince: utcTimestampSchema.nullable(),
-    counts: z.record(registryIdSchema, safeCountSchema),
-  })
-  .strict()
-
-function migrateCafeCounts(input: unknown): unknown {
-  const legacy = legacyCafeCountsSchema.safeParse(input)
-  if (!legacy.success) return input
-  return {
-    ...legacy.data,
-    schemaVersion: INSTALL_COUNTS_SCHEMA_VERSION,
-    updates: {},
-    uninstalls: {},
-  }
-}
 
 export const cafeCountsSchema = z
   .object({
@@ -196,7 +176,7 @@ export function parseCafeCounts(
   input: unknown,
   catalogIds: readonly string[]
 ): CafeCounts {
-  const counts = cafeCountsSchema.parse(migrateCafeCounts(input))
+  const counts = cafeCountsSchema.parse(input)
   retainCatalogCounts(counts, catalogIds)
   return counts
 }
@@ -205,18 +185,7 @@ export function parseInstallCountsSnapshot(
   input: unknown,
   catalogIds: readonly string[]
 ): InstallCountsSnapshot {
-  let candidate = input
-  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
-    const record = input as Record<string, unknown>
-    if (record.schemaVersion === 1) {
-      candidate = {
-        ...record,
-        schemaVersion: INSTALL_COUNTS_SCHEMA_VERSION,
-        data: record.data === null ? null : migrateCafeCounts(record.data),
-      }
-    }
-  }
-  const snapshot = installCountsSnapshotSchema.parse(candidate)
+  const snapshot = installCountsSnapshotSchema.parse(input)
   if (snapshot.data !== null) retainCatalogCounts(snapshot.data, catalogIds)
   return snapshot
 }
