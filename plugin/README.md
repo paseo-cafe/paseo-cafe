@@ -10,6 +10,16 @@ on the daemon host behind a confirmation step. A **Paseo plugin** composer attac
 lets you attach a plugin's full listing to a prompt when you want an agent to review it before
 you trust it.
 
+## Screenshots
+
+### Browse and filter the catalog
+
+![Paseo Cafe catalog with search, sort, installation-state, category, and platform filters](images/catalog-browse.webp)
+
+### Review a plugin before installation
+
+![Paseo Cafe installation review dialog showing the source repository, install command, freshness, health, security status, and caveats](images/install-review.webp)
+
 ## Install
 
 ```bash
