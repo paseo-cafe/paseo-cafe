@@ -1,6 +1,6 @@
 import { z } from "zod"
 import type { PluginRecord } from "@/lib/plugin-schema"
-import { pluginRecordSchema } from "@/lib/plugin-schema"
+import { pluginOwnerLogin, pluginRecordSchema } from "@/lib/plugin-schema"
 import plugins from "../../data/plugins.json"
 
 // The registry scan validates every record before writing this build-time
@@ -15,6 +15,6 @@ export function listPlugins(): PluginRecord[] {
 export function listPluginsByOwner(login: string): PluginRecord[] {
   const normalized = login.toLowerCase()
   return catalog.filter(
-    (plugin) => plugin.owner?.login.toLowerCase() === normalized
+    (plugin) => pluginOwnerLogin(plugin).toLowerCase() === normalized
   )
 }

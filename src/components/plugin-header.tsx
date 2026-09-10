@@ -2,17 +2,18 @@ import { IconBrandGithub, IconVersions } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
 import { Badge } from "@/components/ui/badge"
 import type { PluginRecord } from "@/lib/plugin-schema"
+import { pluginOwnerLogin } from "@/lib/plugin-schema"
 
 export function PluginHeader({ plugin }: { plugin: PluginRecord }) {
+  const username = pluginOwnerLogin(plugin)
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-semibold text-3xl tracking-tight">{plugin.name}</h1>
         <Link
           to="/user/$username"
-          params={{
-            username: plugin.owner?.login ?? plugin.repo.split("/")[0],
-          }}
+          params={{ username }}
           className="inline-flex items-center gap-1.5 text-foreground/60 text-sm hover:text-foreground"
         >
           {plugin.owner ? (
@@ -24,7 +25,7 @@ export function PluginHeader({ plugin }: { plugin: PluginRecord }) {
           ) : (
             <IconBrandGithub className="size-4" />
           )}
-          by {plugin.owner?.login ?? plugin.repo.split("/")[0]}
+          by {username}
         </Link>
         {plugin.scanError ? (
           <Badge variant="destructive">needs attention</Badge>

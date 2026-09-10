@@ -152,3 +152,15 @@ export type PluginRepoMeta = z.infer<typeof pluginRepoMetaSchema>
 export type PluginOwner = z.infer<typeof pluginOwnerSchema>
 export type VideoEmbed = z.infer<typeof videoEmbedSchema>
 export type PluginRecord = z.infer<typeof pluginRecordSchema>
+
+/**
+ * The GitHub login a plugin's `/user/$username` page should use. `owner` is
+ * absent when a scan failed and only the base record was retained (see
+ * scripts/scan.ts's `base`) — fall back to the repo's own owner segment so
+ * the link a plugin page generates always matches a real user page.
+ */
+export function pluginOwnerLogin(
+  plugin: Pick<PluginRecord, "owner" | "repo">
+): string {
+  return plugin.owner?.login ?? plugin.repo.split("/")[0]
+}
