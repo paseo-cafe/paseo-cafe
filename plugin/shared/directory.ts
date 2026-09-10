@@ -188,6 +188,7 @@ export function migrateDirectorySettings(
   return {
     ...previous,
     browse: previous.browse ?? DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+    reportInstalls: previous.reportInstalls ?? false,
   }
 }
 
@@ -205,6 +206,7 @@ export const directorySettings = defineSettings({
     browse: directoryBrowseSettingsSchema.default(
       DEFAULT_DIRECTORY_BROWSE_SETTINGS
     ),
+    reportInstalls: z.boolean().default(false),
   }),
   migrate: migrateDirectorySettings,
 })
@@ -585,11 +587,28 @@ export const directoryInstallRpc = defineRpc({
   input: z.object({
     repo: z.string(),
     path: z.string().optional(),
+    catalogUrl: httpUrlSchema.optional(),
   }),
   output: z.object({
     ok: z.boolean(),
     message: z.string(),
+    reportToken: z.uuid().optional(),
   }),
+})
+
+export const directoryCompleteInstallReportRpc = defineRpc({
+  name: "directory.complete-install-report",
+  input: z.object({
+    reportToken: z.uuid(),
+    consent: z.boolean(),
+  }),
+  output: z.object({ scheduled: z.boolean() }),
+})
+
+export const directoryCancelInstallReportsRpc = defineRpc({
+  name: "directory.cancel-install-reports",
+  input: z.object({}),
+  output: z.object({}),
 })
 
 export const directoryUpdateRpc = defineRpc({
@@ -688,6 +707,12 @@ function normalizePluginPath(path: string | undefined): string | undefined {
     .replace(/^\/+/, "")
     .replace(/\/$/, "")
   return normalized || undefined
+}
+
+export function pluginSourceKey(
+  source: Pick<DirectoryEntry, "repo" | "path">
+): string {
+  return `${source.repo.toLowerCase()}\u0000${normalizePluginPath(source.path) ?? ""}`
 }
 
 function pluginPathFromCheckout(path: string): string | undefined {

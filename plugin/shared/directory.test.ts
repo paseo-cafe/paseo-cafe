@@ -197,10 +197,33 @@ describe("directory taxonomy and browse settings", () => {
     expect(migrated).toEqual({
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: false,
     })
     expect(directorySettings.schema.parse(migrated)).toEqual({
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: false,
+    })
+  })
+})
+
+describe("directory settings", () => {
+  it("defaults reporting off and preserves the catalog URL during migration", async () => {
+    expect(directorySettings.schema.parse({})).toEqual({
+      directoryUrl: "https://paseo.cafe/api/plugins",
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: false,
+    })
+    const migrated = await Promise.resolve(
+      directorySettings.migrate?.(
+        { directoryUrl: "https://catalog.example/api/plugins" },
+        1
+      )
+    )
+    expect(migrated).toEqual({
+      directoryUrl: "https://catalog.example/api/plugins",
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: false,
     })
   })
 })
@@ -234,7 +257,6 @@ describe("directory attachment sources", () => {
     ])
   })
 })
-
 describe("directory presentation", () => {
   it("builds an encoded canonical directory URL", () => {
     expect(getSiteUrl({ id: "plugin/name" })).toBe(

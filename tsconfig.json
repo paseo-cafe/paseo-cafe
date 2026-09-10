@@ -1,10 +1,8 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
-  // plugin/ is a separate project (own package.json, tsconfig, deps, and
-  // `npm run typecheck`) that ships to a Paseo daemon, not this app's
-  // bundle — it has no business being checked with this tsconfig's DOM lib
-  // and vite/client types. Typecheck it from plugin/ itself.
-  "exclude": ["plugin"],
+  // The plugin and Cafe service have separate dependencies and runtime types.
+  // Check each with its own tsconfig rather than the website's DOM/Vite types.
+  "exclude": ["plugin", "services"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",

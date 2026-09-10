@@ -1,0 +1,119 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cafe-service",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-10",
+  "workers_dev": false,
+  "send_metrics": false,
+  "dependencies_instrumentation": {
+    "enabled": false
+  },
+  "logpush": false,
+  "observability": {
+    "enabled": false,
+    "logs": {
+      "invocation_logs": false
+    }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "INSTALL_COUNTER",
+        "class_name": "InstallCounter"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["InstallCounter"]
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "INSTALL_RATE_LIMITER",
+      "namespace_id": "2026091001",
+      "simple": { "limit": 600, "period": 60 }
+    }
+  ],
+  "vars": {
+    "REPORTING_ENABLED": "false",
+    "GLOBAL_DAILY_LIMIT": "10000",
+    "PLUGIN_DAILY_LIMIT": "1000"
+  },
+  "env": {
+    "development": {
+      "name": "cafe-service-development",
+      "workers_dev": true,
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "INSTALL_COUNTER",
+            "class_name": "InstallCounter"
+          }
+        ]
+      },
+      "ratelimits": [
+        {
+          "name": "INSTALL_RATE_LIMITER",
+          "namespace_id": "2026091002",
+          "simple": { "limit": 600, "period": 60 }
+        }
+      ],
+      "vars": {
+        "REPORTING_ENABLED": "true",
+        "GLOBAL_DAILY_LIMIT": "10000",
+        "PLUGIN_DAILY_LIMIT": "1000"
+      }
+    },
+    "staging": {
+      "name": "cafe-service-staging",
+      "workers_dev": true,
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "INSTALL_COUNTER",
+            "class_name": "InstallCounter"
+          }
+        ]
+      },
+      "ratelimits": [
+        {
+          "name": "INSTALL_RATE_LIMITER",
+          "namespace_id": "2026091003",
+          "simple": { "limit": 600, "period": 60 }
+        }
+      ],
+      "vars": {
+        "REPORTING_ENABLED": "false",
+        "GLOBAL_DAILY_LIMIT": "10000",
+        "PLUGIN_DAILY_LIMIT": "1000"
+      }
+    },
+    "production": {
+      "name": "cafe-service-production",
+      "workers_dev": false,
+      "routes": [{ "pattern": "api.paseo.cafe", "custom_domain": true }],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "INSTALL_COUNTER",
+            "class_name": "InstallCounter"
+          }
+        ]
+      },
+      "ratelimits": [
+        {
+          "name": "INSTALL_RATE_LIMITER",
+          "namespace_id": "2026091004",
+          "simple": { "limit": 600, "period": 60 }
+        }
+      ],
+      "vars": {
+        "REPORTING_ENABLED": "false",
+        "GLOBAL_DAILY_LIMIT": "10000",
+        "PLUGIN_DAILY_LIMIT": "1000"
+      }
+    }
+  }
+}

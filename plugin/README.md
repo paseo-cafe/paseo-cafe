@@ -38,6 +38,22 @@ A custom catalog must use HTTPS, or HTTP on loopback (`localhost`, `*.localhost`
 `paseo` CLI, so anyone able to rewrite a plaintext response chooses what gets installed on the
 daemon host.
 
+Install reporting is off by default. **Settings → Plugins → Paseo Cafe → Share approximate
+install counts** opts this daemon into reporting genuinely new, successful installs started from
+the default catalog. Updates, already-installed no-ops, failed installs, custom catalogs, and
+catalog entries the daemon cannot verify are not reported. A later reinstall after removal is a
+new install event and may be counted again.
+
+Each report contains exactly the public catalog plugin ID and a fresh operation nonce used only
+to deduplicate that install's bounded retries. It contains no machine or installation identifier,
+plugin inventory, or arbitrary metadata. Cloudflare necessarily processes the request IP.
+Published counts are therefore approximate reported installs, not unique users or machines.
+Revoking consent cancels pending in-memory reports; there is no persistent retry queue.
+
+Reports go to `https://api.paseo.cafe/v1/install`. A trusted daemon environment may set
+`PASEO_CAFE_SERVICE_URL` to another HTTPS service origin, or to an HTTP loopback origin for local
+smoke testing. The plugin app cannot choose this destination.
+
 ## Limitations
 
 - Plugins listed here are community-submitted and are not vetted by paseo.cafe. They are

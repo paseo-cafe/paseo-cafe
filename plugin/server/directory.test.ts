@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { InstalledPlugin } from "../shared/directory"
+import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   DEFAULT_DIRECTORY_URL,
   findInstallations,
@@ -7,6 +7,7 @@ import {
 } from "../shared/directory"
 import {
   buildPaseoInvocation,
+  createDirectoryInstaller,
   inspectUpdateStatus,
   installDirectoryPlugin,
   listDirectory,
@@ -17,6 +18,7 @@ import {
   searchDirectorySecurity,
   updateDirectoryPlugin,
 } from "./directory"
+import { createInstallReportManager, type InstallReport } from "./telemetry"
 
 const originalFetch = globalThis.fetch
 const originalDirectoryUrl = process.env.PASEO_CAFE_DIRECTORY_URL
@@ -408,6 +410,142 @@ describe("installDirectoryPlugin", () => {
       ok: false,
       message: `"../outside" isn't a valid plugin subpath.`,
     })
+  })
+})
+
+describe("install report eligibility", () => {
+  const entry: DirectoryEntry = {
+    id: "review",
+    repo: "acme/plugins",
+    path: "plugins/review",
+    url: "https://github.com/acme/plugins",
+    name: "Review",
+    description: "Review changes",
+    categories: [],
+    platforms: [],
+    caveats: [],
+    images: [],
+  }
+
+  it("reports only one confirmed new install across concurrent clients", async () => {
+    let installed = false
+    let commandCount = 0
+    const sent: InstallReport[] = []
+    const reports = createInstallReportManager({
+      nonce: () => "11111111-1111-4111-8111-111111111111",
+      send: async (report) => {
+        sent.push(report)
+      },
+    })
+    const install = createDirectoryInstaller({
+      reports,
+      catalogEntry: () => entry,
+      listInstalled: async () =>
+        installed
+          ? [
+              gitInstallation({
+                remote: "https://github.com/acme/plugins.git",
+                path: "/tmp/version/checkout/plugins/review",
+              }),
+            ]
+          : [],
+      runPaseo: async () => {
+        commandCount += 1
+        installed = true
+        return { stdout: "installed", stderr: "" }
+      },
+    })
+
+    const [first, second] = await Promise.all([
+      install({
+        repo: entry.repo,
+        path: entry.path,
+        catalogUrl: DEFAULT_DIRECTORY_URL,
+      }),
+      install({
+        repo: entry.repo,
+        path: entry.path,
+        catalogUrl: DEFAULT_DIRECTORY_URL,
+      }),
+    ])
+    await Promise.resolve()
+    const reportToken = first.reportToken ?? second.reportToken
+    expect(reportToken).toBeDefined()
+    if (!reportToken) throw new Error("Expected one install report token")
+    expect(
+      [first.reportToken, second.reportToken].filter(Boolean)
+    ).toHaveLength(1)
+    expect(commandCount).toBe(2)
+
+    reports.complete(reportToken, true)
+    reports.complete(reportToken, true)
+    await Promise.resolve()
+    expect(sent).toEqual([
+      {
+        pluginId: "review",
+        nonce: "11111111-1111-4111-8111-111111111111",
+      },
+    ])
+    reports.dispose()
+  })
+
+  it("does not offer a report for no-op, failed, custom, or unknown installs", async () => {
+    const installedPlugin = gitInstallation({
+      remote: "https://github.com/acme/plugins.git",
+      path: "/tmp/version/checkout/plugins/review",
+    })
+    const reports = createInstallReportManager()
+    const noOp = createDirectoryInstaller({
+      reports,
+      catalogEntry: () => entry,
+      listInstalled: async () => [installedPlugin],
+      runPaseo: async () => ({ stdout: "already installed", stderr: "" }),
+    })
+    await expect(
+      noOp({
+        repo: entry.repo,
+        path: entry.path,
+        catalogUrl: DEFAULT_DIRECTORY_URL,
+      })
+    ).resolves.not.toHaveProperty("reportToken")
+
+    const failed = createDirectoryInstaller({
+      reports,
+      catalogEntry: () => entry,
+      listInstalled: async () => [],
+      runPaseo: async () => {
+        throw new Error("install failed")
+      },
+    })
+    await expect(
+      failed({
+        repo: entry.repo,
+        path: entry.path,
+        catalogUrl: DEFAULT_DIRECTORY_URL,
+      })
+    ).resolves.not.toHaveProperty("reportToken")
+
+    const successful = createDirectoryInstaller({
+      reports,
+      catalogEntry: () => undefined,
+      listInstalled: async () => [],
+      runPaseo: async () => ({ stdout: "installed", stderr: "" }),
+    })
+    await expect(
+      successful({
+        repo: entry.repo,
+        path: entry.path,
+        catalogUrl: "https://catalog.example/api/plugins",
+      })
+    ).resolves.not.toHaveProperty("reportToken")
+    await expect(
+      successful({
+        repo: entry.repo,
+        path: entry.path,
+        catalogUrl: DEFAULT_DIRECTORY_URL,
+      })
+    ).resolves.not.toHaveProperty("reportToken")
+    reports.dispose()
   })
 })
 

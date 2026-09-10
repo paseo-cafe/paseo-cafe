@@ -1,4 +1,4 @@
-import { useSettings } from "@getpaseo/plugin/client"
+import { useRpc, useSettings } from "@getpaseo/plugin/client"
 import { useToast } from "@getpaseo/plugin/client/react-native"
 import type { SettingsInputHandle } from "@getpaseo/plugin/client/ui"
 import {
@@ -7,12 +7,18 @@ import {
   SettingsInput,
   SettingsRow,
   SettingsSection,
+  SettingsSwitch,
 } from "@getpaseo/plugin/client/ui"
 import { useRef, useState } from "react"
-import { DEFAULT_DIRECTORY_URL, directorySettings } from "../shared/directory"
+import {
+  DEFAULT_DIRECTORY_URL,
+  directoryCancelInstallReportsRpc,
+  directorySettings,
+} from "../shared/directory"
 
 export function DirectorySettings() {
   const settings = useSettings(directorySettings)
+  const cancelInstallReports = useRpc(directoryCancelInstallReportsRpc)
   const toast = useToast()
   const [draft, setDraft] = useState<string | null>(null)
   const inputRef = useRef<SettingsInputHandle>(null)
@@ -57,6 +63,18 @@ export function DirectorySettings() {
     }
   }
 
+  async function setInstallReporting(reportInstalls: boolean) {
+    const ok = await saveSettings({ ...values, reportInstalls }, revision)
+    if (!ok) {
+      toast.error("Failed to save Paseo Cafe settings.")
+      return
+    }
+    if (!reportInstalls) {
+      void cancelInstallReports({}).catch(() => {})
+    }
+    toast.show("Paseo Cafe settings saved.", { variant: "success" })
+  }
+
   function reset() {
     inputRef.current?.replaceText(DEFAULT_DIRECTORY_URL)
     setDraft(DEFAULT_DIRECTORY_URL)
@@ -77,6 +95,13 @@ export function DirectorySettings() {
           initialValue={values.directoryUrl}
           placeholder={DEFAULT_DIRECTORY_URL}
           onChangeText={setDraft}
+          disabled={saving}
+        />
+        <SettingsSwitch
+          label="Share approximate install counts"
+          hint="After a genuinely new install from the default catalog, send only its public catalog ID and a one-time operation nonce. Cloudflare necessarily processes the request IP. Published counts are approximate reported installs."
+          value={values.reportInstalls}
+          onValueChange={(value) => void setInstallReporting(value)}
           disabled={saving}
         />
         <SettingsAction
