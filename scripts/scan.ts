@@ -56,101 +56,73 @@ import {
   resolveGitHubAssetContentType,
 } from "./github.ts"
 import { renderOgImage } from "./og-image.tsx"
+import { securityResultsSchema } from "./plugin-security/shared.ts"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
 const ROOT = process.cwd()
 const REGISTRY_DIR = join(ROOT, "registry")
 const OUTPUT_DIR = join(ROOT, "data", "plugins")
 
-const SECURITY_ARTIFACT_PATHS = [
-  join(ROOT, "data", "plugin-security-results.json"),
-  join(ROOT, "data", "plugin-security.json"),
-  join(ROOT, "data", "plugins-security.json"),
-  join(ROOT, "data", "security.json"),
-]
-
-const httpUrlSchema = z
-  .string()
-  .url()
-  .refine((url) => url.startsWith("http://") || url.startsWith("https://"), {
-    message: "Must be an http(s) URL",
-  })
-
-const SECURITY_RESULT_SCHEMA = z
-  .object({
-    commit: gitCommitSchema,
-    scannedAt: z.string(),
-    status: z.enum(["passed", "review-required", "failed", "unavailable"]),
-    blockingFindings: z.number().int().nonnegative(),
-    advisoryFindings: z.number().int().nonnegative(),
-    reportUrl: httpUrlSchema.optional(),
-  })
-  .superRefine((security, ctx) => {
-    if (security.status === "passed" && security.blockingFindings > 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["blockingFindings"],
-        message: 'status "passed" cannot have blocking findings',
-      })
-    }
-  })
-
-const SECURITY_RESULTS_ARTIFACT_SCHEMA = z.object({
-  version: z.number().int().optional(),
-  generatedAt: z.string().optional(),
-  plugins: z.record(z.string(), SECURITY_RESULT_SCHEMA),
-})
-
-const SECURITY_MAP_ARTIFACT_SCHEMA = z.record(z.string(), pluginSecuritySchema)
+const SECURITY_ARTIFACT_PATH = join(
+  ROOT,
+  "data",
+  "plugin-security-results.json"
+)
 const REPOSITORY_COMMIT_SCHEMA = z.object({ sha: gitCommitSchema })
 
 export function securityForRevision(
   security: PluginSecurity | undefined,
   revision: string
 ): PluginSecurity | undefined {
-  if (security === undefined || security.status === "unknown") return security
+  if (security === undefined) return undefined
   const normalizedRevision = gitCommitSchema.safeParse(revision)
+  if (!normalizedRevision.success) return undefined
+
+  if (security.commit === undefined) {
+    return security.status === "unknown"
+      ? { status: "unknown", blockingFindings: 0, advisoryFindings: 0 }
+      : undefined
+  }
+
+  const normalizedCommit = gitCommitSchema.safeParse(security.commit)
   if (
-    !normalizedRevision.success ||
-    security.commit !== normalizedRevision.data
+    !normalizedCommit.success ||
+    normalizedCommit.data !== normalizedRevision.data
   ) {
     return undefined
   }
   return security
 }
 
-function loadPublishedSecurityCatalog(): Record<string, PluginSecurity> {
-  for (const artifactPath of SECURITY_ARTIFACT_PATHS) {
-    if (!existsSync(artifactPath)) continue
-    try {
-      const raw = JSON.parse(readFileSync(artifactPath, "utf8")) as unknown
-      const map = SECURITY_MAP_ARTIFACT_SCHEMA.safeParse(raw)
-      if (map.success) return map.data
+export function loadPublishedSecurityCatalog(
+  artifactPath = SECURITY_ARTIFACT_PATH
+): Record<string, PluginSecurity> {
+  if (!existsSync(artifactPath)) return {}
 
-      const results = SECURITY_RESULTS_ARTIFACT_SCHEMA.safeParse(raw)
-      if (results.success) {
-        const catalog: Record<string, PluginSecurity> = {}
-        for (const [id, security] of Object.entries(results.data.plugins)) {
-          catalog[id] = {
-            status:
-              security.status === "passed" || security.status === "failed"
-                ? security.status
-                : "unknown",
-            blockingFindings: security.blockingFindings,
-            advisoryFindings: security.advisoryFindings,
-            scannedAt: security.scannedAt,
-            commit: security.commit,
-            reportUrl: security.reportUrl,
-          }
-        }
-        return catalog
-      }
-    } catch {
-      // Ignore unreadable or malformed published security artifacts.
-    }
+  try {
+    const result = securityResultsSchema.safeParse(
+      JSON.parse(readFileSync(artifactPath, "utf8")) as unknown
+    )
+    if (!result.success) return {}
+
+    return Object.fromEntries(
+      Object.entries(result.data.plugins).map(([id, security]) => [
+        id,
+        pluginSecuritySchema.parse({
+          status:
+            security.status === "unavailable" ? "unknown" : security.status,
+          blockingFindings: security.blockingFindings,
+          advisoryFindings: security.advisoryFindings,
+          scannedAt: security.scannedAt,
+          commit: security.commit,
+        }),
+      ])
+    )
+  } catch {
+    return {}
   }
-  return {}
 }
+
 const INDEX_PATH = join(ROOT, "data", "plugins.json")
 const PUBLIC_DIR = join(ROOT, "public")
 const OG_DIR = join(PUBLIC_DIR, "og")
@@ -175,23 +147,23 @@ function isRecent(iso: string): boolean {
   return pushed >= cutoff
 }
 
-async function scanOne(
+export async function scanOne(
   entryFile: string,
-  securityCatalog: Record<string, PluginSecurity>
+  securityCatalog: Record<string, PluginSecurity>,
+  registryDir = REGISTRY_DIR
 ): Promise<PluginRecord> {
   const id = registryIdSchema.parse(entryFile.slice(0, -".json".length))
-  const raw = JSON.parse(readFileSync(join(REGISTRY_DIR, entryFile), "utf8"))
+  const raw = JSON.parse(readFileSync(join(registryDir, entryFile), "utf8"))
   const entry = registryEntrySchema.parse(raw)
   const [owner, repo] = entry.repo.split("/")
   const scannedAt = new Date().toISOString()
   const prefix = entry.path ? `${entry.path}/` : ""
-  const fallbackUrl = `https://github.com/${entry.repo}${entry.path ? `/tree/HEAD/${entry.path}` : ""}`
 
   const base: PluginRecord = {
     id,
     repo: entry.repo,
     path: entry.path,
-    url: fallbackUrl,
+    url: `https://github.com/${entry.repo}`,
     name: id,
     description: "",
     categories: entry.categories,
@@ -213,30 +185,44 @@ async function scanOne(
   try {
     const repoMeta = await fetchRepoMeta(owner, repo)
     const branch = repoMeta.default_branch
-    const revision = REPOSITORY_COMMIT_SCHEMA.parse(
-      await ghApi<unknown>(
-        `/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`
-      )
-    ).sha
-    const dirEntries = await listDir(owner, repo, entry.path ?? "", revision)
-    const byName = new Map(dirEntries.map((e) => [e.name, e]))
+    const repositoryUrl = entry.path
+      ? `https://github.com/${entry.repo}/tree/${branch}/${entry.path}`
+      : `https://github.com/${entry.repo}`
+    let revision: string | undefined
+    let revisionError: string | undefined
+    try {
+      revision = REPOSITORY_COMMIT_SCHEMA.parse(
+        await ghApi<unknown>(
+          `/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`
+        )
+      ).sha
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      revisionError =
+        `default branch commit unavailable; scanned ${branch} without security ` +
+        `attestation or repository-hosted images: ${reason}`
+    }
+
+    const contentRef = revision ?? branch
+    const dirEntries = await listDir(owner, repo, entry.path ?? "", contentRef)
+    const byName = new Map(dirEntries.map((entry) => [entry.name, entry]))
 
     const manifest = await fetchRawJson<Record<string, unknown>>(
       owner,
       repo,
-      revision,
+      contentRef,
       `${prefix}paseo-plugin.json`
     )
     const pkg = await fetchRawJson<PackageJson>(
       owner,
       repo,
-      revision,
+      contentRef,
       `${prefix}package.json`
     )
 
     const readmeEntry = byName.get("README.md") ?? byName.get("readme.md")
     const readme = readmeEntry
-      ? await fetchRawText(owner, repo, revision, readmeEntry.path)
+      ? await fetchRawText(owner, repo, contentRef, readmeEntry.path)
       : null
     const readmeText = readme == null ? undefined : readme.slice(0, 200000)
     const readmeHtml =
@@ -248,7 +234,7 @@ async function scanOne(
       byName.has("LICENSE") || byName.has("LICENSE.md") || byName.has("license")
     const imagesDirEntry = byName.get("images")
     const imageDirEntries =
-      imagesDirEntry?.type === "dir"
+      revision && imagesDirEntry?.type === "dir"
         ? await listDir(owner, repo, imagesDirEntry.path, revision)
         : []
 
@@ -295,26 +281,30 @@ async function scanOne(
           readmeImageRefs
         )
       : []
-    const resolveReadmeImageUrl = (ref: string): string => {
-      if (/^https?:\/\//i.test(ref)) return ref
-      const rootRelative = ref.startsWith("/")
-      const cleaned = ref
-        .replace(/^\.\//, "")
-        .replace(/^\//, "")
-        .replace(/[#?].*$/, "")
-      return rawUrl(
-        owner,
-        repo,
-        revision,
-        rootRelative ? cleaned : `${prefix}${cleaned}`
-      )
-    }
-    const readmeImages = [...readmeImageRefs, ...readmeAssetImages].map(
-      resolveReadmeImageUrl
+    const readmeImages = [...readmeImageRefs, ...readmeAssetImages].flatMap(
+      (ref) => {
+        if (/^https?:\/\//i.test(ref)) return [ref]
+        if (!revision) return []
+        const rootRelative = ref.startsWith("/")
+        const cleaned = ref
+          .replace(/^\.\//, "")
+          .replace(/^\//, "")
+          .replace(/[#?].*$/, "")
+        return [
+          rawUrl(
+            owner,
+            repo,
+            revision,
+            rootRelative ? cleaned : `${prefix}${cleaned}`
+          ),
+        ]
+      }
     )
-    const dirImages = imageDirEntries
-      .filter((e) => e.type === "file")
-      .map((e) => rawUrl(owner, repo, revision, e.path))
+    const dirImages = revision
+      ? imageDirEntries
+          .filter((entry) => entry.type === "file")
+          .map((entry) => rawUrl(owner, repo, revision, entry.path))
+      : []
     const images = Array.from(new Set([...dirImages, ...readmeImages])).slice(
       0,
       MAX_README_IMAGES
@@ -324,7 +314,7 @@ async function scanOne(
       id,
       repo: entry.repo,
       path: entry.path,
-      url: `https://github.com/${entry.repo}${entry.path ? `/tree/${revision}/${entry.path}` : ""}`,
+      url: repositoryUrl,
       name: id,
       description:
         pkg?.description ??
@@ -347,11 +337,13 @@ async function scanOne(
         hasLicense: hasLicenseFile || Boolean(repoMeta.license),
         hasTests:
           Boolean(pkg?.scripts?.test) ||
-          dirEntries.some((e) => /test/i.test(e.name)),
+          dirEntries.some((entry) => /test/i.test(entry.name)),
         hasTypecheckScript: Boolean(pkg?.scripts?.typecheck),
         updatedRecently: isRecent(repoMeta.pushed_at),
       },
-      security: securityForRevision(securityCatalog[id], revision),
+      security: revision
+        ? securityForRevision(securityCatalog[id], revision)
+        : undefined,
       images,
       videos,
       installNotes,
@@ -375,18 +367,24 @@ async function scanOne(
       scannedAt,
     }
 
+    const scanErrors = revisionError ? [revisionError] : []
     if (!manifestId) {
-      record.scanError = "paseo-plugin.json missing or missing an 'id' field"
+      scanErrors.push("paseo-plugin.json missing or missing an 'id' field")
     } else if (manifestId !== id) {
-      record.scanError = `paseo-plugin.json id "${manifestId}" must match registry ID "${id}"`
+      scanErrors.push(
+        `paseo-plugin.json id "${manifestId}" must match registry ID "${id}"`
+      )
     }
+    if (scanErrors.length > 0) record.scanError = scanErrors.join("; ")
 
     return pluginRecordSchema.parse(record)
-  } catch (err) {
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    const location = `${entry.repo}${entry.path ? `/${entry.path}` : ""}`
     const message =
-      err instanceof GitHubNotFoundError
-        ? `repo/path not found on GitHub: ${entry.repo}${entry.path ? `/${entry.path}` : ""}`
-        : `scan failed: ${(err as Error).message}`
+      error instanceof GitHubNotFoundError
+        ? `repo/path not found on GitHub: ${location}`
+        : `scan failed: ${reason}`
     return pluginRecordSchema.parse({ ...base, scanError: message })
   }
 }

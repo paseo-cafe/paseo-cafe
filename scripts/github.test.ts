@@ -23,10 +23,19 @@ describe("bounded GitHub raw files", () => {
     ).resolves.toEqual({ ok: true })
   })
 
-  it("rejects an oversized declared JSON file before parsing", async () => {
+  it("cancels an oversized declared JSON file before parsing", async () => {
+    let cancelled = false
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("{}"))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
     globalThis.fetch = vi.fn(
       async () =>
-        new Response("{}", {
+        new Response(stream, {
           headers: { "content-length": String(MAX_GITHUB_RAW_BYTES + 1) },
         })
     ) as typeof fetch
@@ -37,6 +46,7 @@ describe("bounded GitHub raw files", () => {
     ).rejects.toThrow(
       `GitHub raw file exceeds ${MAX_GITHUB_RAW_BYTES} byte limit`
     )
+    expect(cancelled).toBe(true)
     expect(parse).not.toHaveBeenCalled()
   })
 

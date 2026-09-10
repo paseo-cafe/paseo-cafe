@@ -91,6 +91,7 @@ async function readBoundedRawText(
     /^\d+$/.test(contentLength) &&
     Number(contentLength) > MAX_GITHUB_RAW_BYTES
   ) {
+    if (response.body) await response.body.cancel().catch(() => {})
     throw new Error(
       `GitHub raw file exceeds ${MAX_GITHUB_RAW_BYTES} byte limit: ${url}`
     )
