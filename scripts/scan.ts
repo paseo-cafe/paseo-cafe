@@ -46,7 +46,12 @@ import {
   registryEntrySchema,
   registryIdSchema,
 } from "../src/lib/registry-schema.ts"
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../src/lib/site.ts"
+import {
+  BASE_PATH,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+} from "../src/lib/site.ts"
 import { extractVideos, resolveGitHubAssetVideos } from "../src/lib/videos.ts"
 import {
   fetchRawJson,
@@ -418,6 +423,36 @@ async function writeOgImage(
   }
 }
 
+/**
+ * The static stand-in for the old /plugins listing URL, kept working for
+ * bookmarks and inbound links. Generated rather than committed because both
+ * the redirect target and the canonical URL depend on where this deployment
+ * lives — a fork serving the site under /<repo>/ needs its own, not
+ * paseo.cafe's. The app has a matching client-side redirect route
+ * (src/routes/plugins.index.tsx); this covers the first, static hit.
+ */
+function writePluginsRedirect() {
+  // SITE_URL already carries the base path when there is one, so the
+  // canonical home URL is just SITE_URL plus a trailing slash.
+  const target = `${SITE_URL}/`
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content="0; url=${BASE_PATH}" />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href="${target}" />
+    <title>Redirecting to ${SITE_NAME}</title>
+  </head>
+  <body>
+    <p><a href="${BASE_PATH}">Browse ${SITE_NAME} plugins</a></p>
+  </body>
+</html>
+`
+  mkdirSync(join(PUBLIC_DIR, "plugins"), { recursive: true })
+  writeFileSync(join(PUBLIC_DIR, "plugins", "index.html"), html)
+}
+
 export function writeSitemap(records: PluginRecord[]) {
   const staticPages = [
     { path: "/", changefreq: "daily" },
@@ -459,6 +494,7 @@ async function main() {
     existsSync(INDEX_PATH) &&
     existsSync(join(PUBLIC_DIR, "sitemap.xml")) &&
     existsSync(join(PUBLIC_DIR, "robots.txt")) &&
+    existsSync(join(PUBLIC_DIR, "plugins", "index.html")) &&
     existsSync(join(OG_DIR, "default.png")) &&
     files.every((file) => {
       const id = file.slice(0, -".json".length)
@@ -503,13 +539,14 @@ async function main() {
     description: SITE_DESCRIPTION,
   })
   writeSitemap(records)
+  writePluginsRedirect()
 
   const ok = records.filter((r) => !r.scanError).length
   console.log(
     `\nWrote ${records.length} record(s) (${ok} clean, ${records.length - ok} with warnings) to data/plugins.json`
   )
   console.log(
-    `Wrote ${records.length + 1} OG image(s), sitemap.xml, and robots.txt to public/`
+    `Wrote ${records.length + 1} OG image(s), sitemap.xml, robots.txt, and plugins/index.html to public/`
   )
 }
 

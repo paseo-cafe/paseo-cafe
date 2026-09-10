@@ -11,7 +11,7 @@ import { SiteHeader } from "@/components/site-header"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
-import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
+import { asset, SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
 import appCss from "../styles.css?url"
 
 export const Route = createRootRoute({
@@ -31,9 +31,9 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.ico", sizes: "16x16 32x32 48x48" },
-      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      { rel: "icon", href: asset("/favicon.ico"), sizes: "16x16 32x32 48x48" },
+      { rel: "icon", href: asset("/favicon.svg"), type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: asset("/apple-touch-icon.png") },
     ],
   }),
   notFoundComponent: () => (
