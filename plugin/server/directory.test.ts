@@ -6,11 +6,13 @@ import {
   installedPluginSchema,
 } from "../shared/directory"
 import {
+  buildInstallArgs,
   buildPaseoInvocation,
   inspectUpdateStatus,
   installDirectoryPlugin,
   listDirectory,
   mapWithConcurrency,
+  remoteBranchMatchesCommit,
   searchDirectory,
   searchDirectoryManifests,
   searchDirectoryReadmes,
@@ -92,6 +94,22 @@ describe("listDirectory", () => {
       headers: { accept: "application/json" },
       redirect: "error",
     })
+  })
+
+  it("drops an unsafe listing without blanking the rest of the catalog", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      Response.json({
+        generatedAt: "2026-09-09T12:00:00.000Z",
+        plugins: [plugin(), plugin({ id: "unsafe", path: "bad; echo pwn" })],
+      })
+    ) as typeof fetch
+
+    const result = await listDirectory({
+      baseUrl: "https://catalog.example.test/partially-invalid",
+      force: true,
+    })
+
+    expect(result.plugins.map((entry) => entry.id)).toEqual(["catalog"])
   })
 
   it("reports a failed catalog response", async () => {
@@ -395,7 +413,7 @@ describe("directory attachment searches", () => {
 })
 
 describe("installDirectoryPlugin", () => {
-  it("rejects untrusted repository and path values before spawning Paseo", async () => {
+  it("rejects untrusted repository, path, and ref values before spawning Paseo", async () => {
     await expect(
       installDirectoryPlugin({ repo: "acme/plugin --ref main" })
     ).resolves.toEqual({
@@ -408,6 +426,64 @@ describe("installDirectoryPlugin", () => {
       ok: false,
       message: `"../outside" isn't a valid plugin subpath.`,
     })
+    await expect(
+      installDirectoryPlugin({ repo: "acme/plugin", ref: "bad ref" })
+    ).resolves.toEqual({
+      ok: false,
+      message: `"bad ref" isn't a valid Git branch.`,
+    })
+    await expect(
+      installDirectoryPlugin({
+        repo: "acme/plugin",
+        expectedCommit: "a".repeat(40),
+      })
+    ).resolves.toEqual({
+      ok: false,
+      message: "The scanned commit cannot be verified without a branch name.",
+    })
+  })
+
+  it("tracks the scanned branch in the install command", () => {
+    expect(
+      buildInstallArgs({ repo: "acme/plugin", path: "nested", ref: "main" })
+    ).toEqual([
+      "plugin",
+      "add",
+      "acme/plugin",
+      "--ref",
+      "main",
+      "--path",
+      "nested",
+    ])
+  })
+
+  it("accepts only the branch head that was security scanned", async () => {
+    const commit = "b".repeat(40)
+    const matchingGit = vi.fn(async () => ({
+      stdout: `${commit}\trefs/heads/main\n`,
+      exitCode: 0,
+    }))
+    const changedGit = vi.fn(async () => ({
+      stdout: `${"c".repeat(40)}\trefs/heads/main\n`,
+      exitCode: 0,
+    }))
+
+    await expect(
+      remoteBranchMatchesCommit("acme/plugin", "main", commit, matchingGit)
+    ).resolves.toBe(true)
+    await expect(
+      remoteBranchMatchesCommit("acme/plugin", "main", commit, changedGit)
+    ).resolves.toBe(false)
+    expect(matchingGit).toHaveBeenCalledWith(
+      expect.any(String),
+      [
+        "ls-remote",
+        "--exit-code",
+        "https://github.com/acme/plugin.git",
+        "refs/heads/main",
+      ],
+      30_000
+    )
   })
 })
 

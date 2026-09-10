@@ -35,6 +35,26 @@ const BADGE_HOSTS = new Set([
   "img.badgesize.io",
 ])
 
+const TRUSTED_REMOTE_IMAGE_HOSTS: Record<string, true> = {
+  "github.com": true,
+  "raw.githubusercontent.com": true,
+  "user-images.githubusercontent.com": true,
+  "private-user-images.githubusercontent.com": true,
+}
+
+export function isTrustedRemoteImageUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (
+      url.protocol === "https:" &&
+      (Object.hasOwn(TRUSTED_REMOTE_IMAGE_HOSTS, url.hostname) ||
+        url.hostname.endsWith(".githubusercontent.com"))
+    )
+  } catch {
+    return false
+  }
+}
+
 function isBadgeImage(url: string): boolean {
   let hostname: string
   try {

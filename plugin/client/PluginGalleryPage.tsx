@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import { Pressable, Text, View } from "react-native"
 import type { DirectoryEntry } from "../shared/directory"
 import { AspectImage } from "./AspectImage"
+import { CAFE_MONO_FONT } from "./visual"
 
 interface PluginGalleryPageProps {
   entry: DirectoryEntry
@@ -22,16 +23,27 @@ export function PluginGalleryPage({
   const styles = useMemo(
     () => ({
       screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-      content: { padding: compact ? 16 : 24, gap: 16, maxWidth: 1100 },
+      content: {
+        width: "100%" as const,
+        maxWidth: 1100,
+        alignSelf: "center" as const,
+        padding: compact ? 16 : 24,
+        gap: 16,
+      },
       backRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
         gap: 4,
         marginBottom: 4,
       },
-      backText: { color: theme.colors.accent, fontSize: 14 },
+      backText: {
+        color: theme.colors.accent,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 14,
+      },
       title: {
         color: theme.colors.foreground,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: compact ? 20 : 24,
         fontWeight: "700" as const,
       },

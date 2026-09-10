@@ -11,7 +11,7 @@ export function InstallCallout({ plugin }: { plugin: PluginRecord }) {
       </h2>
       <CopyCommand
         command={getInstallCommand(plugin)}
-        className="mx-auto w-fit"
+        className="mx-auto w-full sm:w-fit"
       />
     </div>
   )

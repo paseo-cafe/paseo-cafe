@@ -5,6 +5,27 @@ import {
   PluginAttachmentSearchPayloadSchema,
 } from "@getpaseo/plugin"
 import { z } from "zod"
+import {
+  CATALOG_CATEGORIES,
+  CATALOG_CATEGORY_LABELS,
+  CATALOG_HEALTH_KEYS,
+  CATALOG_HEALTH_LABELS,
+  CATALOG_PLATFORM_LABELS,
+  type CatalogCategory,
+  type CatalogHealthCheck,
+  getCatalogInstallCommand,
+  getCatalogInstallRef,
+  getCatalogRepositoryOwner,
+  getCatalogRepositoryUrl,
+  isOfficialCatalogPlugin,
+  isValidCatalogCommit,
+  isValidCatalogPath,
+  isValidCatalogRef,
+  isValidCatalogRepository,
+  normalizeCatalogCategories,
+  normalizeCatalogCategory,
+  normalizeCatalogCategoryFilter,
+} from "./catalog"
 
 export const DEFAULT_DIRECTORY_URL = "https://paseo.cafe/api/plugins"
 
@@ -12,21 +33,7 @@ export const DEFAULT_DIRECTORY_URL = "https://paseo.cafe/api/plugins"
 // "View on paseo.cafe" should never point at a local/staging override.
 const SITE_URL = "https://paseo.cafe"
 
-// The GitHub org that publishes official paseo.cafe plugins. Mirrors
-// src/lib/site.ts's OFFICIAL_GITHUB_ORG/isOfficialPlugin — kept as a local
-// copy since this package doesn't import from the web app's src/ tree.
-export const OFFICIAL_GITHUB_ORG = "paseo-cafe"
-// Derived from `repo`, not `entry.owner.login` — a custom catalog is
-// untrusted input, and those two fields aren't validated against each
-// other. Binding this to `repo` ties the trust badge to the same field the
-// install command uses, so a catalog can't claim official-org ownership
-// for a repo it doesn't actually point the install action at.
-export function isOfficialPlugin(entry: { repo: string }): boolean {
-  return (
-    entry.repo.split("/")[0]?.toLowerCase() ===
-    OFFICIAL_GITHUB_ORG.toLowerCase()
-  )
-}
+export const isOfficialPlugin = isOfficialCatalogPlugin
 const MAX_HTTP_URL_LENGTH = 2_048
 const httpUrlSchema = z
   .url()
@@ -70,65 +77,26 @@ export function isTrustedCatalogUrl(value: string): boolean {
   )
 }
 
+export const DIRECTORY_PLATFORM_LABELS = CATALOG_PLATFORM_LABELS
 const catalogUrlSchema = httpUrlSchema.refine(
   isTrustedCatalogUrl,
   "Catalog URL must use HTTPS, or HTTP on localhost"
 )
 
-export const DIRECTORY_CATEGORIES = [
-  "automation",
-  "browser",
-  "code-review",
-  "git",
-  "github",
-  "monitoring",
-  "orchestration",
-  "productivity",
-  "provider",
-  "theme",
-  "other",
-] as const
+export const DIRECTORY_CATEGORIES = CATALOG_CATEGORIES
 
-export type DirectoryCategory = (typeof DIRECTORY_CATEGORIES)[number]
+export type DirectoryCategory = CatalogCategory
 
-export const DIRECTORY_CATEGORY_LABELS: Record<DirectoryCategory, string> = {
-  automation: "Automation",
-  browser: "Browser",
-  "code-review": "Code Review",
-  git: "Git",
-  github: "GitHub",
-  monitoring: "Monitoring",
-  orchestration: "Orchestration",
-  productivity: "Productivity",
-  provider: "Provider",
-  theme: "Theme",
-  other: "Other",
-}
+export const DIRECTORY_CATEGORY_LABELS = CATALOG_CATEGORY_LABELS
 
 /** Maps filter input onto the stable directory taxonomy without inventing a match. */
-export function normalizeDirectoryCategoryFilter(
-  category: string
-): DirectoryCategory | "" {
-  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
-  return Object.hasOwn(DIRECTORY_CATEGORY_LABELS, normalized)
-    ? (normalized as DirectoryCategory)
-    : ""
-}
+export const normalizeDirectoryCategoryFilter = normalizeCatalogCategoryFilter
 
 /** Maps catalog-provided categories onto the stable directory taxonomy. */
-export function normalizeDirectoryCategory(
-  category: string
-): DirectoryCategory {
-  return normalizeDirectoryCategoryFilter(category) || "other"
-}
+export const normalizeDirectoryCategory = normalizeCatalogCategory
 
 /** Canonicalizes catalog categories while preserving their stable slug identity. */
-export function normalizeDirectoryCategories(
-  categories: readonly string[]
-): DirectoryCategory[] {
-  const present = new Set(categories.map(normalizeDirectoryCategory))
-  return DIRECTORY_CATEGORIES.filter((category) => present.has(category))
-}
+export const normalizeDirectoryCategories = normalizeCatalogCategories
 export const DIRECTORY_SORT_MODES = [
   "updates-first",
   "popular",
@@ -377,16 +345,32 @@ const directoryManifestSchema = z
     }
   })
 
+const directoryHealthShape = {
+  manifestValid: z.boolean().optional(),
+  hasReadme: z.boolean().optional(),
+  hasLicense: z.boolean().optional(),
+  hasTests: z.boolean().optional(),
+  hasTypecheckScript: z.boolean().optional(),
+  updatedRecently: z.boolean().optional(),
+} satisfies Record<CatalogHealthCheck, z.ZodType<boolean | undefined>>
+
 /**
  * Trimmed mirror of the PluginRecord shape served by https://paseo.cafe/api/plugins
- * (see src/lib/plugin-schema.ts and src/routes/api.plugins.ts in the site). Keep
- * JSON-compatible manifest data so the client can render it without re-fetching
- * or re-parsing the catalog payload.
+ * (see src/lib/directory-api.ts in the site). Keep JSON-compatible manifest
+ * data so the client can render it without re-fetching or re-parsing the
+ * catalog payload.
  */
 export const directoryEntrySchema = z.object({
   id: z.string().max(200),
-  repo: z.string().max(200),
-  path: z.string().max(500).optional(),
+  repo: z
+    .string()
+    .max(200)
+    .refine(isValidCatalogRepository, "Expected a GitHub owner/repository"),
+  path: z
+    .string()
+    .max(500)
+    .refine(isValidCatalogPath, "Expected a safe repository subpath")
+    .optional(),
   url: httpUrlSchema,
   name: z.string().max(200),
   description: z.string().max(4_000).default(""),
@@ -414,16 +398,7 @@ export const directoryEntrySchema = z.object({
   limitationsNotesHtml: z.string().max(100_000).optional(),
   scanError: z.string().max(4_000).optional(),
   scannedAt: z.string().max(100).optional(),
-  health: z
-    .object({
-      manifestValid: z.boolean().optional(),
-      hasReadme: z.boolean().optional(),
-      hasLicense: z.boolean().optional(),
-      hasTests: z.boolean().optional(),
-      hasTypecheckScript: z.boolean().optional(),
-      updatedRecently: z.boolean().optional(),
-    })
-    .optional(),
+  health: z.object(directoryHealthShape).optional(),
   // Mirrors src/lib/plugin-schema.ts's pluginSecuritySchema invariants — a
   // remote catalog is untrusted input, so the consumer must enforce at
   // least as much as the producer: a non-"unknown" verdict must carry a
@@ -476,6 +451,7 @@ export const directoryEntrySchema = z.object({
         .nonnegative()
         .max(Number.MAX_SAFE_INTEGER)
         .optional(),
+      defaultBranch: z.string().max(255).optional(),
       pushedAt: z.string().max(100).optional(),
     })
     .optional(),
@@ -601,6 +577,15 @@ export const directoryInstallRpc = defineRpc({
   input: z.object({
     repo: z.string(),
     path: z.string().optional(),
+    ref: z
+      .string()
+      .max(255)
+      .refine(isValidCatalogRef, "Expected a valid Git branch")
+      .optional(),
+    expectedCommit: z
+      .string()
+      .regex(/^[0-9a-f]{40}$/i)
+      .optional(),
   }),
   output: z.object({
     ok: z.boolean(),
@@ -625,34 +610,44 @@ export const directoryUpdateRpc = defineRpc({
   }),
 })
 
-// GitHub "owner/repo" — one slash, conservative charset. Checked on both sides:
-// the client disables Install for anything that fails this, and the server
-// re-checks it right before exec'ing the CLI, since that's the boundary that
-// actually matters (see server/directory.ts).
-const REPO_PATTERN =
-  /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/
+// These aliases keep the plugin API stable while sharing the exact validation
+// used by official classification and command generation.
+export const isValidRepo = isValidCatalogRepository
+export const isValidInstallPath = isValidCatalogPath
+export const isValidCommit = isValidCatalogCommit
+export const isValidRef = isValidCatalogRef
+export const getInstallRef = getCatalogInstallRef
 
-// Relative subpath within a repo — no leading slash, no ".." segments.
-const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
-
-export function isValidRepo(repo: string): boolean {
-  return REPO_PATTERN.test(repo)
-}
-
-export function isValidInstallPath(path: string): boolean {
-  const segments = path.split("/")
-  return segments.every(
-    (segment) => segment !== ".." && PATH_SEGMENT_PATTERN.test(segment)
-  )
-}
-
-/** Mirrors src/lib/install-command.ts on the site — kept in sync by hand, it's one line. */
+export const getRepositoryOwner = getCatalogRepositoryOwner
 export function getInstallCommand(
-  entry: Pick<DirectoryEntry, "repo" | "path">
+  entry: Pick<DirectoryEntry, "repo" | "path" | "repoMeta">
+): string | undefined {
+  return getCatalogInstallCommand({
+    repo: entry.repo,
+    path: entry.path,
+    ref: entry.repoMeta?.defaultBranch,
+  })
+}
+
+export function getRepositoryUrl(
+  entry: Pick<DirectoryEntry, "repo" | "path" | "security">
 ): string {
-  return entry.path
-    ? `paseo plugin add ${entry.repo} --path ${entry.path}`
-    : `paseo plugin add ${entry.repo}`
+  return getCatalogRepositoryUrl({
+    repo: entry.repo,
+    path: entry.path,
+    ref: entry.security?.commit,
+  })
+}
+
+export function getRepositoryUrlAtRef(
+  entry: Pick<DirectoryEntry, "repo" | "path">,
+  ref: string
+): string {
+  return getCatalogRepositoryUrl({
+    repo: entry.repo,
+    path: entry.path,
+    ref: isValidCatalogCommit(ref) ? ref : undefined,
+  })
 }
 
 export function getSiteUrl(entry: Pick<DirectoryEntry, "id">): string {
@@ -663,7 +658,7 @@ const GITHUB_NEW_ISSUE_URL =
   "https://github.com/paseo-cafe/paseo-cafe/issues/new"
 
 export function getReportPluginIssueUrl(
-  entry: Pick<DirectoryEntry, "id" | "url">
+  entry: Pick<DirectoryEntry, "id" | "repo" | "path" | "security">
 ): string {
   const url = new URL(GITHUB_NEW_ISSUE_URL)
   url.searchParams.set("title", `Report plugin: ${entry.id}`)
@@ -674,7 +669,7 @@ export function getReportPluginIssueUrl(
       "Describe the problem you saw, what you expected, and how to reproduce it.",
       "",
       `- Plugin ID: \`${entry.id}\``,
-      `- Source repository: ${entry.url}`,
+      `- Source repository: ${getRepositoryUrl(entry)}`,
       `- Paseo listing: ${getSiteUrl(entry)}`,
       "",
       "## Additional context",
@@ -749,12 +744,5 @@ export function stripHtml(html: string): string {
     .trim()
 }
 
-/** Mirrors the site's HEALTH_LABELS in src/routes/plugins.$id.tsx. */
-export const HEALTH_LABELS: Record<string, string> = {
-  manifestValid: "Valid paseo-plugin.json manifest",
-  hasReadme: "Has a README",
-  hasLicense: "Has a license",
-  hasTests: "Has tests",
-  hasTypecheckScript: "Has a typecheck script",
-  updatedRecently: "Updated in the last 6 months",
-}
+export const HEALTH_LABELS: Record<string, string> = CATALOG_HEALTH_LABELS
+export const HEALTH_KEYS = CATALOG_HEALTH_KEYS

@@ -17,7 +17,7 @@ interface AspectImageProps {
 export function AspectImage({
   uri,
   backgroundColor,
-  borderRadius = 10,
+  borderRadius = 0,
 }: AspectImageProps) {
   const [aspectRatio, setAspectRatio] = useState(16 / 9)
 

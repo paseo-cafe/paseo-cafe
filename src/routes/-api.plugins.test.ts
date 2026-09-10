@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest"
 import {
+  directoryPluginSchema,
   MAX_API_PLUGIN_BYTES,
   MAX_API_README_TEXT_LENGTH,
   MAX_API_RESPONSE_BYTES,
   projectPluginForDirectory,
-  Route,
-} from "./api.plugins"
+} from "@/lib/directory-api"
+import { Route } from "./api.plugins"
 
 describe("GET /api/plugins", () => {
   it("returns a bounded plugin projection with no rendered README HTML", async () => {
@@ -59,6 +60,15 @@ describe("GET /api/plugins", () => {
       caveats: Array.from({ length: 64 }, () => "c".repeat(1_000)),
       installNotesHtml: `<p>${"i".repeat(100_000)}</p>`,
       limitationsNotesHtml: `<p>${"l".repeat(100_000)}</p>`,
+      repoMeta: {
+        stars: 1,
+        openIssues: 0,
+        defaultBranch: "main",
+        pushedAt: "2026-09-10T00:00:00.000Z",
+        topics: [],
+        archived: false,
+        license: null,
+      },
       health: {
         manifestValid: true,
         hasReadme: true,
@@ -82,9 +92,11 @@ describe("GET /api/plugins", () => {
 
     expect(projected).not.toHaveProperty("readmeHtml")
     expect(projected).not.toHaveProperty("security")
+    expect(directoryPluginSchema.safeParse(projected).success).toBe(true)
     expect(projected.readmeText).toBe(
       readmeText.slice(0, MAX_API_README_TEXT_LENGTH)
     )
+    expect(projected.repoMeta).toMatchObject({ defaultBranch: "main" })
     expect(
       new TextEncoder().encode(JSON.stringify(projected)).byteLength
     ).toBeLessThanOrEqual(MAX_API_PLUGIN_BYTES)
@@ -96,5 +108,78 @@ describe("GET /api/plugins", () => {
     expect(new TextEncoder().encode(maximumCatalog).byteLength).toBeLessThan(
       MAX_API_RESPONSE_BYTES
     )
+  })
+
+  it("preserves failed security metadata before budgeting bulky fields", () => {
+    const projected = projectPluginForDirectory({
+      id: "failed-security",
+      repo: "example/failed-security",
+      url: "https://github.com/example/failed-security",
+      name: "Failed security",
+      description: "",
+      manifest: { payload: "m".repeat(100_000) },
+      categories: [],
+      platforms: [],
+      caveats: [],
+      installNotesHtml: `<p>${"i".repeat(100_000)}</p>`,
+      limitationsNotesHtml: `<p>${"l".repeat(100_000)}</p>`,
+      health: {
+        manifestValid: true,
+        hasReadme: true,
+        hasLicense: true,
+        hasTests: true,
+        hasTypecheckScript: true,
+        updatedRecently: true,
+      },
+      security: {
+        status: "failed",
+        blockingFindings: 1,
+        advisoryFindings: 2,
+        scannedAt: "2026-09-10T00:00:00.000Z",
+        commit: "a".repeat(40),
+      },
+      images: [
+        "http://127.0.0.1:8080/action",
+        "https://raw.githubusercontent.com/example/repo/main/shot.png",
+      ],
+      videos: [],
+      scannedAt: "2026-09-10T00:00:00.000Z",
+    })
+
+    expect(projected.security).toMatchObject({
+      status: "failed",
+      blockingFindings: 1,
+    })
+    expect(projected.images).toEqual([
+      "https://raw.githubusercontent.com/example/repo/main/shot.png",
+    ])
+    expect(directoryPluginSchema.safeParse(projected).success).toBe(true)
+  })
+
+  it("fails instead of truncating an install path", () => {
+    expect(() =>
+      projectPluginForDirectory({
+        id: "overlong-path",
+        repo: "example/overlong-path",
+        path: "x".repeat(501),
+        url: "https://github.com/example/overlong-path",
+        name: "Overlong path",
+        description: "",
+        categories: [],
+        platforms: [],
+        caveats: [],
+        health: {
+          manifestValid: true,
+          hasReadme: false,
+          hasLicense: false,
+          hasTests: false,
+          hasTypecheckScript: false,
+          updatedRecently: true,
+        },
+        images: [],
+        videos: [],
+        scannedAt: "2026-09-10T00:00:00.000Z",
+      })
+    ).toThrow("overlong identity data")
   })
 })

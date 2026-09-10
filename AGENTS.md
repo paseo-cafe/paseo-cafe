@@ -24,6 +24,58 @@ cp -rf source dest          # NOT: cp -r source dest
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
+## Keep the plugin aligned with the website
+
+This repo ships two consumers of the same plugin catalog: the **website**
+(`src/`, TanStack Start + React DOM + Tailwind, deployed as paseo.cafe) and
+the **companion plugin** (`plugin/`, React Native, runs natively inside the
+Paseo app). They cannot share components — the Paseo v0.8 plugin SDK
+whitelists exactly nine client-side module specifiers and none of them is a
+WebView/iframe/DOM primitive, so the plugin can never literally embed or
+render the live website. That's confirmed against the deployed SDK docs and
+this monorepo's own `shared-browser` companion plugin (which "shows a live
+page" only by screencasting a headless Chromium session over RPC — a ~180MB,
+remote-desktop-grade workaround, not a lightweight embed). Treat that as
+settled; don't re-litigate it without new SDK evidence.
+
+Because the two can't share JSX, **any change to one must be checked against
+the other by hand**:
+
+1. **Shared catalog logic** (category taxonomy/labels, install-command
+   formatting, health-check semantics/labels, and anything else both sides
+   must agree on) lives in `plugin/shared/catalog.ts` — a single,
+   dependency-free module (no React, no Paseo SDK, no Zod, no DOM, no Node)
+   imported directly by both `src/lib/*` (website) and
+   `plugin/shared/directory.ts` (plugin). Add new shared rules there once;
+   never hand-copy or re-derive the same rule on one side and mirror it "by
+   hand" on the other — that drifts silently (it already had: the plugin's
+   `manifestValid` health label said something different from what the
+   check actually verifies until this was unified).
+2. **Visual language.** The website's design system — JetBrains Mono
+   monospace everywhere (`src/styles.css`), `rounded-none` flat-bordered
+   controls and badges (`src/components/ui/{button,badge,card}.tsx`),
+   uppercase tracked section labels — is the canonical brand identity.
+   Changing the website's fonts, radii, spacing scale, or color roles
+   without a matching pass over the plugin's React Native surfaces
+   (`plugin/client/DirectorySurface.tsx`, `PluginRow.tsx`,
+   `PluginDetailPage.tsx`, `PluginGalleryPage.tsx`, using the shared tokens
+   in `plugin/client/visual.ts` plus Paseo's `theme.colors`/
+   `layout.compact`) leaves the plugin visually stale. Do the matching pass
+   in the same change.
+3. **Root `tsconfig.json` excludes `plugin/`** from the website's own
+   project only so `bun run typecheck` doesn't try to bulk-check the whole
+   React Native tree (wrong `lib`, unresolved RN-only modules). Importing a
+   single dependency-free file from `plugin/shared/` into `src/lib/` (as
+   `registry-schema.ts`, `install-command.ts`, and `plugins.$id.tsx` already
+   do) is expected and fine — keep any such shared module free of anything
+   that would make it fail to typecheck under the website's DOM-ful config.
+
+**Validate both sides before calling catalog/plugin work done:**
+```bash
+bun run check                                  # website: biome + tsc
+(cd plugin && npm run typecheck && npm test)   # plugin: tsc + vitest
+```
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:970c3bf2 -->
 ## Beads Issue Tracker
 

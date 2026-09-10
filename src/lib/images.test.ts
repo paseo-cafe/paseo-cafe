@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { extractReadmeImages, resolveGitHubAssetImages } from "./images"
+import {
+  extractReadmeImages,
+  isTrustedRemoteImageUrl,
+  resolveGitHubAssetImages,
+} from "./images"
 
 describe("extractReadmeImages", () => {
   it("extracts a markdown image with an absolute URL", () => {
@@ -82,6 +86,24 @@ describe("extractReadmeImages", () => {
     expect(extractReadmeImages(readme)).toEqual([
       "https://raw.githubusercontent.com/owner/repo/main/shot.png",
     ])
+  })
+})
+
+describe("isTrustedRemoteImageUrl", () => {
+  it.each([
+    "https://raw.githubusercontent.com/owner/repo/main/shot.png",
+    "https://github.com/user-attachments/assets/abc",
+    "https://private-user-images.githubusercontent.com/123/shot.png",
+  ])("allows GitHub-hosted image %s", (url) => {
+    expect(isTrustedRemoteImageUrl(url)).toBe(true)
+  })
+
+  it.each([
+    "http://127.0.0.1:8080/action",
+    "https://example.com/tracker.png",
+    "https://githubusercontent.com.attacker.example/shot.png",
+  ])("rejects untrusted image %s", (url) => {
+    expect(isTrustedRemoteImageUrl(url)).toBe(false)
   })
 })
 

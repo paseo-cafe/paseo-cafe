@@ -37,7 +37,7 @@ export function CatalogSidebar({
   onPlatformChange,
 }: CatalogSidebarProps) {
   return (
-    <aside className="flex flex-col gap-3 bg-card p-3 lg:sticky lg:top-20 lg:w-1/3 lg:shrink-0 lg:self-start">
+    <aside className="flex flex-col gap-3 bg-card p-3 lg:sticky lg:top-20 lg:order-last lg:w-1/3 lg:shrink-0 lg:self-start">
       <div className="relative">
         <InputGroup>
           <InputGroupAddon align="inline-start">

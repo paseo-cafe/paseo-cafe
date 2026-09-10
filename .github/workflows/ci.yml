@@ -49,6 +49,7 @@ jobs:
               - "vitest.config.ts"
               - ".github/workflows/ci.yml"
               - ".github/workflows/deploy-pages.yml"
+              - "plugin/shared/catalog.ts"
             plugin:
               - "plugin/**"
               - "package.json"
