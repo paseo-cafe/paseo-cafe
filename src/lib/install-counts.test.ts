@@ -1,0 +1,151 @@
+import { describe, expect, it } from "vitest"
+import {
+  failedInstallCountsSnapshot,
+  isCurrentInstallCounts,
+  parseCafeCounts,
+  parseInstallCountsSnapshot,
+  reclassifyInstallCountsSnapshot,
+} from "./install-counts"
+
+const catalogIds = ["alpha-plugin", "beta-plugin"]
+const published = {
+  schemaVersion: 2 as const,
+  asOf: "2026-09-10T00:00:00.000Z",
+  trackingSince: "2026-09-08T12:00:00.000Z",
+  counts: { "alpha-plugin": 3, "beta-plugin": 0 },
+  updates: { "alpha-plugin": 1, "beta-plugin": 0 },
+  uninstalls: { "alpha-plugin": 0, "beta-plugin": 1 },
+}
+
+describe("Cafe install count schemas", () => {
+  it("accepts an exact catalog snapshot and preserves a reported zero", () => {
+    expect(parseCafeCounts(published, catalogIds)).toEqual(published)
+  })
+
+  it("reclassifies a reused snapshot against the current day", () => {
+    expect(isCurrentInstallCounts(published, "2026-09-10T23:59:59.000Z")).toBe(
+      true
+    )
+    expect(isCurrentInstallCounts(published, "2026-09-11T00:00:00.000Z")).toBe(
+      false
+    )
+  })
+
+  it("upgrades version-one aggregates without inventing lifecycle events", () => {
+    const legacy = {
+      schemaVersion: 1,
+      status: "available",
+      attemptedAt: "2026-09-10T01:00:00.000Z",
+      fetchedAt: "2026-09-10T01:00:00.000Z",
+      data: {
+        schemaVersion: 1,
+        asOf: "2026-09-10T00:00:00.000Z",
+        trackingSince: "2026-09-08T12:00:00.000Z",
+        counts: { "alpha-plugin": 3, "beta-plugin": 0 },
+      },
+    }
+
+    expect(parseInstallCountsSnapshot(legacy, catalogIds)).toMatchObject({
+      schemaVersion: 2,
+      data: { schemaVersion: 2, updates: {}, uninstalls: {} },
+    })
+  })
+
+  it("persists staleness before static rendering", () => {
+    const snapshot = {
+      schemaVersion: 2 as const,
+      status: "available" as const,
+      attemptedAt: "2026-09-10T01:00:00.000Z",
+      fetchedAt: "2026-09-10T01:00:00.000Z",
+      data: published,
+    }
+    expect(
+      reclassifyInstallCountsSnapshot(
+        snapshot,
+        catalogIds,
+        "2026-09-11T00:00:00.000Z"
+      ).status
+    ).toBe("stale")
+    expect(
+      reclassifyInstallCountsSnapshot(
+        snapshot,
+        catalogIds,
+        "2026-09-10T23:59:59.000Z"
+      ).status
+    ).toBe("available")
+  })
+
+  it("preserves existing counts across independently deployed catalogs", () => {
+    expect(
+      parseCafeCounts(
+        { ...published, counts: { "alpha-plugin": 3, "removed-plugin": 9 } },
+        catalogIds
+      ).counts
+    ).toEqual({ "alpha-plugin": 3 })
+  })
+
+  it("rejects unsafe and prematurely published counts", () => {
+    expect(() =>
+      parseCafeCounts(
+        {
+          ...published,
+          counts: {
+            "alpha-plugin": Number.MAX_SAFE_INTEGER + 1,
+            "beta-plugin": 0,
+          },
+        },
+        catalogIds
+      )
+    ).toThrow()
+    expect(() =>
+      parseCafeCounts(
+        {
+          schemaVersion: 2,
+          asOf: null,
+          trackingSince: "2026-09-10T12:00:00.000Z",
+          counts: { "alpha-plugin": 0, "beta-plugin": 0 },
+          updates: {},
+          uninstalls: {},
+        },
+        catalogIds
+      )
+    ).toThrow(/must be empty/)
+  })
+
+  it("retains only a valid prior success when a refresh fails", () => {
+    const previous = {
+      schemaVersion: 2,
+      status: "available",
+      attemptedAt: "2026-09-10T01:00:00.000Z",
+      fetchedAt: "2026-09-10T01:00:00.000Z",
+      data: published,
+    }
+
+    expect(
+      failedInstallCountsSnapshot(
+        previous,
+        "2026-09-11T01:00:00.000Z",
+        catalogIds
+      )
+    ).toMatchObject({
+      status: "stale",
+      attemptedAt: "2026-09-11T01:00:00.000Z",
+      fetchedAt: "2026-09-10T01:00:00.000Z",
+      data: published,
+    })
+
+    expect(
+      failedInstallCountsSnapshot(
+        { ...previous, data: { ...published, counts: { "alpha-plugin": -1 } } },
+        "2026-09-11T01:00:00.000Z",
+        catalogIds
+      )
+    ).toEqual({
+      schemaVersion: 2,
+      status: "unavailable",
+      attemptedAt: "2026-09-11T01:00:00.000Z",
+      fetchedAt: null,
+      data: null,
+    })
+  })
+})

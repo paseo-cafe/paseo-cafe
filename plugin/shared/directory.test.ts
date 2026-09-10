@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import {
   DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+  DEFAULT_DIRECTORY_URL,
   DIRECTORY_CATEGORY_LABELS,
   type DirectoryCategory,
   directoryAttachments,
@@ -197,10 +198,69 @@ describe("directory taxonomy and browse settings", () => {
     expect(migrated).toEqual({
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: true,
+      observedPlugins: {},
     })
     expect(directorySettings.schema.parse(migrated)).toEqual({
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: true,
+      observedPlugins: {},
+    })
+  })
+
+  it("replaces an insecure legacy catalog URL during migration", () => {
+    expect(
+      migrateDirectorySettings(
+        { directoryUrl: "http://catalog.internal/api/plugins" },
+        1
+      )
+    ).toEqual({
+      directoryUrl: DEFAULT_DIRECTORY_URL,
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: true,
+      observedPlugins: {},
+    })
+  })
+})
+
+describe("directory settings", () => {
+  it("defaults reporting on and preserves the catalog URL during migration", async () => {
+    expect(directorySettings.schema.parse({})).toEqual({
+      directoryUrl: "https://paseo.cafe/api/plugins",
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: true,
+      observedPlugins: {},
+    })
+    const migrated = await Promise.resolve(
+      directorySettings.migrate?.(
+        { directoryUrl: "https://catalog.example/api/plugins" },
+        1
+      )
+    )
+    expect(migrated).toEqual({
+      directoryUrl: "https://catalog.example/api/plugins",
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: true,
+      observedPlugins: {},
+    })
+  })
+
+  it("adds inventory state without changing an existing opt-out", () => {
+    expect(
+      migrateDirectorySettings(
+        {
+          directoryUrl: DEFAULT_DIRECTORY_URL,
+          browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+          reportInstalls: false,
+        },
+        2
+      )
+    ).toEqual({
+      directoryUrl: DEFAULT_DIRECTORY_URL,
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: false,
+      observedPlugins: {},
     })
   })
 })
@@ -234,7 +294,6 @@ describe("directory attachment sources", () => {
     ])
   })
 })
-
 describe("directory presentation", () => {
   it("builds an encoded canonical directory URL", () => {
     expect(getSiteUrl({ id: "plugin/name" })).toBe(

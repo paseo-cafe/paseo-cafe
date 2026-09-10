@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PluginsRouteImport } from './routes/plugins'
 import { Route as SubmitRouteImport } from './routes/submit'
+import { Route as ApiInstallCountsRouteImport } from './routes/api.install-counts'
 import { Route as ApiPluginsRouteImport } from './routes/api.plugins'
 import { Route as PluginsIndexRouteImport } from './routes/plugins.index'
 import { Route as PluginsIdRouteImport } from './routes/plugins.$id'
@@ -29,6 +30,11 @@ const PluginsRoute = PluginsRouteImport.update({
 const SubmitRoute = SubmitRouteImport.update({
   id: '/submit',
   path: '/submit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInstallCountsRoute = ApiInstallCountsRouteImport.update({
+  id: '/api/install-counts',
+  path: '/api/install-counts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPluginsRoute = ApiPluginsRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/plugins': typeof PluginsRouteWithChildren
   '/submit': typeof SubmitRoute
+  '/api/install-counts': typeof ApiInstallCountsRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
   '/plugins/': typeof PluginsIndexRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/submit': typeof SubmitRoute
+  '/api/install-counts': typeof ApiInstallCountsRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
   '/plugins': typeof PluginsIndexRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/plugins': typeof PluginsRouteWithChildren
   '/submit': typeof SubmitRoute
+  '/api/install-counts': typeof ApiInstallCountsRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
   '/plugins/': typeof PluginsIndexRoute
@@ -74,14 +83,27 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/plugins' | '/submit' | '/api/plugins' | '/plugins/$id' | '/plugins/'
+    | '/'
+    | '/plugins'
+    | '/submit'
+    | '/api/install-counts'
+    | '/api/plugins'
+    | '/plugins/$id'
+    | '/plugins/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/submit' | '/api/plugins' | '/plugins/$id' | '/plugins'
+  to:
+    | '/'
+    | '/submit'
+    | '/api/install-counts'
+    | '/api/plugins'
+    | '/plugins/$id'
+    | '/plugins'
   id:
     | '__root__'
     | '/'
     | '/plugins'
     | '/submit'
+    | '/api/install-counts'
     | '/api/plugins'
     | '/plugins/$id'
     | '/plugins/'
@@ -91,6 +113,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PluginsRoute: typeof PluginsRouteWithChildren
   SubmitRoute: typeof SubmitRoute
+  ApiInstallCountsRoute: typeof ApiInstallCountsRoute
   ApiPluginsRoute: typeof ApiPluginsRoute
 }
 
@@ -115,6 +138,13 @@ declare module '@tanstack/react-router' {
       path: '/submit'
       fullPath: '/submit'
       preLoaderRoute: typeof SubmitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/install-counts': {
+      id: '/api/install-counts'
+      path: '/api/install-counts'
+      fullPath: '/api/install-counts'
+      preLoaderRoute: typeof ApiInstallCountsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/plugins': {
@@ -158,6 +188,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PluginsRoute: PluginsRouteWithChildren,
   SubmitRoute: SubmitRoute,
+  ApiInstallCountsRoute: ApiInstallCountsRoute,
   ApiPluginsRoute: ApiPluginsRoute,
 }
 export const routeTree = rootRouteImport

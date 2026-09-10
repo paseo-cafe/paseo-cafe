@@ -26,8 +26,10 @@ import {
   isTrustedCatalogUrl,
   isValidInstallPath,
   isValidRepo,
+  pluginSourceKey,
   stripHtml,
 } from "../shared/directory"
+import type { InstallReportManager } from "./telemetry"
 
 const execFileAsync = promisify(execFile)
 
@@ -308,6 +310,18 @@ const inFlightDirectoryRequests = new Map<
   Promise<DirectoryCacheEntry>
 >()
 let warnedAboutRejectedDirectoryUrl = false
+
+function cachedDefaultCatalogEntry(
+  source: Pick<DirectoryEntry, "repo" | "path">
+): DirectoryEntry | undefined {
+  const cached = cache.get(DEFAULT_DIRECTORY_URL)
+  if (!cached) return undefined
+  const key = pluginSourceKey(source)
+  const matches = cached.plugins.filter(
+    (entry) => pluginSourceKey(entry) === key
+  )
+  return matches.length === 1 ? matches[0] : undefined
+}
 
 function resolveDirectoryUrl(baseUrl: string | undefined): string {
   // PASEO_CAFE_DIRECTORY_URL is a lower-priority escape hatch for contexts that
@@ -680,34 +694,107 @@ export async function searchDirectorySecurity(
   )
 }
 
-export async function installDirectoryPlugin(
-  input: RpcInput<typeof directoryInstallRpc>
-): Promise<RpcOutput<typeof directoryInstallRpc>> {
-  const { repo, path } = input
+interface DirectoryInstallerDependencies {
+  runPaseo?: (
+    args: readonly string[],
+    timeout: number
+  ) => Promise<{ stdout: string }>
+  listInstalled?: () => Promise<InstalledPlugin[]>
+  catalogEntry?: (
+    source: Pick<DirectoryEntry, "repo" | "path">
+  ) => DirectoryEntry | undefined
+  reports?: InstallReportManager
+}
 
-  // Re-validated here even though the client only ever sends entries straight
-  // from fetchDirectory(): this is the boundary that actually shells out, and
-  // it shouldn't trust the network response (or any other RPC caller) blindly.
-  if (!isValidRepo(repo)) {
-    return {
-      ok: false,
-      message: `"${repo}" doesn't look like a GitHub "owner/repo".`,
+export function createDirectoryInstaller(
+  dependencies: DirectoryInstallerDependencies = {}
+) {
+  const runPaseo = dependencies.runPaseo ?? execPaseo
+  const listInstalled = dependencies.listInstalled ?? listInstalledPlugins
+  const catalogEntry = dependencies.catalogEntry ?? cachedDefaultCatalogEntry
+  const reports = dependencies.reports
+  const locks = new Map<string, Promise<void>>()
+
+  return async function installDirectoryPlugin(
+    input: RpcInput<typeof directoryInstallRpc>
+  ): Promise<RpcOutput<typeof directoryInstallRpc>> {
+    const { repo, path } = input
+
+    // Re-validated here even though the client only ever sends entries straight
+    // from fetchDirectory(): this is the boundary that actually shells out, and
+    // it shouldn't trust the network response (or any other RPC caller) blindly.
+    if (!isValidRepo(repo)) {
+      return {
+        ok: false,
+        message: `"${repo}" doesn't look like a GitHub "owner/repo".`,
+      }
+    }
+    if (path !== undefined && !isValidInstallPath(path)) {
+      return { ok: false, message: `"${path}" isn't a valid plugin subpath.` }
+    }
+
+    const sourceKey = pluginSourceKey({ repo, path })
+    const previous = locks.get(sourceKey) ?? Promise.resolve()
+    const operation = previous.then(
+      async (): Promise<RpcOutput<typeof directoryInstallRpc>> => {
+        const eligibleEntry =
+          input.catalogUrl === DEFAULT_DIRECTORY_URL
+            ? catalogEntry({ repo, path })
+            : undefined
+        const before =
+          eligibleEntry && reports
+            ? await listInstalled().catch(() => undefined)
+            : undefined
+        const args = ["plugin", "add", repo, ...(path ? ["--path", path] : [])]
+
+        try {
+          // Arguments are passed as an array on Unix and strictly quoted through
+          // cmd.exe for npm's paseo.cmd shim on Windows.
+          const { stdout } = await runPaseo(args, 120_000)
+          let reportToken: string | undefined
+          if (
+            eligibleEntry &&
+            reports &&
+            before &&
+            findInstallations(eligibleEntry, before).length === 0
+          ) {
+            const token = reports.begin(eligibleEntry.id)
+            if (token) {
+              reportToken = token
+              void listInstalled().then(
+                (after) =>
+                  reports.confirm(
+                    token,
+                    findInstallations(eligibleEntry, after).length > 0
+                  ),
+                () => reports.confirm(token, false)
+              )
+            }
+          }
+          return {
+            ok: true,
+            message: stdout.trim() || `Installed ${repo}.`,
+            ...(reportToken ? { reportToken } : {}),
+          }
+        } catch (error) {
+          return { ok: false, message: commandFailureMessage(error) }
+        }
+      }
+    )
+    const settled = operation.then(
+      () => undefined,
+      () => undefined
+    )
+    locks.set(sourceKey, settled)
+    try {
+      return await operation
+    } finally {
+      if (locks.get(sourceKey) === settled) locks.delete(sourceKey)
     }
   }
-  if (path !== undefined && !isValidInstallPath(path)) {
-    return { ok: false, message: `"${path}" isn't a valid plugin subpath.` }
-  }
-
-  const args = ["plugin", "add", repo, ...(path ? ["--path", path] : [])]
-  try {
-    // Arguments are passed as an array on Unix and strictly quoted through
-    // cmd.exe for npm's paseo.cmd shim on Windows.
-    const { stdout } = await execPaseo(args, 120_000)
-    return { ok: true, message: stdout.trim() || `Installed ${repo}.` }
-  } catch (error) {
-    return { ok: false, message: commandFailureMessage(error) }
-  }
 }
+
+export const installDirectoryPlugin = createDirectoryInstaller()
 
 export async function updateDirectoryPlugin(
   input: RpcInput<typeof directoryUpdateRpc>

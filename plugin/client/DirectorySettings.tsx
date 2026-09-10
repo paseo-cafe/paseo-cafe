@@ -1,4 +1,4 @@
-import { useSettings } from "@getpaseo/plugin/client"
+import { useRpc, useSettings } from "@getpaseo/plugin/client"
 import { useToast } from "@getpaseo/plugin/client/react-native"
 import type { SettingsInputHandle } from "@getpaseo/plugin/client/ui"
 import {
@@ -7,12 +7,19 @@ import {
   SettingsInput,
   SettingsRow,
   SettingsSection,
+  SettingsSwitch,
 } from "@getpaseo/plugin/client/ui"
 import { useRef, useState } from "react"
-import { DEFAULT_DIRECTORY_URL, directorySettings } from "../shared/directory"
+import {
+  DEFAULT_DIRECTORY_URL,
+  directorySetInstallReportingRpc,
+  directorySettings,
+} from "../shared/directory"
+import { updateInstallReportingPreference } from "./install-reporting"
 
 export function DirectorySettings() {
   const settings = useSettings(directorySettings)
+  const setServerInstallReporting = useRpc(directorySetInstallReportingRpc)
   const toast = useToast()
   const [draft, setDraft] = useState<string | null>(null)
   const inputRef = useRef<SettingsInputHandle>(null)
@@ -57,6 +64,28 @@ export function DirectorySettings() {
     }
   }
 
+  async function setInstallReporting(reportInstalls: boolean) {
+    const result = await updateInstallReportingPreference(
+      reportInstalls,
+      (enabled) =>
+        saveSettings({ ...values, reportInstalls: enabled }, revision),
+      (enabled) => setServerInstallReporting({ enabled })
+    )
+    if (result === "save-failed") {
+      toast.error("Failed to save Paseo Cafe settings.")
+      return
+    }
+    if (result === "sync-failed") {
+      toast.error(
+        reportInstalls
+          ? "The preference was saved, but Cafe couldn't start reporting. Reconnect and try again."
+          : "Reporting is off, but Cafe couldn't cancel reports already in progress. Reconnect and try again."
+      )
+      return
+    }
+    toast.show("Paseo Cafe settings saved.", { variant: "success" })
+  }
+
   function reset() {
     inputRef.current?.replaceText(DEFAULT_DIRECTORY_URL)
     setDraft(DEFAULT_DIRECTORY_URL)
@@ -77,6 +106,13 @@ export function DirectorySettings() {
           initialValue={values.directoryUrl}
           placeholder={DEFAULT_DIRECTORY_URL}
           onChangeText={setDraft}
+          disabled={saving}
+        />
+        <SettingsSwitch
+          label="Share approximate install counts"
+          hint="Enabled by default. Switch this off to stop reporting. Cafe reports catalog plugins already installed when the directory opens, successful updates, and removals observed on a later visit. Reports contain only the public catalog ID, event type, and a one-time operation nonce. Cloudflare necessarily processes the request IP."
+          value={values.reportInstalls}
+          onValueChange={(value) => void setInstallReporting(value)}
           disabled={saving}
         />
         <SettingsAction

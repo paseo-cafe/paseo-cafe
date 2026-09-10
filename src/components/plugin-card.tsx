@@ -1,4 +1,5 @@
 import {
+  IconDownload,
   IconPhotoOff,
   IconPlayerPlayFilled,
   IconStar,
@@ -13,6 +14,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { formatDate, formatDateTime } from "@/lib/format-date"
+import {
+  formatInstallCount,
+  getPublishedInstallCount,
+} from "@/lib/install-counts-data"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 
@@ -23,6 +29,10 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
     plugin.health.hasLicense &&
     plugin.health.hasTests &&
     plugin.health.hasTypecheckScript
+  const installs = getPublishedInstallCount(plugin.id)
+  const installCountTitle = installs
+    ? `${installs.stale ? "Stale snapshot. " : ""}Reports from Cafe installs where reporting remained enabled, received since ${formatDateTime(installs.trackingSince)} and before ${formatDate(installs.asOf)}.${installs.stale ? ` Last fetched ${formatDateTime(installs.fetchedAt)}.` : ""}`
+    : undefined
 
   return (
     <Link to="/plugins/$id" params={{ id: plugin.id }} className="block">
@@ -87,6 +97,17 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
               <Badge variant="destructive">Archived</Badge>
             ) : null}
           </div>
+          {installs ? (
+            <span
+              className="flex items-center gap-1.5 text-foreground/50 text-xs"
+              title={installCountTitle}
+            >
+              <IconDownload className="size-3.5" />
+              {formatInstallCount(installs.count)} approximate reported installs
+              via Cafe
+              {installs.stale ? " (stale)" : ""}
+            </span>
+          ) : null}
         </CardHeader>
         <CardContent className="flex flex-wrap gap-1.5">
           {plugin.paseoVersionRequirement ? (

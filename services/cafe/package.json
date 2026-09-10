@@ -1,0 +1,23 @@
+{
+  "name": "cafe-service",
+  "private": true,
+  "packageManager": "bun@1.3.10",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "catalog:build": "bun run scripts/generate-catalog.ts",
+    "dev": "bun run catalog:build && wrangler dev --env development --port 8787",
+    "typecheck": "bun run catalog:build && tsc --noEmit",
+    "test": "bun run catalog:build && vitest run",
+    "build": "bun run catalog:build && wrangler deploy --env production --dry-run --outdir dist"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.1.6",
+    "@types/node": "^22",
+    "@cloudflare/workers-types": "5.20260910.1",
+    "typescript": "^6.0.0",
+    "vitest": "^4.1.0",
+    "wrangler": "4.130.0"
+  }
+}

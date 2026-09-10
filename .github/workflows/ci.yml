@@ -23,6 +23,7 @@ jobs:
     outputs:
       app: ${{ steps.filter.outputs.app }}
       plugin: ${{ steps.filter.outputs.plugin }}
+      service: ${{ steps.filter.outputs.service }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -55,6 +56,14 @@ jobs:
               - "bun.lock"
               - "biome.json"
               - ".github/workflows/ci.yml"
+            service:
+              - "services/cafe/**"
+              - "registry/**"
+              - "package.json"
+              - "bun.lock"
+              - "biome.json"
+              - ".github/workflows/ci.yml"
+              - ".github/workflows/deploy-cafe-service.yml"
 
   app:
     name: App
@@ -135,9 +144,59 @@ jobs:
         working-directory: plugin
         run: npm run test
 
+  service:
+    name: Cafe service
+    needs: changes
+    if: needs.changes.outputs.service == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Install root dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install service dependencies
+        working-directory: services/cafe
+        run: bun install --frozen-lockfile
+
+      - name: Generate catalog allowlist
+        working-directory: services/cafe
+        run: bun run catalog:build
+
+      - name: Check with Biome
+        run: bun run check:service
+
+      - name: Typecheck service
+        working-directory: services/cafe
+        run: bun run typecheck
+
+      - name: Test service
+        working-directory: services/cafe
+        run: bun run test
+
+      - name: Build Worker without deploying
+        working-directory: services/cafe
+        run: bun run build
+
   all-checks:
     name: All checks passed
-    needs: [changes, app, plugin]
+    needs: [changes, app, plugin, service]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -148,13 +207,14 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           APP_RESULT: ${{ needs.app.result }}
           PLUGIN_RESULT: ${{ needs.plugin.result }}
+          SERVICE_RESULT: ${{ needs.service.result }}
         run: |
           if [[ "$CHANGES_RESULT" != "success" ]]; then
             echo "Change detection failed: $CHANGES_RESULT"
             exit 1
           fi
 
-          for result in "$APP_RESULT" "$PLUGIN_RESULT"; do
+          for result in "$APP_RESULT" "$PLUGIN_RESULT" "$SERVICE_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then
               echo "Required job failed: $result"
               exit 1

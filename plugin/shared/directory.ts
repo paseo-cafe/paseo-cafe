@@ -140,6 +140,20 @@ export type DirectoryBrowseSettings = z.infer<
   typeof directoryBrowseSettingsSchema
 >
 
+export const REPORTABLE_PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]*$/
+
+export const observedPluginsSchema = z
+  .record(
+    z.string().regex(REPORTABLE_PLUGIN_ID_PATTERN),
+    z.string().min(1).max(500)
+  )
+  .refine(
+    (value) => Object.keys(value).length <= 500,
+    "Too many observed plugins"
+  )
+
+export type ObservedPlugins = z.infer<typeof observedPluginsSchema>
+
 export const DEFAULT_DIRECTORY_BROWSE_SETTINGS =
   directoryBrowseSettingsSchema.parse({})
 
@@ -176,7 +190,7 @@ export function migrateDirectorySettings(
   fromVersion: number
 ): unknown {
   if (
-    fromVersion >= 2 ||
+    fromVersion >= 3 ||
     typeof values !== "object" ||
     values === null ||
     Array.isArray(values)
@@ -185,9 +199,15 @@ export function migrateDirectorySettings(
   }
 
   const previous = values as Record<string, unknown>
+  const directoryUrl = catalogUrlSchema.safeParse(previous.directoryUrl)
   return {
     ...previous,
+    directoryUrl: directoryUrl.success
+      ? directoryUrl.data
+      : DEFAULT_DIRECTORY_URL,
     browse: previous.browse ?? DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+    reportInstalls: previous.reportInstalls ?? true,
+    observedPlugins: previous.observedPlugins ?? {},
   }
 }
 
@@ -199,12 +219,14 @@ export function migrateDirectorySettings(
 export const directorySettings = defineSettings({
   id: "directory-settings",
   scope: "host",
-  version: 2,
+  version: 3,
   schema: z.object({
     directoryUrl: catalogUrlSchema.default(DEFAULT_DIRECTORY_URL),
+    observedPlugins: observedPluginsSchema.default({}),
     browse: directoryBrowseSettingsSchema.default(
       DEFAULT_DIRECTORY_BROWSE_SETTINGS
     ),
+    reportInstalls: z.boolean().default(true),
   }),
   migrate: migrateDirectorySettings,
 })
@@ -585,17 +607,56 @@ export const directoryInstallRpc = defineRpc({
   input: z.object({
     repo: z.string(),
     path: z.string().optional(),
+    catalogUrl: httpUrlSchema.optional(),
   }),
   output: z.object({
     ok: z.boolean(),
     message: z.string(),
+    reportToken: z.uuid().optional(),
   }),
+})
+
+export const lifecycleEventTypeSchema = z.enum([
+  "install",
+  "update",
+  "uninstall",
+])
+export type LifecycleEventType = z.infer<typeof lifecycleEventTypeSchema>
+
+export const directoryReportLifecycleRpc = defineRpc({
+  name: "directory.report-lifecycle",
+  input: z.object({
+    events: z
+      .array(
+        z.object({
+          pluginId: z.string().regex(REPORTABLE_PLUGIN_ID_PATTERN),
+          event: lifecycleEventTypeSchema,
+        })
+      )
+      .max(500),
+  }),
+  output: z.object({ accepted: z.number().int().nonnegative() }),
+})
+
+export const directoryCompleteInstallReportRpc = defineRpc({
+  name: "directory.complete-install-report",
+  input: z.object({
+    reportToken: z.uuid(),
+    consent: z.boolean(),
+  }),
+  output: z.object({ scheduled: z.boolean() }),
+})
+
+export const directorySetInstallReportingRpc = defineRpc({
+  name: "directory.set-install-reporting",
+  input: z.object({ enabled: z.boolean() }),
+  output: z.object({}),
 })
 
 export const directoryUpdateRpc = defineRpc({
   name: "directory.update",
   input: z.object({
-    pluginId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    pluginId: z.string().regex(REPORTABLE_PLUGIN_ID_PATTERN),
     entry: z.object({
       id: z.string(),
       repo: z.string(),
@@ -688,6 +749,12 @@ function normalizePluginPath(path: string | undefined): string | undefined {
     .replace(/^\/+/, "")
     .replace(/\/$/, "")
   return normalized || undefined
+}
+
+export function pluginSourceKey(
+  source: Pick<DirectoryEntry, "repo" | "path">
+): string {
+  return `${source.repo.toLowerCase()}\u0000${normalizePluginPath(source.path) ?? ""}`
 }
 
 function pluginPathFromCheckout(path: string): string | undefined {

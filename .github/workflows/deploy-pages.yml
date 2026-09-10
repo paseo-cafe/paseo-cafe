@@ -62,6 +62,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
+      - name: Fetch published install counts
+        run: bun run counts:fetch
+        env:
+          PASEO_CAFE_SERVICE_URL: ${{ vars.PASEO_CAFE_SERVICE_URL }}
+
       - name: Verify generated site
         run: |
           bun run check:app
