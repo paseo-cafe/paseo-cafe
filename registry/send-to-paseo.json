@@ -1,0 +1,10 @@
+{
+  "repo": "tomgrin10/send-to-paseo",
+  "path": "plugin",
+  "categories": ["github", "browser", "productivity"],
+  "caveats": [
+    "Full browser-side functionality needs the companion Chrome extension from the same repo (not distributed via this registry)",
+    "Needs `git` on the daemon host; `gh` is optional but improves PR title/branch detection and Graphite stack ranking"
+  ],
+  "submittedBy": "tomgrin10"
+}
