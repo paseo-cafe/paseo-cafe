@@ -59,6 +59,49 @@ function main() {
     process.exitCode = 1
   }
 }
+function runGit(
+  args: string[],
+  cwd: string | undefined,
+  env: NodeJS.ProcessEnv
+): string {
+  const result = spawnSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
+    cwd,
+    env,
+    encoding: "utf8",
+    timeout: CLONE_TIMEOUT_MS,
+  })
+  if (result.status !== 0)
+    throw new Error(
+      result.error?.message ||
+        result.stderr ||
+        result.stdout ||
+        "git command failed"
+    )
+  return result.stdout.trim()
+}
+
+export function checkoutTargetRepository(
+  source: string,
+  commit: string,
+  destination: string,
+  env: NodeJS.ProcessEnv = scrubEnv()
+): string {
+  runGit(["init", "--quiet", destination], undefined, env)
+  runGit(
+    ["fetch", "--depth=1", "--filter=blob:none", "--no-tags", source, commit],
+    destination,
+    env
+  )
+  runGit(
+    ["checkout", "--quiet", "--detach", "--force", "FETCH_HEAD"],
+    destination,
+    env
+  )
+  const actualCommit = runGit(["rev-parse", "HEAD"], destination, env)
+  if (actualCommit !== commit)
+    throw new Error(`checked out ${actualCommit}, expected ${commit}`)
+  return actualCommit
+}
 
 function scanTarget(
   target: SecurityTarget,
@@ -67,38 +110,12 @@ function scanTarget(
   const temp = mkdtempSync(join(tmpdir(), "paseo-plugin-security-"))
   try {
     const repoDir = join(temp, "repo")
-    const env = scrubEnv()
-    const clone = spawnSync(
-      "git",
-      [
-        "-c",
-        "core.hooksPath=/dev/null",
-        "clone",
-        "--depth=1",
-        "--filter=blob:none",
-        "--no-tags",
-        "--single-branch",
-        `https://github.com/${target.repo}.git`,
-        repoDir,
-      ],
-      { env, encoding: "utf8", timeout: CLONE_TIMEOUT_MS }
+    const commit = checkoutTargetRepository(
+      `https://github.com/${target.repo}.git`,
+      target.commit,
+      repoDir,
+      scrubEnv()
     )
-    if (clone.status !== 0) {
-      throw new Error(
-        clone.error?.message ||
-          clone.stderr ||
-          clone.stdout ||
-          "git clone failed"
-      )
-    }
-    const rev = spawnSync("git", ["rev-parse", "HEAD"], {
-      cwd: repoDir,
-      env,
-      encoding: "utf8",
-    })
-    if (rev.status !== 0) {
-      throw new Error(rev.stderr || rev.stdout || "git rev-parse failed")
-    }
     const staticResult = scanStaticFiles({
       root: repoDir,
       pluginPath: target.path ?? ".",
@@ -109,7 +126,7 @@ function scanTarget(
       (finding) => finding.blocking
     ).length
     return {
-      commit: rev.stdout.trim(),
+      commit,
       scannedAt: generatedAt,
       status: blockingFindings ? "failed" : "passed",
       blockingFindings,
@@ -180,18 +197,27 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
       "The scanner could not clone, resolve, or inspect the submitted plugin revision.",
     fix: "Verify the repository, ref, and plugin path are accessible and correct, then rerun the check.",
   },
+  "manifest/missing": {
+    issue: "The plugin root does not contain `paseo-plugin.json`.",
+    fix: "Add a manifest with a valid lowercase kebab-case `id` and `requirements.paseo` range.",
+  },
   "manifest/id": {
     issue:
-      "The plugin manifest is missing an id or its id differs from the registry entry.",
-    fix: "Set `paseo-plugin.json` → `id` to the exact registry id.",
+      "The plugin manifest is missing an id, uses an invalid id, or differs from the registry entry.",
+    fix: "Set `paseo-plugin.json` → `id` to the exact lowercase kebab-case registry id.",
   },
   "manifest/requirements": {
     issue: "The manifest's `requirements` value is not an object.",
     fix: 'Use an object such as `{ "paseo": ">=0.8.0" }`.',
   },
   "manifest/requirements.paseo": {
-    issue: "The declared Paseo requirement is not a valid npm semver range.",
-    fix: "Use a valid range such as `>=0.8.0` or `>=0.8.3 <0.9.0`.",
+    issue:
+      "The manifest is missing `requirements.paseo` or its value is not a valid npm semver range. Paseo 0.8 treats a missing range as a pre-0.8 plugin.",
+    fix: "Declare a valid range such as `>=0.8.0` or `>=0.8.3 <0.9.0`.",
+  },
+  "manifest/requirements.unknown": {
+    issue: "The manifest contains an unsupported requirement key.",
+    fix: "Remove the key. `paseo` is the only supported requirement.",
   },
   "manifest/build": {
     issue:
@@ -200,7 +226,7 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
   },
   "manifest/unknown": {
     issue:
-      "The manifest contains a key the current plugin format does not recognize.",
+      "The manifest contains a key the current plugin format does not recognize. Paseo rejects unknown top-level keys.",
     fix: "Remove the key. Supported top-level keys are `id`, `requirements`, and `build`.",
   },
   "manifest/json": {
@@ -208,13 +234,34 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
     fix: "Make the manifest valid JSON without comments or trailing commas.",
   },
   "entrypoint/legacy-index": {
-    issue: "Paseo 0.8 no longer loads the legacy `index.ts` plugin entrypoint.",
-    fix: "Move app contributions to `index.client.ts` or `.tsx`, daemon contributions to `index.server.ts`, or provide both.",
+    issue:
+      "Paseo 0.8 no longer loads the legacy `index.ts` or `index.tsx` plugin entrypoint.",
+    fix: "Move app contributions to `index.client.ts` or `.tsx`, daemon contributions to `index.server.ts` or `.tsx`, or provide both.",
+  },
+  "entrypoint/missing": {
+    issue:
+      "The plugin does not provide a Paseo 0.8 client or server entrypoint.",
+    fix: "Add `index.client.ts` or `.tsx`, `index.server.ts` or `.tsx`, or both at the plugin root.",
   },
   "boundary/cross-runtime-import": {
     issue:
       "The import crosses bundles that run in different environments. Client code cannot load server code, server code cannot load client code, and shared code cannot depend on either runtime.",
     fix: "Keep UI and React Native code under `client/`, Node code under `server/`, and runtime-neutral contracts and values under `shared/`. Client and server modules may both import shared modules.",
+  },
+  "boundary/invalid-module-location": {
+    issue:
+      "A runtime module imports plugin code from the root or outside `client/`, `server/`, and `shared/`.",
+    fix: "Move the imported module under the directory for its runtime and update the import path.",
+  },
+  "boundary/runtime-module-import": {
+    issue:
+      "The import uses a module owned by another runtime. Client and shared code cannot use Node or server SDK modules; server and shared code cannot use React or client SDK modules.",
+    fix: "Move runtime-specific work under `client/` or `server/` and keep `shared/` limited to runtime-neutral contracts and values.",
+  },
+  "boundary/unsupported-sdk-import": {
+    issue:
+      "The import uses a private, retired, or unknown Paseo plugin SDK entry.",
+    fix: "Use only the 0.8 SDK root, `/client`, `/client/ui`, `/client/react-native`, `/server`, `/server/provider`, or `/server/acp` entry appropriate to the module runtime.",
   },
 }
 

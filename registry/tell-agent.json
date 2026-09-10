@@ -1,0 +1,7 @@
+{
+  "repo": "omercnet/paseo-plugins",
+  "path": "tell-agent",
+  "categories": ["productivity", "orchestration"],
+  "caveats": ["Requires Paseo 0.8.x"],
+  "submittedBy": "omercnet"
+}
