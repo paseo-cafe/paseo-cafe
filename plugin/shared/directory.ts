@@ -22,21 +22,33 @@ const httpUrlSchema = z
  * allowed only for loopback, which is what the local-development workflow in
  * the README needs; every other catalog has to be HTTPS.
  */
+const catalogUrlPattern =
+  /^(https?):\/\/(?:[^/?#@\s\\]*@)?(\[[0-9a-f:.]+\]|[^:/?#@\s\\]+)(?::(\d+))?(?:[/?#]|$)/i
+
 export function isTrustedCatalogUrl(value: string): boolean {
-  let url: URL
   try {
-    url = new URL(value)
+    new URL(value)
   } catch {
     return false
   }
-  if (url.protocol === "https:") return true
-  if (url.protocol !== "http:") return false
-  const host = url.hostname
+  // React Native's URL shim truncates bracketed IPv6 hostnames and preserves
+  // host casing. Parse the authority directly instead of trusting its hostname.
+  const match = catalogUrlPattern.exec(value.trim())
+  if (!match) return false
+  const [, protocol, rawHost, port] = match
+  if (port !== undefined && Number(port) > 65_535) return false
+  if (protocol.toLowerCase() === "https") return true
+  const host = rawHost.toLowerCase()
+  if (host === "localhost" || host.endsWith(".localhost") || host === "[::1]") {
+    return true
+  }
+  const octets = host.split(".")
   return (
-    host === "localhost" ||
-    host.endsWith(".localhost") ||
-    host === "[::1]" ||
-    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
+    octets.length === 4 &&
+    octets[0] === "127" &&
+    octets.every(
+      (octet) => /^(0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255
+    )
   )
 }
 
