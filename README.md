@@ -85,9 +85,10 @@ service entry point so unrelated service features can be added without changing 
 
 - `GET /health`: service health without request metadata.
 - `POST /v1/install`: exactly `{ "pluginId": "paseo-cafe", "nonce": "<operation UUID>" }`.
-  The plugin obtains explicit host-scoped consent and verifies a new default-catalog install
-  before reporting. `204` accepts a report or retry, `400` rejects invalid input, `413` rejects
-  oversized input, `429` throttles admission, and `503` means disabled or unavailable.
+  Reporting is enabled by default; the host owner can opt out in the Cafe plugin settings. The
+  plugin verifies a new default-catalog install before reporting. `204` accepts a report or retry,
+  `400` rejects invalid input, `413` rejects oversized input, `429` throttles admission, and `503`
+  means disabled or unavailable.
 - `GET /v1/counts`: versioned public totals with `asOf` and `trackingSince`. Only completed UTC
   days are published. Tracking dates are day-rounded and withheld until the first publishable
   period. The response is edge-cached for five minutes and contains no report nonces.

@@ -197,22 +197,22 @@ describe("directory taxonomy and browse settings", () => {
     expect(migrated).toEqual({
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
-      reportInstalls: false,
+      reportInstalls: true,
     })
     expect(directorySettings.schema.parse(migrated)).toEqual({
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
-      reportInstalls: false,
+      reportInstalls: true,
     })
   })
 })
 
 describe("directory settings", () => {
-  it("defaults reporting off and preserves the catalog URL during migration", async () => {
+  it("defaults reporting on and preserves the catalog URL during migration", async () => {
     expect(directorySettings.schema.parse({})).toEqual({
       directoryUrl: "https://paseo.cafe/api/plugins",
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
-      reportInstalls: false,
+      reportInstalls: true,
     })
     const migrated = await Promise.resolve(
       directorySettings.migrate?.(
@@ -223,7 +223,7 @@ describe("directory settings", () => {
     expect(migrated).toEqual({
       directoryUrl: "https://catalog.example/api/plugins",
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
-      reportInstalls: false,
+      reportInstalls: true,
     })
   })
 })

@@ -38,11 +38,11 @@ A custom catalog must use HTTPS, or HTTP on loopback (`localhost`, `*.localhost`
 `paseo` CLI, so anyone able to rewrite a plaintext response chooses what gets installed on the
 daemon host.
 
-Install reporting is off by default. **Settings → Plugins → Paseo Cafe → Share approximate
-install counts** opts this daemon into reporting genuinely new, successful installs started from
-the default catalog. Updates, already-installed no-ops, failed installs, custom catalogs, and
-catalog entries the daemon cannot verify are not reported. A later reinstall after removal is a
-new install event and may be counted again.
+Install reporting is enabled by default. **Settings → Plugins → Paseo Cafe → Share approximate
+install counts** lets the host owner opt out. While enabled, Cafe reports genuinely new,
+successful installs started from the default catalog. Updates, already-installed no-ops, failed
+installs, custom catalogs, and catalog entries the daemon cannot verify are not reported. A later
+reinstall after removal is a new install event and may be counted again.
 
 Each report contains exactly the public catalog plugin ID and a fresh operation nonce used only
 to deduplicate that install's bounded retries. It contains no machine or installation identifier,

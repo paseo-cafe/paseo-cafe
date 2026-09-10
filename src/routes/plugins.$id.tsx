@@ -290,8 +290,9 @@ function PluginDetail() {
         {installs ? (
           <span className="w-full text-foreground/50 text-xs">
             Cafe tracking started {formatDateTime(installs.trackingSince)}. This
-            published total includes opt-in reports for new installs received
-            before {formatDate(installs.asOf)}.
+            published total includes reports from Cafe installations where
+            reporting remained enabled, received before{" "}
+            {formatDate(installs.asOf)}.
             {installs.stale
               ? ` Stale snapshot; last fetched ${formatDateTime(installs.fetchedAt)}.`
               : ""}

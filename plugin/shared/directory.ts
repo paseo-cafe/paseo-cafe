@@ -188,7 +188,7 @@ export function migrateDirectorySettings(
   return {
     ...previous,
     browse: previous.browse ?? DEFAULT_DIRECTORY_BROWSE_SETTINGS,
-    reportInstalls: previous.reportInstalls ?? false,
+    reportInstalls: previous.reportInstalls ?? true,
   }
 }
 
@@ -206,7 +206,7 @@ export const directorySettings = defineSettings({
     browse: directoryBrowseSettingsSchema.default(
       DEFAULT_DIRECTORY_BROWSE_SETTINGS
     ),
-    reportInstalls: z.boolean().default(false),
+    reportInstalls: z.boolean().default(true),
   }),
   migrate: migrateDirectorySettings,
 })

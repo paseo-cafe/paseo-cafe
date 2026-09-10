@@ -99,7 +99,7 @@ export function DirectorySettings() {
         />
         <SettingsSwitch
           label="Share approximate install counts"
-          hint="After a genuinely new install from the default catalog, send only its public catalog ID and a one-time operation nonce. Cloudflare necessarily processes the request IP. Published counts are approximate reported installs."
+          hint="Enabled by default. Switch this off to stop reporting. After a genuinely new install from the default catalog, Cafe sends only the public catalog ID and a one-time operation nonce. Cloudflare necessarily processes the request IP. Published counts are approximate reported installs."
           value={values.reportInstalls}
           onValueChange={(value) => void setInstallReporting(value)}
           disabled={saving}
