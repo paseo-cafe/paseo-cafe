@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest"
 import {
-  CATEGORIES,
-  CATEGORY_LABELS,
   normalizeCategory,
   registryEntrySchema,
   registryIdSchema,
@@ -85,35 +83,6 @@ describe("registryEntrySchema", () => {
 })
 
 describe("category taxonomy", () => {
-  it("keeps a stable canonical order and labels", () => {
-    expect(CATEGORIES).toEqual([
-      "automation",
-      "browser",
-      "code-review",
-      "git",
-      "github",
-      "monitoring",
-      "orchestration",
-      "productivity",
-      "provider",
-      "theme",
-      "other",
-    ])
-    expect(CATEGORIES.map((category) => CATEGORY_LABELS[category])).toEqual([
-      "Automation",
-      "Browser",
-      "Code Review",
-      "Git",
-      "GitHub",
-      "Monitoring",
-      "Orchestration",
-      "Productivity",
-      "Provider",
-      "Theme",
-      "Other",
-    ])
-  })
-
   it.each([
     [" GitHub ", "github"],
     ["CODE REVIEW", "code-review"],

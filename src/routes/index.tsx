@@ -24,6 +24,7 @@ export const HOME_SEARCH_DEFAULT = {
   q: "",
   category: "",
   sort: "popular",
+  page: 1,
 } as const
 
 const sortValues = ["popular", "updated", "az"] as const
@@ -43,21 +44,17 @@ const searchSchema = z.object({
     .catch(HOME_SEARCH_DEFAULT.category)
     .transform(normalizeCategoryFilter),
   sort: z.enum(sortValues).catch(HOME_SEARCH_DEFAULT.sort),
-  page: z.coerce
-    .number()
-    .int()
-    .positive()
-    .catch(1)
-    .optional()
-    .transform((page) => page ?? 1),
+  page: z.coerce.number().int().positive().catch(HOME_SEARCH_DEFAULT.page),
 })
 
-type CatalogSearch = Omit<z.output<typeof searchSchema>, "page"> & {
-  page?: number
+export type CatalogSearch = z.output<typeof searchSchema>
+
+export function parseCatalogSearch(search: unknown): CatalogSearch {
+  return searchSchema.parse(search)
 }
 
-function validateSearch(search: unknown): CatalogSearch {
-  return searchSchema.parse(search)
+export function clampCatalogPage(page: number, totalPages: number): number {
+  return Math.min(page, Math.max(1, totalPages))
 }
 
 const SECTION_LIMIT = 6
@@ -68,7 +65,7 @@ const collator = new Intl.Collator(undefined, {
 })
 
 export const Route = createFileRoute("/")({
-  validateSearch,
+  validateSearch: parseCatalogSearch,
   head: () =>
     seo({ title: SITE_NAME, description: SITE_DESCRIPTION, path: "/" }),
   component: App,
@@ -120,8 +117,8 @@ function App() {
     [filtered, search.sort]
   )
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
-  const requestedPage = search.page ?? 1
-  const page = Math.min(requestedPage, totalPages)
+  const requestedPage = search.page
+  const page = clampCatalogPage(requestedPage, totalPages)
   const pageStart = (page - 1) * PAGE_SIZE
   const pageEnd = Math.min(pageStart + PAGE_SIZE, sorted.length)
   const pagePlugins = useMemo(
@@ -223,36 +220,36 @@ function App() {
                   {page} of {totalPages}
                 </p>
                 <nav className="flex gap-2" aria-label="Catalog pagination">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={page === 1}
-                    onClick={() =>
-                      navigate({
-                        search: (previous) => ({
-                          ...previous,
-                          page: page - 1,
-                        }),
-                      })
-                    }
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={page === totalPages}
-                    onClick={() =>
-                      navigate({
-                        search: (previous) => ({
-                          ...previous,
-                          page: page + 1,
-                        }),
-                      })
-                    }
-                  >
-                    Next
-                  </Button>
+                  {page === 1 ? (
+                    <Button type="button" variant="outline" disabled>
+                      Previous
+                    </Button>
+                  ) : (
+                    <Button
+                      nativeButton={false}
+                      variant="outline"
+                      render={
+                        <Link to="/" search={{ ...search, page: page - 1 }} />
+                      }
+                    >
+                      Previous
+                    </Button>
+                  )}
+                  {page === totalPages ? (
+                    <Button type="button" variant="outline" disabled>
+                      Next
+                    </Button>
+                  ) : (
+                    <Button
+                      nativeButton={false}
+                      variant="outline"
+                      render={
+                        <Link to="/" search={{ ...search, page: page + 1 }} />
+                      }
+                    >
+                      Next
+                    </Button>
+                  )}
                 </nav>
               </div>
             </section>
@@ -380,9 +377,19 @@ function FeaturedSection({
         </h2>
         <p className="text-foreground/50 text-sm">{description}</p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-2">
         {plugins.map((plugin) => (
-          <PluginCard key={plugin.id} plugin={plugin} />
+          <Link
+            key={plugin.id}
+            to="/plugins/$id"
+            params={{ id: plugin.id }}
+            className="flex min-w-0 items-center justify-between gap-3 border border-border bg-card px-3 py-2 transition-colors hover:bg-muted"
+          >
+            <span className="truncate font-medium text-sm">{plugin.name}</span>
+            <span className="shrink-0 text-foreground/50 text-xs">
+              {plugin.repo}
+            </span>
+          </Link>
         ))}
       </div>
     </section>

@@ -18,12 +18,26 @@ import { Separator } from "@/components/ui/separator"
 import { formatDate, formatDateTime } from "@/lib/format-date"
 import { getInstallCommand } from "@/lib/install-command"
 import { serializePluginJsonLd } from "@/lib/json-ld"
-import type { PluginHealth } from "@/lib/plugin-schema"
+import type { PluginHealth, PluginSecurity } from "@/lib/plugin-schema"
 import { listPlugins } from "@/lib/plugins-data"
 import { PLATFORM_LABELS } from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
 import { SITE_NAME, SITE_REPO, SITE_URL } from "@/lib/site"
 import { HOME_SEARCH_DEFAULT } from "@/routes/index"
+
+const LEGACY_README_IMAGE_TAG = /<img\b[^>]*>/gi
+const README_LINK_HREF =
+  /(<a\b[^>]*?)\s+href=(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi
+const SAFE_README_LINK = /^(?:https?:\/\/|mailto:|#)/i
+
+export function sanitizeReadmeHtmlForDisplay(html: string): string {
+  return html
+    .replace(LEGACY_README_IMAGE_TAG, "")
+    .replace(README_LINK_HREF, (attribute, anchor, double, single, bare) => {
+      const href = double ?? single ?? bare ?? ""
+      return SAFE_README_LINK.test(href) ? attribute : anchor
+    })
+}
 
 function buildReportIssueUrl(plugin: {
   id: string
@@ -80,6 +94,79 @@ const HEALTH_LABELS: Record<keyof PluginHealth, string> = {
   hasTests: "Has tests",
   hasTypecheckScript: "Has a typecheck script",
   updatedRecently: "Updated in the last 6 months",
+}
+
+export function PluginSecurityScan({
+  security,
+}: {
+  security?: PluginSecurity
+}) {
+  const attestation =
+    security?.status === "passed" || security?.status === "failed"
+      ? security
+      : undefined
+
+  return (
+    <Alert>
+      {security?.status === "passed" ? (
+        <IconCheck />
+      ) : security?.status === "failed" ? (
+        <IconX />
+      ) : (
+        <IconAlertTriangle />
+      )}
+      <AlertTitle className="flex flex-wrap items-center gap-2">
+        <span>Security scan</span>
+        <Badge
+          variant={
+            security?.status === "passed"
+              ? "default"
+              : security?.status === "failed"
+                ? "destructive"
+                : "outline"
+          }
+        >
+          {security?.status === "passed"
+            ? "Passed"
+            : security?.status === "failed"
+              ? "Failed"
+              : "Unknown"}
+        </Badge>
+      </AlertTitle>
+      <AlertDescription className="space-y-3">
+        {attestation ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">
+                Blocking findings: {attestation.blockingFindings}
+              </Badge>
+              <Badge variant="secondary">
+                Advisory findings: {attestation.advisoryFindings}
+              </Badge>
+            </div>
+            {attestation.scannedAt ? (
+              <p>
+                Scanned {formatDateTime(attestation.scannedAt)}
+                {attestation.commit ? ` at commit ${attestation.commit}` : ""}.
+              </p>
+            ) : null}
+            {attestation.reportUrl ? (
+              <a
+                href={attestation.reportUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-foreground hover:underline"
+              >
+                Open security report <IconExternalLink className="size-3.5" />
+              </a>
+            ) : null}
+          </>
+        ) : (
+          <p>No published security scan is available for this plugin yet.</p>
+        )}
+      </AlertDescription>
+    </Alert>
+  )
 }
 
 function PluginDetail() {
@@ -309,13 +396,15 @@ function PluginDetail() {
           <p className="mb-1 text-foreground/40 text-xs uppercase tracking-wide">
             README
           </p>
-          {/* readmeHtml is sanitized at scan time (src/lib/markdown.ts) from the plugin's
-              original README markdown before it's ever written to data/plugins.json —
-              never render raw third-party markdown here, and never parse HTML client-side. */}
+          {/* New scans remove README images in src/lib/markdown.ts. This final
+              compatibility guard also protects visitors from image beacons and
+              broken relative navigation in previously generated catalog data. */}
           <div
             className="prose prose-sm dark:prose-invert max-w-none prose-pre:rounded-none prose-pre:bg-muted"
-            /* biome-ignore lint/security/noDangerouslySetInnerHtml: The scan pipeline sanitizes this HTML with rehype-sanitize. */
-            dangerouslySetInnerHTML={{ __html: plugin.readmeHtml }}
+            /* biome-ignore lint/security/noDangerouslySetInnerHtml: The scan pipeline sanitizes this HTML; legacy image tags and relative links are removed again here. */
+            dangerouslySetInnerHTML={{
+              __html: sanitizeReadmeHtmlForDisplay(plugin.readmeHtml),
+            }}
           />
         </div>
       ) : null}
@@ -345,68 +434,7 @@ function PluginDetail() {
         <h2 className="mb-3 font-medium text-foreground/60 text-sm">
           Security scan
         </h2>
-        <Alert>
-          {security?.status === "passed" ? (
-            <IconCheck />
-          ) : security?.status === "failed" ? (
-            <IconX />
-          ) : (
-            <IconAlertTriangle />
-          )}
-          <AlertTitle className="flex flex-wrap items-center gap-2">
-            <span>Security scan</span>
-            <Badge
-              variant={
-                security?.status === "passed"
-                  ? "default"
-                  : security?.status === "failed"
-                    ? "destructive"
-                    : "outline"
-              }
-            >
-              {security?.status === "passed"
-                ? "Passed"
-                : security?.status === "failed"
-                  ? "Failed"
-                  : "Unknown"}
-            </Badge>
-          </AlertTitle>
-          <AlertDescription className="space-y-3">
-            {security?.status === "passed" || security?.status === "failed" ? (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline">
-                    Blocking findings: {security.blockingFindings}
-                  </Badge>
-                  <Badge variant="secondary">
-                    Advisory findings: {security.advisoryFindings}
-                  </Badge>
-                </div>
-                {security.scannedAt ? (
-                  <p>
-                    Scanned {formatDateTime(security.scannedAt)}
-                    {security.commit ? ` at commit ${security.commit}` : ""}.
-                  </p>
-                ) : null}
-                {security.reportUrl ? (
-                  <a
-                    href={security.reportUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-foreground hover:underline"
-                  >
-                    Open security report{" "}
-                    <IconExternalLink className="size-3.5" />
-                  </a>
-                ) : null}
-              </>
-            ) : (
-              <p>
-                No published security scan is available for this plugin yet.
-              </p>
-            )}
-          </AlertDescription>
-        </Alert>
+        <PluginSecurityScan security={security} />
       </div>
 
       <p className="text-foreground/40 text-xs">
