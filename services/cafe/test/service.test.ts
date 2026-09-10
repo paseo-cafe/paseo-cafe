@@ -9,7 +9,7 @@ import { env, exports } from "cloudflare:workers"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { CATALOG_IDS } from "../src/catalog.generated"
 import type { CafeEnv } from "../src/env"
-import worker from "../src/index"
+import worker, { eventRateLimitKey } from "../src/index"
 import {
   MAX_EVENT_BODY_READ_MS,
   parseLifecycleEventRequest,
@@ -54,6 +54,19 @@ describe("Cafe service", () => {
     expect(response.status).toBe(200)
     expect(response.headers.get("cache-control")).toBe("no-store")
     expect(await response.json()).toEqual({ status: "ok" })
+  })
+
+  it("isolates edge rate limits by the trusted client address", () => {
+    expect(
+      eventRateLimitKey(
+        new Request(`${SERVICE_URL}/v1/events`, {
+          headers: { "cf-connecting-ip": "203.0.113.7" },
+        })
+      )
+    ).toBe("events:203.0.113.7")
+    expect(eventRateLimitKey(new Request(`${SERVICE_URL}/v1/events`))).toBe(
+      "events:unknown"
+    )
   })
 
   it("rejects reporting while disabled without creating counter storage", async () => {

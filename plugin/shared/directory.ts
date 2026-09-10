@@ -140,8 +140,13 @@ export type DirectoryBrowseSettings = z.infer<
   typeof directoryBrowseSettingsSchema
 >
 
+export const REPORTABLE_PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]*$/
+
 export const observedPluginsSchema = z
-  .record(z.string().regex(/^[a-z][a-z0-9-]*$/), z.string().min(1).max(500))
+  .record(
+    z.string().regex(REPORTABLE_PLUGIN_ID_PATTERN),
+    z.string().min(1).max(500)
+  )
   .refine(
     (value) => Object.keys(value).length <= 500,
     "Too many observed plugins"
@@ -624,7 +629,7 @@ export const directoryReportLifecycleRpc = defineRpc({
     events: z
       .array(
         z.object({
-          pluginId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+          pluginId: z.string().regex(REPORTABLE_PLUGIN_ID_PATTERN),
           event: lifecycleEventTypeSchema,
         })
       )
@@ -651,7 +656,7 @@ export const directorySetInstallReportingRpc = defineRpc({
 export const directoryUpdateRpc = defineRpc({
   name: "directory.update",
   input: z.object({
-    pluginId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    pluginId: z.string().regex(REPORTABLE_PLUGIN_ID_PATTERN),
     entry: z.object({
       id: z.string(),
       repo: z.string(),

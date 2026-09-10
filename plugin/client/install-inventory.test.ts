@@ -80,6 +80,19 @@ describe("catalog lifecycle reconciliation", () => {
     })
   })
 
+  it("does not persist or claim non-reportable catalog IDs", () => {
+    const current = observeCatalogPlugins(
+      [{ id: "Bad Plugin", repo: "owner/alpha" }],
+      [installed("Bad Plugin", "https://github.com/owner/alpha.git", "aaa")]
+    )
+
+    expect(current).toEqual({})
+    expect(claimObservedInstall({}, "Bad Plugin")).toEqual({
+      claimed: false,
+      observed: {},
+    })
+  })
+
   it("lets only one path claim a new direct install", () => {
     expect(claimObservedInstall({}, "alpha")).toEqual({
       claimed: true,

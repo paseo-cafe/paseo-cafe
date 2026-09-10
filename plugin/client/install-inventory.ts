@@ -4,7 +4,10 @@ import type {
   LifecycleEventType,
   ObservedPlugins,
 } from "../shared/directory"
-import { findInstallations } from "../shared/directory"
+import {
+  findInstallations,
+  REPORTABLE_PLUGIN_ID_PATTERN,
+} from "../shared/directory"
 
 export interface PendingLifecycleEvent {
   pluginId: string
@@ -32,6 +35,7 @@ export function observeCatalogPlugins(
 ): ObservedPlugins {
   const observed: ObservedPlugins = {}
   for (const entry of entries) {
+    if (!REPORTABLE_PLUGIN_ID_PATTERN.test(entry.id)) continue
     const matches = findInstallations(entry, installations)
     if (matches.length > 0) {
       observed[entry.id] = installationFingerprint(matches)
@@ -56,6 +60,9 @@ export function claimObservedInstall(
   observed: ObservedPlugins,
   pluginId: string
 ): { claimed: boolean; observed: ObservedPlugins } {
+  if (!REPORTABLE_PLUGIN_ID_PATTERN.test(pluginId)) {
+    return { claimed: false, observed }
+  }
   if (observed[pluginId] !== undefined) return { claimed: false, observed }
   return {
     claimed: true,

@@ -24,6 +24,11 @@ function serviceResponse(status: 400 | 404 | 405 | 413 | 429 | 503): Response {
   })
 }
 
+export function eventRateLimitKey(request: Request): string {
+  const clientIp = request.headers.get("cf-connecting-ip") ?? "unknown"
+  return `events:${clientIp}`
+}
+
 async function ingestLifecycleEvent(
   request: Request,
   env: CafeEnv
@@ -31,7 +36,9 @@ async function ingestLifecycleEvent(
   if (!reportingEnabled(env.REPORTING_ENABLED)) return serviceResponse(503)
 
   try {
-    const { success } = await env.INSTALL_RATE_LIMITER.limit({ key: "events" })
+    const { success } = await env.INSTALL_RATE_LIMITER.limit({
+      key: eventRateLimitKey(request),
+    })
     if (!success) return serviceResponse(429)
   } catch {
     return serviceResponse(503)
