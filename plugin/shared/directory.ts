@@ -5,6 +5,16 @@ import {
   PluginAttachmentSearchPayloadSchema,
 } from "@getpaseo/plugin"
 import { z } from "zod"
+import {
+  CATALOG_CATEGORIES,
+  CATALOG_CATEGORY_LABELS,
+  CATALOG_HEALTH_LABELS,
+  type CatalogCategory,
+  getCatalogInstallCommand,
+  normalizeCatalogCategories,
+  normalizeCatalogCategory,
+  normalizeCatalogCategoryFilter,
+} from "./catalog"
 
 export const DEFAULT_DIRECTORY_URL = "https://paseo.cafe/api/plugins"
 
@@ -75,60 +85,20 @@ const catalogUrlSchema = httpUrlSchema.refine(
   "Catalog URL must use HTTPS, or HTTP on localhost"
 )
 
-export const DIRECTORY_CATEGORIES = [
-  "automation",
-  "browser",
-  "code-review",
-  "git",
-  "github",
-  "monitoring",
-  "orchestration",
-  "productivity",
-  "provider",
-  "theme",
-  "other",
-] as const
+export const DIRECTORY_CATEGORIES = CATALOG_CATEGORIES
 
-export type DirectoryCategory = (typeof DIRECTORY_CATEGORIES)[number]
+export type DirectoryCategory = CatalogCategory
 
-export const DIRECTORY_CATEGORY_LABELS: Record<DirectoryCategory, string> = {
-  automation: "Automation",
-  browser: "Browser",
-  "code-review": "Code Review",
-  git: "Git",
-  github: "GitHub",
-  monitoring: "Monitoring",
-  orchestration: "Orchestration",
-  productivity: "Productivity",
-  provider: "Provider",
-  theme: "Theme",
-  other: "Other",
-}
+export const DIRECTORY_CATEGORY_LABELS = CATALOG_CATEGORY_LABELS
 
 /** Maps filter input onto the stable directory taxonomy without inventing a match. */
-export function normalizeDirectoryCategoryFilter(
-  category: string
-): DirectoryCategory | "" {
-  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
-  return Object.hasOwn(DIRECTORY_CATEGORY_LABELS, normalized)
-    ? (normalized as DirectoryCategory)
-    : ""
-}
+export const normalizeDirectoryCategoryFilter = normalizeCatalogCategoryFilter
 
 /** Maps catalog-provided categories onto the stable directory taxonomy. */
-export function normalizeDirectoryCategory(
-  category: string
-): DirectoryCategory {
-  return normalizeDirectoryCategoryFilter(category) || "other"
-}
+export const normalizeDirectoryCategory = normalizeCatalogCategory
 
 /** Canonicalizes catalog categories while preserving their stable slug identity. */
-export function normalizeDirectoryCategories(
-  categories: readonly string[]
-): DirectoryCategory[] {
-  const present = new Set(categories.map(normalizeDirectoryCategory))
-  return DIRECTORY_CATEGORIES.filter((category) => present.has(category))
-}
+export const normalizeDirectoryCategories = normalizeCatalogCategories
 export const DIRECTORY_SORT_MODES = [
   "updates-first",
   "popular",
@@ -646,14 +616,9 @@ export function isValidInstallPath(path: string): boolean {
   )
 }
 
-/** Mirrors src/lib/install-command.ts on the site — kept in sync by hand, it's one line. */
-export function getInstallCommand(
+export const getInstallCommand: (
   entry: Pick<DirectoryEntry, "repo" | "path">
-): string {
-  return entry.path
-    ? `paseo plugin add ${entry.repo} --path ${entry.path}`
-    : `paseo plugin add ${entry.repo}`
-}
+) => string = getCatalogInstallCommand
 
 export function getSiteUrl(entry: Pick<DirectoryEntry, "id">): string {
   return `${SITE_URL}/plugins/${encodeURIComponent(entry.id)}`
@@ -749,12 +714,4 @@ export function stripHtml(html: string): string {
     .trim()
 }
 
-/** Mirrors the site's HEALTH_LABELS in src/routes/plugins.$id.tsx. */
-export const HEALTH_LABELS: Record<string, string> = {
-  manifestValid: "Valid paseo-plugin.json manifest",
-  hasReadme: "Has a README",
-  hasLicense: "Has a license",
-  hasTests: "Has tests",
-  hasTypecheckScript: "Has a typecheck script",
-  updatedRecently: "Updated in the last 6 months",
-}
+export const HEALTH_LABELS: Record<string, string> = CATALOG_HEALTH_LABELS

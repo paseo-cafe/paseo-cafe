@@ -1,4 +1,10 @@
 import { z } from "zod"
+import {
+  CATALOG_CATEGORIES,
+  CATALOG_CATEGORY_LABELS,
+  type CatalogCategory,
+  normalizeCatalogCategory,
+} from "../../plugin/shared/catalog"
 
 /**
  * Platforms a plugin is known to run on. There's no upstream standard for
@@ -16,41 +22,12 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
 }
 
 /** Stable taxonomy used by catalog filters. Registry records keep their source values. */
-export const CATEGORIES = [
-  "automation",
-  "browser",
-  "code-review",
-  "git",
-  "github",
-  "monitoring",
-  "orchestration",
-  "productivity",
-  "provider",
-  "theme",
-  "other",
-] as const
-export type Category = (typeof CATEGORIES)[number]
-export const CATEGORY_LABELS: Record<Category, string> = {
-  automation: "Automation",
-  browser: "Browser",
-  "code-review": "Code Review",
-  git: "Git",
-  github: "GitHub",
-  monitoring: "Monitoring",
-  orchestration: "Orchestration",
-  productivity: "Productivity",
-  provider: "Provider",
-  theme: "Theme",
-  other: "Other",
-}
+export const CATEGORIES = CATALOG_CATEGORIES
+export type Category = CatalogCategory
+export const CATEGORY_LABELS: Record<Category, string> = CATALOG_CATEGORY_LABELS
 
 /** Maps free-form registry categories to the stable catalog taxonomy. */
-export function normalizeCategory(category: string): Category {
-  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
-  return Object.hasOwn(CATEGORY_LABELS, normalized)
-    ? (normalized as Category)
-    : "other"
-}
+export const normalizeCategory = normalizeCatalogCategory
 
 export const registryIdSchema = z
   .string()

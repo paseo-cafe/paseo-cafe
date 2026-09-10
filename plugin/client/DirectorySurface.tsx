@@ -30,6 +30,7 @@ import {
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
 import { PluginRow } from "./PluginRow"
+import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 
 const DIRECTORY_QUERY_KEY = "paseo-cafe-directory"
 const UPDATE_STATUS_QUERY_KEY = "paseo-cafe-update-status"
@@ -46,6 +47,7 @@ interface FilterRowProps<T extends string> {
   options: readonly T[]
   selected: ReadonlySet<T>
   theme: PluginTheme
+  compact: boolean
   formatOption?: (value: T) => string
   onToggle: (value: T) => void
   onClear: () => void
@@ -56,6 +58,7 @@ function FilterRow<T extends string>({
   options,
   selected,
   theme,
+  compact,
   formatOption,
   onToggle,
   onClear,
@@ -70,30 +73,38 @@ function FilterRow<T extends string>({
       },
       label: {
         color: theme.colors.foregroundMuted,
-        fontSize: 12,
-        marginRight: 2,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 11,
+        fontWeight: "600" as const,
+        letterSpacing: 0.8,
       },
       chip: (active: boolean) => ({
-        borderRadius: 999,
+        minHeight: compact ? 44 : 32,
+        justifyContent: "center" as const,
+        borderWidth: 1,
+        borderColor: active ? theme.colors.accent : theme.colors.border,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 10,
-        paddingVertical: 4,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface2,
+        paddingVertical: 5,
+        backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
       }),
       chipText: (active: boolean) => ({
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 12,
+        fontWeight: "600" as const,
         color: active
           ? theme.colors.accentForeground
           : theme.colors.foregroundMuted,
       }),
     }),
-    [theme]
+    [theme, compact]
   )
 
   if (options.length === 0) return null
 
   return (
     <View style={styles.row}>
-      <Text style={styles.label}>{label}:</Text>
+      <Text style={styles.label}>{label.toUpperCase()}</Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Clear ${label.toLowerCase()} filter`}
@@ -136,11 +147,13 @@ function StatusFilterRow({
   options,
   selected,
   theme,
+  compact,
   onSelect,
 }: {
   options: readonly StatusFilterOption[]
   selected: InstallationStatusFilter
   theme: PluginTheme
+  compact: boolean
   onSelect: (value: InstallationStatusFilter) => void
 }) {
   const styles = useMemo(
@@ -153,26 +166,31 @@ function StatusFilterRow({
       },
       label: {
         color: theme.colors.foregroundMuted,
-        fontSize: 12,
-        marginRight: 2,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 11,
+        fontWeight: "600" as const,
+        letterSpacing: 0.8,
       },
       chip: (active: boolean) => ({
-        minHeight: 44,
+        minHeight: compact ? 44 : 32,
         justifyContent: "center" as const,
-        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: active ? theme.colors.accent : theme.colors.border,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 10,
         paddingVertical: 5,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface2,
+        backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
       }),
       chipText: (active: boolean) => ({
         color: active
           ? theme.colors.accentForeground
           : theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 12,
-        fontWeight: active ? ("600" as const) : ("400" as const),
+        fontWeight: "600" as const,
       }),
     }),
-    [theme]
+    [theme, compact]
   )
 
   return (
@@ -181,7 +199,7 @@ function StatusFilterRow({
       accessibilityLabel="Plugin installation status"
       style={styles.row}
     >
-      <Text style={styles.label}>Show:</Text>
+      <Text style={styles.label}>SHOW</Text>
       {options.map((option) => {
         const active = selected === option.value
         const countLabel =
@@ -358,11 +376,13 @@ function SortRow({
   options,
   selected,
   theme,
+  compact,
   onSelect,
 }: {
   options: readonly SortOption[]
   selected: SortMode
   theme: PluginTheme
+  compact: boolean
   onSelect: (value: SortMode) => void
 }) {
   const styles = useMemo(
@@ -375,26 +395,31 @@ function SortRow({
       },
       label: {
         color: theme.colors.foregroundMuted,
-        fontSize: 12,
-        marginRight: 2,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 11,
+        fontWeight: "600" as const,
+        letterSpacing: 0.8,
       },
       chip: (active: boolean) => ({
-        minHeight: 44,
+        minHeight: compact ? 44 : 32,
         justifyContent: "center" as const,
-        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: active ? theme.colors.accent : theme.colors.border,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 10,
         paddingVertical: 5,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface2,
+        backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
       }),
       chipText: (active: boolean) => ({
         color: active
           ? theme.colors.accentForeground
           : theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
         fontSize: 12,
-        fontWeight: active ? ("600" as const) : ("400" as const),
+        fontWeight: "600" as const,
       }),
     }),
-    [theme]
+    [theme, compact]
   )
 
   return (
@@ -403,7 +428,7 @@ function SortRow({
       accessibilityLabel="Plugin sort order"
       style={styles.row}
     >
-      <Text style={styles.label}>Sort:</Text>
+      <Text style={styles.label}>SORT</Text>
       {options.map((option) => {
         const active = selected === option.value
         return (
@@ -859,45 +884,119 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     setLastOpenedPluginId(entry.id)
   }
 
+  const selectedSortLabel =
+    SORT_OPTIONS.find((option) => option.value === sortMode)?.label ?? sortMode
+
   const styles = useMemo(
     () => ({
       screen: {
         flex: 1,
         padding: layout.compact ? 16 : 24,
-        gap: 12,
         backgroundColor: theme.colors.surface0,
+      },
+      listContent: {
+        width: "100%" as const,
+        maxWidth: 1120,
+        alignSelf: "center" as const,
+        gap: 16,
+        paddingBottom: 32,
+      },
+      listHeader: { gap: layout.compact ? 16 : 24 },
+      masthead: { gap: 8, paddingVertical: layout.compact ? 4 : 8 },
+      eyebrowRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 7,
+      },
+      eyebrowDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 4,
+        backgroundColor: theme.colors.accent,
+      },
+      eyebrow: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 11,
+        fontWeight: "600" as const,
+        letterSpacing: 0.7,
       },
       title: {
         color: theme.colors.foreground,
-        fontSize: layout.compact ? 20 : 24,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: layout.compact ? 26 : 34,
         fontWeight: "700" as const,
+        letterSpacing: -1,
       },
-      subtitle: { color: theme.colors.foregroundMuted, fontSize: 13 },
+      subtitle: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 13,
+        lineHeight: 20,
+        maxWidth: 680,
+      },
+      filterPanel: {
+        gap: 10,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        padding: 12,
+        backgroundColor: theme.colors.surface1,
+      },
       searchInput: {
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: 8,
+        borderRadius: CAFE_CONTROL_RADIUS,
         paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingVertical: 10,
         color: theme.colors.foreground,
+        backgroundColor: theme.colors.surface0,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 13,
       },
       filtersBlock: { gap: 8 },
-      listHeader: { gap: 12 },
-      featuredBlock: { gap: 10 },
-      featuredSection: { gap: 10 },
-      featuredItems: { gap: 12 },
-      featuredHeader: {
+      refreshButton: {
+        alignSelf: "flex-start" as const,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderRadius: CAFE_CONTROL_RADIUS,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        backgroundColor: theme.colors.surface0,
+      },
+      refreshText: {
         color: theme.colors.foreground,
-        fontSize: 14,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 12,
         fontWeight: "600" as const,
       },
-      emptyText: {
+      feedbackText: {
         color: theme.colors.foregroundMuted,
-        textAlign: "center" as const,
-        marginTop: 24,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 12,
+        lineHeight: 18,
       },
-      refreshButton: { alignSelf: "flex-start" as const, paddingVertical: 4 },
-      refreshText: { color: theme.colors.accent, fontSize: 13 },
+      catalogSummary: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 12,
+      },
+      featuredBlock: { gap: 28 },
+      featuredSection: { gap: 10 },
+      sectionHeading: { gap: 2 },
+      featuredItems: { gap: 8 },
+      featuredHeader: {
+        color: theme.colors.foreground,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 17,
+        fontWeight: "600" as const,
+        letterSpacing: -0.3,
+      },
+      featuredDescription: {
+        color: theme.colors.foregroundMuted,
+        fontFamily: CAFE_MONO_FONT,
+        fontSize: 12,
+      },
+      resultsHeader: { gap: 2, marginTop: 8 },
     }),
     [theme, layout.compact]
   )
@@ -951,117 +1050,146 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       <FlatList<DirectoryEntry>
         data={sorted}
         keyExtractor={(entry: DirectoryEntry) => entry.id}
-        contentContainerStyle={{ gap: 12 }}
+        contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.listHeader}>
-            <Text style={styles.title}>Paseo Cafe</Text>
-            <Text style={styles.subtitle}>
-              Browse and install Paseo plugins.
-            </Text>
-            <TextInput
-              placeholder="Search plugins…"
-              value={search}
-              onChangeText={(value) => setSearch(value.slice(0, 200))}
-              style={styles.searchInput}
-              placeholderTextColor={theme.colors.foregroundMuted}
-            />
-            <SortRow
-              options={SORT_OPTIONS}
-              selected={sortMode}
-              theme={theme}
-              onSelect={setSortMode}
-            />
-            <StatusFilterRow
-              options={statusOptions}
-              selected={effectiveStatusFilter}
-              theme={theme}
-              onSelect={setStatusFilter}
-            />
-
-            <View style={styles.filtersBlock}>
-              <FilterRow
-                label="Category"
-                options={allCategories}
-                selected={categoryFilter}
-                theme={theme}
-                formatOption={(category) => DIRECTORY_CATEGORY_LABELS[category]}
-                onToggle={(category) =>
-                  setCategoryFilter((prev) => toggle(prev, category))
-                }
-                onClear={() => setCategoryFilter(new Set())}
-              />
-              <FilterRow
-                label="Platform"
-                options={allPlatforms}
-                selected={platformFilter}
-                theme={theme}
-                onToggle={(value) =>
-                  setPlatformFilter((prev) => toggle(prev, value))
-                }
-                onClear={() => setPlatformFilter(new Set())}
-              />
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Refresh Paseo Cafe catalog"
-              disabled={
-                settingsPending ||
-                refreshMutation.isPending ||
-                directoryQuery.isFetching
-              }
-              style={styles.refreshButton}
-              onPress={() => refreshMutation.mutate()}
-            >
-              <Text style={styles.refreshText}>
-                {refreshMutation.isPending || directoryQuery.isFetching
-                  ? "Refreshing…"
-                  : "Refresh"}
+            <View style={styles.masthead}>
+              <View style={styles.eyebrowRow}>
+                <View style={styles.eyebrowDot} />
+                <Text style={styles.eyebrow}>
+                  COMMUNITY-RUN UNOFFICIAL DIRECTORY
+                </Text>
+              </View>
+              <Text accessibilityRole="header" style={styles.title}>
+                A directory of paseo.sh plugins
               </Text>
-            </Pressable>
+              <Text style={styles.subtitle}>
+                Browse community-built Paseo plugins. Every listing comes
+                straight from its source repository.
+              </Text>
+            </View>
+
+            <View style={styles.filterPanel}>
+              <TextInput
+                accessibilityLabel="Search Paseo plugins"
+                placeholder="Search name, repo, owner…"
+                value={search}
+                onChangeText={(value) => setSearch(value.slice(0, 200))}
+                style={styles.searchInput}
+                placeholderTextColor={theme.colors.foregroundMuted}
+              />
+              <SortRow
+                options={SORT_OPTIONS}
+                selected={sortMode}
+                theme={theme}
+                compact={layout.compact}
+                onSelect={setSortMode}
+              />
+              <StatusFilterRow
+                options={statusOptions}
+                selected={effectiveStatusFilter}
+                theme={theme}
+                compact={layout.compact}
+                onSelect={setStatusFilter}
+              />
+              <View style={styles.filtersBlock}>
+                <FilterRow
+                  label="Categories"
+                  options={allCategories}
+                  selected={categoryFilter}
+                  theme={theme}
+                  compact={layout.compact}
+                  formatOption={(category) =>
+                    DIRECTORY_CATEGORY_LABELS[category]
+                  }
+                  onToggle={(category) =>
+                    setCategoryFilter((prev) => toggle(prev, category))
+                  }
+                  onClear={() => setCategoryFilter(new Set())}
+                />
+                <FilterRow
+                  label="Platforms"
+                  options={allPlatforms}
+                  selected={platformFilter}
+                  theme={theme}
+                  compact={layout.compact}
+                  onToggle={(value) =>
+                    setPlatformFilter((prev) => toggle(prev, value))
+                  }
+                  onClear={() => setPlatformFilter(new Set())}
+                />
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Refresh Paseo Cafe catalog"
+                disabled={
+                  settingsPending ||
+                  refreshMutation.isPending ||
+                  directoryQuery.isFetching
+                }
+                style={[
+                  styles.refreshButton,
+                  settingsPending ||
+                  refreshMutation.isPending ||
+                  directoryQuery.isFetching
+                    ? { opacity: 0.5 }
+                    : null,
+                ]}
+                onPress={() => refreshMutation.mutate()}
+              >
+                <Text style={styles.refreshText}>
+                  {refreshMutation.isPending || directoryQuery.isFetching
+                    ? "Refreshing…"
+                    : "Refresh catalog"}
+                </Text>
+              </Pressable>
+            </View>
+
             {settingsPending ? (
-              <Text style={styles.emptyText}>Loading Paseo Cafe settings…</Text>
+              <Text style={styles.feedbackText}>Loading Cafe settings…</Text>
             ) : null}
             {updateStatusQuery.isFetching ? (
-              <Text style={styles.emptyText}>Checking for plugin updates…</Text>
+              <Text style={styles.feedbackText}>
+                Checking for plugin updates…
+              </Text>
             ) : null}
             {updateStatusQuery.isError ? (
-              <Text accessibilityRole="alert" style={styles.emptyText}>
+              <Text accessibilityRole="alert" style={styles.feedbackText}>
                 Update status is unavailable: {updateStatusQuery.error.message}
               </Text>
             ) : null}
             {settings.status === "error" || settings.status === "invalid" ? (
-              <Text accessibilityRole="alert" style={styles.emptyText}>
-                Paseo Cafe settings need attention, so the default catalog is in
-                use: {settings.error}
+              <Text accessibilityRole="alert" style={styles.feedbackText}>
+                Cafe settings need attention, so the default catalog is in use:{" "}
+                {settings.error}
               </Text>
             ) : null}
             {directoryQuery.data?.installationError ? (
-              <Text accessibilityRole="alert" style={styles.emptyText}>
+              <Text accessibilityRole="alert" style={styles.feedbackText}>
                 Couldn't check installed plugins:{" "}
                 {directoryQuery.data.installationError}
               </Text>
             ) : null}
             {directoryQuery.isPending && !settingsPending ? (
-              <Text style={styles.emptyText}>Loading plugins…</Text>
+              <Text style={styles.feedbackText}>Loading plugins…</Text>
             ) : null}
             {directoryQuery.isError ? (
-              <Text accessibilityRole="alert" style={styles.emptyText}>
+              <Text accessibilityRole="alert" style={styles.feedbackText}>
                 Couldn't reach Paseo Cafe: {directoryQuery.error.message}
               </Text>
             ) : null}
-            {directoryQuery.data ? (
-              <Text style={styles.emptyText}>
-                Catalog generated {directoryQuery.data.fetchedAt.slice(0, 10)}.
-              </Text>
-            ) : null}
-            {directoryQuery.isSuccess ? (
-              <Text accessibilityLiveRegion="polite" style={styles.emptyText}>
+            {directoryQuery.data && directoryQuery.isSuccess ? (
+              <Text
+                accessibilityLiveRegion="polite"
+                style={styles.catalogSummary}
+              >
+                Catalog generated {directoryQuery.data.fetchedAt.slice(0, 10)} ·
                 Showing {sorted.length} of {nonStatusFiltered.length} matching
                 plugins.
               </Text>
             ) : null}
             {directoryQuery.isSuccess && sorted.length === 0 ? (
-              <Text style={styles.emptyText}>
+              <Text style={styles.feedbackText}>
                 No plugins match the current search and filters.
               </Text>
             ) : null}
@@ -1070,12 +1198,17 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
               <View style={styles.featuredBlock}>
                 {popularHighlights.length > 0 ? (
                   <View style={styles.featuredSection}>
-                    <Text
-                      accessibilityRole="header"
-                      style={styles.featuredHeader}
-                    >
-                      Popular
-                    </Text>
+                    <View style={styles.sectionHeading}>
+                      <Text
+                        accessibilityRole="header"
+                        style={styles.featuredHeader}
+                      >
+                        Popular
+                      </Text>
+                      <Text style={styles.featuredDescription}>
+                        Most starred plugins right now.
+                      </Text>
+                    </View>
                     <View style={styles.featuredItems}>
                       {popularHighlights.map((item) => (
                         <PluginRow
@@ -1094,12 +1227,17 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                 ) : null}
                 {recentHighlights.length > 0 ? (
                   <View style={styles.featuredSection}>
-                    <Text
-                      accessibilityRole="header"
-                      style={styles.featuredHeader}
-                    >
-                      Recently updated
-                    </Text>
+                    <View style={styles.sectionHeading}>
+                      <Text
+                        accessibilityRole="header"
+                        style={styles.featuredHeader}
+                      >
+                        Recently updated
+                      </Text>
+                      <Text style={styles.featuredDescription}>
+                        Plugins with recent repository activity.
+                      </Text>
+                    </View>
                     <View style={styles.featuredItems}>
                       {recentHighlights.map((item) => (
                         <PluginRow
@@ -1116,6 +1254,16 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                     </View>
                   </View>
                 ) : null}
+              </View>
+            ) : null}
+            {directoryQuery.isSuccess && sorted.length > 0 ? (
+              <View style={styles.resultsHeader}>
+                <Text accessibilityRole="header" style={styles.featuredHeader}>
+                  All plugins
+                </Text>
+                <Text style={styles.featuredDescription}>
+                  Sorted by {selectedSortLabel.toLowerCase()}.
+                </Text>
               </View>
             ) : null}
           </View>

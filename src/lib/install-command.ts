@@ -1,4 +1,5 @@
 import type { PluginRecord } from "@/lib/plugin-schema"
+import { getCatalogInstallCommand } from "../../plugin/shared/catalog"
 
 /**
  * The canonical install command for a plugin — derived purely from the
@@ -7,10 +8,6 @@ import type { PluginRecord } from "@/lib/plugin-schema"
  * This never depends on README parsing, so it's always correct even when
  * an author's own install instructions are missing, stale, or inconsistent.
  */
-export function getInstallCommand(
+export const getInstallCommand: (
   plugin: Pick<PluginRecord, "repo" | "path">
-): string {
-  return plugin.path
-    ? `paseo plugin add ${plugin.repo} --path ${plugin.path}`
-    : `paseo plugin add ${plugin.repo}`
-}
+) => string = getCatalogInstallCommand

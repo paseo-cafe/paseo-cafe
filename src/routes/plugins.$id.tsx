@@ -13,6 +13,7 @@ import { serializePluginJsonLd } from "@/lib/json-ld"
 import { listPlugins } from "@/lib/plugins-data"
 import { seo } from "@/lib/seo"
 
+
 export const Route = createFileRoute("/plugins/$id")({
   component: PluginDetail,
   loader: ({ params }) => {
@@ -33,6 +34,7 @@ export const Route = createFileRoute("/plugins/$id")({
         })
       : {},
 })
+
 
 function PluginDetail() {
   const plugin = Route.useLoaderData()
