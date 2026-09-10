@@ -185,8 +185,12 @@ export function migrateDirectorySettings(
   }
 
   const previous = values as Record<string, unknown>
+  const directoryUrl = catalogUrlSchema.safeParse(previous.directoryUrl)
   return {
     ...previous,
+    directoryUrl: directoryUrl.success
+      ? directoryUrl.data
+      : DEFAULT_DIRECTORY_URL,
     browse: previous.browse ?? DEFAULT_DIRECTORY_BROWSE_SETTINGS,
     reportInstalls: previous.reportInstalls ?? true,
   }

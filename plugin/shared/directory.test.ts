@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import {
   DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+  DEFAULT_DIRECTORY_URL,
   DIRECTORY_CATEGORY_LABELS,
   type DirectoryCategory,
   directoryAttachments,
@@ -201,6 +202,19 @@ describe("directory taxonomy and browse settings", () => {
     })
     expect(directorySettings.schema.parse(migrated)).toEqual({
       directoryUrl,
+      browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+      reportInstalls: true,
+    })
+  })
+
+  it("replaces an insecure legacy catalog URL during migration", () => {
+    expect(
+      migrateDirectorySettings(
+        { directoryUrl: "http://catalog.internal/api/plugins" },
+        1
+      )
+    ).toEqual({
+      directoryUrl: DEFAULT_DIRECTORY_URL,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
       reportInstalls: true,
     })

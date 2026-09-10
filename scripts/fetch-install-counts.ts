@@ -164,6 +164,30 @@ function writeSnapshot(
   renameSync(temporaryPath, outputPath)
 }
 
+export function ensureExistingInstallCounts({
+  registryDirectory,
+  outputPath,
+  observedAt = new Date().toISOString(),
+}: {
+  registryDirectory: string
+  outputPath: string
+  observedAt?: string
+}): InstallCountsSnapshot {
+  const ids = catalogIds(registryDirectory)
+  let snapshot: InstallCountsSnapshot
+  try {
+    snapshot = reclassifyInstallCountsSnapshot(
+      readPreviousSnapshot(outputPath),
+      ids,
+      observedAt
+    )
+  } catch {
+    snapshot = failedInstallCountsSnapshot(undefined, observedAt, ids)
+  }
+  writeSnapshot(outputPath, snapshot)
+  return snapshot
+}
+
 export async function fetchAndWriteInstallCounts({
   serviceUrl,
   previousSnapshotUrl,
@@ -186,25 +210,21 @@ export async function fetchAndWriteInstallCounts({
   } catch {
     previous = undefined
   }
+  const endpoint = countsEndpoint(serviceUrl)
+  const fallbackEndpoint = previousSnapshotUrl
+    ? previousSnapshotEndpoint(previousSnapshotUrl)
+    : undefined
 
   let snapshot: InstallCountsSnapshot
   try {
-    const data = await fetchPublishedCounts(
-      countsEndpoint(serviceUrl),
-      ids,
-      fetcher
-    )
+    const data = await fetchPublishedCounts(endpoint, ids, fetcher)
     const fetchedAt = now().toISOString()
     snapshot = receivedInstallCountsSnapshot(data, fetchedAt, ids)
   } catch {
     let fallback = previous
-    if (fallback === undefined && previousSnapshotUrl) {
+    if (fallback === undefined && fallbackEndpoint) {
       try {
-        fallback = await fetchPreviousSnapshot(
-          previousSnapshotEndpoint(previousSnapshotUrl),
-          ids,
-          fetcher
-        )
+        fallback = await fetchPreviousSnapshot(fallbackEndpoint, ids, fetcher)
       } catch {
         // No local or deployed valid snapshot exists; publish unavailable.
       }
@@ -221,13 +241,10 @@ async function main(): Promise<void> {
   const root = process.cwd()
   const outputPath = join(root, "data", "install-counts.json")
   if (process.argv.includes("--if-missing") && existsSync(outputPath)) {
-    const ids = catalogIds(join(root, "registry"))
-    const reclassified = reclassifyInstallCountsSnapshot(
-      readPreviousSnapshot(outputPath),
-      ids,
-      new Date().toISOString()
-    )
-    writeSnapshot(outputPath, reclassified)
+    ensureExistingInstallCounts({
+      registryDirectory: join(root, "registry"),
+      outputPath,
+    })
     return
   }
   const serviceUrl =

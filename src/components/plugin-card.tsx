@@ -103,7 +103,8 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
               title={installCountTitle}
             >
               <IconDownload className="size-3.5" />
-              {formatInstallCount(installs.count)} reported installs via Cafe
+              {formatInstallCount(installs.count)} approximate reported installs
+              via Cafe
               {installs.stale ? " (stale)" : ""}
             </span>
           ) : null}

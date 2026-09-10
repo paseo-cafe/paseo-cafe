@@ -260,7 +260,8 @@ function PluginDetail() {
         {installs ? (
           <span className="flex items-center gap-1">
             <IconDownload className="size-4" />
-            {formatInstallCount(installs.count)} reported installs via Cafe
+            {formatInstallCount(installs.count)} approximate reported installs
+            via Cafe
             {installs.stale ? " (stale)" : ""}
           </span>
         ) : null}

@@ -10,6 +10,7 @@ import { join } from "node:path"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 import {
   countsEndpoint,
+  ensureExistingInstallCounts,
   fetchAndWriteInstallCounts,
   previousSnapshotEndpoint,
 } from "./fetch-install-counts.ts"
@@ -54,6 +55,43 @@ describe("fetch-install-counts", () => {
     expect(() =>
       previousSnapshotEndpoint("http://example.com/snapshot")
     ).toThrow()
+  })
+
+  it("fails instead of hiding an invalid endpoint override", async () => {
+    const paths = fixture()
+    await expect(
+      fetchAndWriteInstallCounts({
+        ...paths,
+        serviceUrl: "http://catalog.example",
+        previousSnapshotUrl: "https://paseo.cafe/api/install-counts",
+      })
+    ).rejects.toThrow(/HTTPS/)
+
+    await expect(
+      fetchAndWriteInstallCounts({
+        ...paths,
+        serviceUrl: "https://api.paseo.cafe",
+        previousSnapshotUrl: "http://catalog.example/snapshot",
+      })
+    ).rejects.toThrow(/HTTPS/)
+  })
+
+  it("replaces a malformed existing snapshot with unavailable state", () => {
+    const paths = fixture()
+    writeFileSync(paths.outputPath, "{not-json")
+    const snapshot = ensureExistingInstallCounts({
+      ...paths,
+      observedAt: "2026-09-11T01:00:00.000Z",
+    })
+
+    expect(snapshot).toEqual({
+      schemaVersion: 1,
+      status: "unavailable",
+      attemptedAt: "2026-09-11T01:00:00.000Z",
+      fetchedAt: null,
+      data: null,
+    })
+    expect(JSON.parse(readFileSync(paths.outputPath, "utf8"))).toEqual(snapshot)
   })
 
   it("writes a successful aggregate without changing zero counts", async () => {

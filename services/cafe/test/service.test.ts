@@ -8,6 +8,8 @@ import {
 import { env, exports } from "cloudflare:workers"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { CATALOG_IDS } from "../src/catalog.generated"
+import type { CafeEnv } from "../src/env"
+import worker from "../src/index"
 import { MAX_INSTALL_BODY_READ_MS, parseInstallRequest } from "../src/install"
 import type { InstallCounter } from "../src/install-counter"
 
@@ -48,6 +50,23 @@ describe("Cafe service", () => {
     expect(response.status).toBe(200)
     expect(response.headers.get("cache-control")).toBe("no-store")
     expect(await response.json()).toEqual({ status: "ok" })
+  })
+
+  it("rejects reporting while disabled without creating counter storage", async () => {
+    const response = await worker.fetch(
+      new Request(`${SERVICE_URL}/v1/install`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          pluginId: CATALOG_IDS[0],
+          nonce: crypto.randomUUID(),
+        }),
+      }),
+      { REPORTING_ENABLED: "false" } as CafeEnv
+    )
+
+    expect(response.status).toBe(503)
+    expect(await listDurableObjectIds(env.INSTALL_COUNTER)).toEqual([])
   })
 
   it("rejects unknown routes and methods before creating counter storage", async () => {
