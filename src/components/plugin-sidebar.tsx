@@ -43,6 +43,7 @@ export function PluginSidebar({
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Search plugins…"
+            aria-label="Search plugins"
           />
         </InputGroup>
       </div>
@@ -58,6 +59,7 @@ export function PluginSidebar({
             onClick={() => onSortChange(option.value)}
             className="h-auto w-fit text-sm!"
             variant={sort === option.value ? "default" : "outline"}
+            aria-pressed={sort === option.value}
           >
             {option.label}
           </Button>
@@ -73,6 +75,7 @@ export function PluginSidebar({
           onClick={() => onCategoryChange(null)}
           className="h-auto w-fit text-sm!"
           variant={category === null ? "default" : "outline"}
+          aria-pressed={category === null}
         >
           All
           <span className="text-xs! opacity-70">{totalCount}</span>
@@ -84,6 +87,7 @@ export function PluginSidebar({
             onClick={() => onCategoryChange(c)}
             className="h-auto w-fit text-sm!"
             variant={category === c ? "default" : "outline"}
+            aria-pressed={category === c}
           >
             {c}
             <span className="text-xs! opacity-70">{categoryCounts.get(c)}</span>
