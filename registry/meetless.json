@@ -1,0 +1,11 @@
+{
+  "repo": "hoangnb24/meetless",
+  "path": "packages/meetless-plugin",
+  "categories": [
+    "productivity",
+    "other"
+  ],
+  "caveats": [
+    "Plugin lives inside a larger multi-package hackathon monorepo (meetless), not a standalone repo."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "repo": "eidos-agi/eidos-paseo-plugin-store",
+  "path": "plugins/page-pane",
+  "categories": [
+    "browser"
+  ],
+  "caveats": [
+    "Requires a Browserbase account.",
+    "Part of the eidos-paseo-plugin-store, itself a third-party plugin catalog and installer."
+  ]
+}

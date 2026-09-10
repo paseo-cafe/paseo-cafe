@@ -1,0 +1,12 @@
+{
+  "repo": "eidos-agi/eidos-paseo-plugin-store",
+  "path": "plugins/eidos-ppm",
+  "categories": [
+    "automation",
+    "productivity"
+  ],
+  "caveats": [
+    "Manages and installs other plugins on the daemon \u2014 review its source before granting it control.",
+    "Part of the eidos-paseo-plugin-store, itself a third-party plugin catalog and installer."
+  ]
+}

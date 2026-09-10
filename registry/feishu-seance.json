@@ -1,0 +1,10 @@
+{
+  "repo": "wangfh5/paseo-feishu-seance",
+  "categories": [
+    "automation",
+    "other"
+  ],
+  "caveats": [
+    "Requires a Feishu (Lark) bot integration."
+  ]
+}

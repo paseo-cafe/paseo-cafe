@@ -1,0 +1,9 @@
+{
+  "repo": "infectiousstupidity/paseo-prometheus-status",
+  "categories": [
+    "monitoring"
+  ],
+  "caveats": [
+    "Requires a reachable Prometheus endpoint."
+  ]
+}

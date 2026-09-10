@@ -1,0 +1,10 @@
+{
+  "repo": "mcuadros/paseo-director",
+  "categories": [
+    "orchestration",
+    "other"
+  ],
+  "caveats": [
+    "Description is sparse in the source repo; verify scope before installing."
+  ]
+}

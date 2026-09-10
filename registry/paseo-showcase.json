@@ -1,0 +1,10 @@
+{
+  "repo": "yannelli/paseo-plugin-inspector",
+  "path": "paseo-showcase",
+  "categories": [
+    "other"
+  ],
+  "caveats": [
+    "Developer reference/demo plugin showcasing the Paseo plugin SDK's contribution points, not a user-facing tool."
+  ]
+}
