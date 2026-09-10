@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { pluginRecordSchema } from "./plugin-schema"
+import { pluginRecordSchema, pluginSecuritySchema } from "./plugin-schema"
 
 const validHealth = {
   manifestValid: true,
@@ -16,9 +16,21 @@ function validSecurity(status: "passed" | "failed" | "unknown") {
     blockingFindings: status === "failed" ? 2 : 0,
     advisoryFindings: status === "passed" ? 0 : 1,
     scannedAt: "2026-09-09T00:00:00.000Z",
-    commit: "abc123",
+    commit: "0123456789abcdef0123456789abcdef01234567",
     reportUrl: "https://example.com/security-report",
   }
+}
+
+const validRecordBase = {
+  id: "gone",
+  repo: "someone/deleted-repo",
+  url: "https://github.com/someone/deleted-repo",
+  name: "gone",
+  description: "",
+  categories: [],
+  health: validHealth,
+  images: [],
+  scannedAt: new Date().toISOString(),
 }
 
 describe("pluginRecordSchema", () => {
@@ -66,19 +78,72 @@ describe("pluginRecordSchema", () => {
 
   it("accepts omitted README fields for backward compatibility", () => {
     const result = pluginRecordSchema.parse({
-      id: "gone",
-      repo: "someone/deleted-repo",
-      url: "https://github.com/someone/deleted-repo",
-      name: "gone",
-      description: "",
-      categories: [],
-      health: validHealth,
-      images: [],
-      scannedAt: new Date().toISOString(),
+      ...validRecordBase,
     })
     expect(result.readmeText).toBeUndefined()
     expect(result.readmeHtml).toBeUndefined()
     expect(result.security).toBeUndefined()
+  })
+
+  it("accepts http(s)-only security report URLs", () => {
+    for (const reportUrl of [
+      "http://example.com/security-report",
+      "https://example.com/security-report",
+    ]) {
+      const result = pluginSecuritySchema.safeParse({
+        ...validSecurity("passed"),
+        reportUrl,
+      })
+      expect(result.success).toBe(true)
+    }
+  })
+
+  it("rejects non-http security report URLs", () => {
+    const result = pluginSecuritySchema.safeParse({
+      ...validSecurity("passed"),
+      reportUrl: "javascript:alert(1)",
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it("rejects passed security with blocking findings", () => {
+    const result = pluginSecuritySchema.safeParse({
+      ...validSecurity("passed"),
+      blockingFindings: 1,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it("requires a full commit SHA for passed and failed security results", () => {
+    for (const security of [
+      { ...validSecurity("passed"), commit: undefined },
+      { ...validSecurity("failed"), commit: undefined },
+      { ...validSecurity("passed"), commit: "abc123" },
+    ]) {
+      expect(pluginSecuritySchema.safeParse(security).success).toBe(false)
+    }
+  })
+
+  it("allows unknown security without a commit", () => {
+    const security = { ...validSecurity("unknown"), commit: undefined }
+    expect(pluginSecuritySchema.parse(security).commit).toBeUndefined()
+  })
+
+  it("normalizes security commit SHAs", () => {
+    const security = pluginSecuritySchema.parse({
+      ...validSecurity("passed"),
+      commit: "  0123456789ABCDEF0123456789ABCDEF01234567  ",
+    })
+    expect(security.commit).toBe("0123456789abcdef0123456789abcdef01234567")
+  })
+
+  it("accepts a record without security data", () => {
+    const result = pluginRecordSchema.safeParse({
+      ...validRecordBase,
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.security).toBeUndefined()
   })
 
   it("accepts passed, failed, and unknown security summaries", () => {

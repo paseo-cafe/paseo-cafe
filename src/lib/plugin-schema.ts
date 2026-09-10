@@ -16,14 +16,44 @@ export const pluginHealthSchema = z.object({
   updatedRecently: z.boolean(),
 })
 
-export const pluginSecuritySchema = z.object({
-  status: z.enum(["passed", "failed", "unknown"]),
-  blockingFindings: z.number().int().nonnegative(),
-  advisoryFindings: z.number().int().nonnegative(),
-  scannedAt: z.string().optional(),
-  commit: z.string().optional(),
-  reportUrl: z.string().optional(),
-})
+const httpUrlSchema = z
+  .string()
+  .url()
+  .refine((url) => url.startsWith("http://") || url.startsWith("https://"), {
+    message: "Must be an http(s) URL",
+  })
+
+export const gitCommitSchema = z
+  .string()
+  .trim()
+  .regex(/^[0-9a-f]{40}$/i, "Must be a full Git commit SHA")
+  .transform((commit) => commit.toLowerCase())
+
+export const pluginSecuritySchema = z
+  .object({
+    status: z.enum(["passed", "failed", "unknown"]),
+    blockingFindings: z.number().int().nonnegative(),
+    advisoryFindings: z.number().int().nonnegative(),
+    scannedAt: z.string().optional(),
+    commit: gitCommitSchema.optional(),
+    reportUrl: httpUrlSchema.optional(),
+  })
+  .superRefine((security, ctx) => {
+    if (security.status !== "unknown" && security.commit === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["commit"],
+        message: `status "${security.status}" requires a commit`,
+      })
+    }
+    if (security.status === "passed" && security.blockingFindings > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["blockingFindings"],
+        message: 'status "passed" cannot have blocking findings',
+      })
+    }
+  })
 
 export const pluginRepoMetaSchema = z.object({
   stars: z.number().int().nonnegative(),

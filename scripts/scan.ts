@@ -29,6 +29,7 @@ import {
 import { renderMarkdownToHtml } from "../src/lib/markdown.ts"
 import type { PluginRecord, PluginSecurity } from "../src/lib/plugin-schema.ts"
 import {
+  gitCommitSchema,
   pluginRecordSchema,
   pluginSecuritySchema,
 } from "../src/lib/plugin-schema.ts"
@@ -49,6 +50,7 @@ import {
   fetchRawText,
   fetchRepoMeta,
   GitHubNotFoundError,
+  ghApi,
   listDir,
   rawUrl,
   resolveGitHubAssetContentType,
@@ -67,14 +69,31 @@ const SECURITY_ARTIFACT_PATHS = [
   join(ROOT, "data", "security.json"),
 ]
 
-const SECURITY_RESULT_SCHEMA = z.object({
-  commit: z.string(),
-  scannedAt: z.string(),
-  status: z.enum(["passed", "review-required", "failed", "unavailable"]),
-  blockingFindings: z.number().int().nonnegative(),
-  advisoryFindings: z.number().int().nonnegative(),
-  reportUrl: z.string().optional(),
-})
+const httpUrlSchema = z
+  .string()
+  .url()
+  .refine((url) => url.startsWith("http://") || url.startsWith("https://"), {
+    message: "Must be an http(s) URL",
+  })
+
+const SECURITY_RESULT_SCHEMA = z
+  .object({
+    commit: gitCommitSchema,
+    scannedAt: z.string(),
+    status: z.enum(["passed", "review-required", "failed", "unavailable"]),
+    blockingFindings: z.number().int().nonnegative(),
+    advisoryFindings: z.number().int().nonnegative(),
+    reportUrl: httpUrlSchema.optional(),
+  })
+  .superRefine((security, ctx) => {
+    if (security.status === "passed" && security.blockingFindings > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["blockingFindings"],
+        message: 'status "passed" cannot have blocking findings',
+      })
+    }
+  })
 
 const SECURITY_RESULTS_ARTIFACT_SCHEMA = z.object({
   version: z.number().int().optional(),
@@ -83,11 +102,21 @@ const SECURITY_RESULTS_ARTIFACT_SCHEMA = z.object({
 })
 
 const SECURITY_MAP_ARTIFACT_SCHEMA = z.record(z.string(), pluginSecuritySchema)
+const REPOSITORY_COMMIT_SCHEMA = z.object({ sha: gitCommitSchema })
 
-const UNKNOWN_SECURITY: PluginSecurity = {
-  status: "unknown",
-  blockingFindings: 0,
-  advisoryFindings: 0,
+export function securityForRevision(
+  security: PluginSecurity | undefined,
+  revision: string
+): PluginSecurity | undefined {
+  if (security === undefined || security.status === "unknown") return security
+  const normalizedRevision = gitCommitSchema.safeParse(revision)
+  if (
+    !normalizedRevision.success ||
+    security.commit !== normalizedRevision.data
+  ) {
+    return undefined
+  }
+  return security
 }
 
 function loadPublishedSecurityCatalog(): Record<string, PluginSecurity> {
@@ -157,7 +186,6 @@ async function scanOne(
   const scannedAt = new Date().toISOString()
   const prefix = entry.path ? `${entry.path}/` : ""
   const fallbackUrl = `https://github.com/${entry.repo}${entry.path ? `/tree/HEAD/${entry.path}` : ""}`
-  const security = securityCatalog[id] ?? UNKNOWN_SECURITY
 
   const base: PluginRecord = {
     id,
@@ -177,7 +205,6 @@ async function scanOne(
       hasTypecheckScript: false,
       updatedRecently: false,
     },
-    security,
     images: [],
     videos: [],
     scannedAt,
@@ -186,25 +213,30 @@ async function scanOne(
   try {
     const repoMeta = await fetchRepoMeta(owner, repo)
     const branch = repoMeta.default_branch
-    const dirEntries = await listDir(owner, repo, entry.path ?? "", branch)
+    const revision = REPOSITORY_COMMIT_SCHEMA.parse(
+      await ghApi<unknown>(
+        `/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`
+      )
+    ).sha
+    const dirEntries = await listDir(owner, repo, entry.path ?? "", revision)
     const byName = new Map(dirEntries.map((e) => [e.name, e]))
 
     const manifest = await fetchRawJson<Record<string, unknown>>(
       owner,
       repo,
-      branch,
+      revision,
       `${prefix}paseo-plugin.json`
     )
     const pkg = await fetchRawJson<PackageJson>(
       owner,
       repo,
-      branch,
+      revision,
       `${prefix}package.json`
     )
 
     const readmeEntry = byName.get("README.md") ?? byName.get("readme.md")
     const readme = readmeEntry
-      ? await fetchRawText(owner, repo, branch, readmeEntry.path)
+      ? await fetchRawText(owner, repo, revision, readmeEntry.path)
       : null
     const readmeText = readme == null ? undefined : readme.slice(0, 200000)
     const readmeHtml =
@@ -217,7 +249,7 @@ async function scanOne(
     const imagesDirEntry = byName.get("images")
     const imageDirEntries =
       imagesDirEntry?.type === "dir"
-        ? await listDir(owner, repo, imagesDirEntry.path, branch)
+        ? await listDir(owner, repo, imagesDirEntry.path, revision)
         : []
 
     const manifestId =
@@ -273,7 +305,7 @@ async function scanOne(
       return rawUrl(
         owner,
         repo,
-        branch,
+        revision,
         rootRelative ? cleaned : `${prefix}${cleaned}`
       )
     }
@@ -282,7 +314,7 @@ async function scanOne(
     )
     const dirImages = imageDirEntries
       .filter((e) => e.type === "file")
-      .map((e) => rawUrl(owner, repo, branch, e.path))
+      .map((e) => rawUrl(owner, repo, revision, e.path))
     const images = Array.from(new Set([...dirImages, ...readmeImages])).slice(
       0,
       MAX_README_IMAGES
@@ -292,7 +324,7 @@ async function scanOne(
       id,
       repo: entry.repo,
       path: entry.path,
-      url: `https://github.com/${entry.repo}${entry.path ? `/tree/${branch}/${entry.path}` : ""}`,
+      url: `https://github.com/${entry.repo}${entry.path ? `/tree/${revision}/${entry.path}` : ""}`,
       name: id,
       description:
         pkg?.description ??
@@ -319,7 +351,7 @@ async function scanOne(
         hasTypecheckScript: Boolean(pkg?.scripts?.typecheck),
         updatedRecently: isRecent(repoMeta.pushed_at),
       },
-      security,
+      security: securityForRevision(securityCatalog[id], revision),
       images,
       videos,
       installNotes,
@@ -461,7 +493,9 @@ async function main() {
   )
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+}

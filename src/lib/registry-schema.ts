@@ -15,6 +15,43 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   windows: "Windows",
 }
 
+/** Stable taxonomy used by catalog filters. Registry records keep their source values. */
+export const CATEGORIES = [
+  "automation",
+  "browser",
+  "code-review",
+  "git",
+  "github",
+  "monitoring",
+  "orchestration",
+  "productivity",
+  "provider",
+  "theme",
+  "other",
+] as const
+export type Category = (typeof CATEGORIES)[number]
+export const CATEGORY_LABELS: Record<Category, string> = {
+  automation: "Automation",
+  browser: "Browser",
+  "code-review": "Code Review",
+  git: "Git",
+  github: "GitHub",
+  monitoring: "Monitoring",
+  orchestration: "Orchestration",
+  productivity: "Productivity",
+  provider: "Provider",
+  theme: "Theme",
+  other: "Other",
+}
+
+/** Maps free-form registry categories to the stable catalog taxonomy. */
+export function normalizeCategory(category: string): Category {
+  const normalized = category.trim().toLowerCase().replace(/\s+/g, "-")
+  return Object.hasOwn(CATEGORY_LABELS, normalized)
+    ? (normalized as Category)
+    : "other"
+}
+
 export const registryIdSchema = z
   .string()
   .min(2)

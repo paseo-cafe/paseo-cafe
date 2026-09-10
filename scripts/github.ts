@@ -6,6 +6,7 @@
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN
+export const MAX_GITHUB_RAW_BYTES = 1 * 1_024 * 1_024
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
   return {
@@ -80,15 +81,53 @@ export function rawUrl(
   return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`
 }
 
+async function readBoundedRawText(
+  response: Response,
+  url: string
+): Promise<string> {
+  const contentLength = response.headers.get("content-length")
+  if (
+    contentLength &&
+    /^\d+$/.test(contentLength) &&
+    Number(contentLength) > MAX_GITHUB_RAW_BYTES
+  ) {
+    throw new Error(
+      `GitHub raw file exceeds ${MAX_GITHUB_RAW_BYTES} byte limit: ${url}`
+    )
+  }
+  if (!response.body) return ""
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let receivedBytes = 0
+  let parts: string[] = []
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    receivedBytes += value.byteLength
+    if (receivedBytes > MAX_GITHUB_RAW_BYTES) {
+      await reader.cancel().catch(() => {})
+      throw new Error(
+        `GitHub raw file exceeds ${MAX_GITHUB_RAW_BYTES} byte limit: ${url}`
+      )
+    }
+    parts.push(decoder.decode(value, { stream: true }))
+    if (parts.length >= 1_024) parts = [parts.join("")]
+  }
+  parts.push(decoder.decode())
+  return parts.join("")
+}
+
 export async function fetchRawText(
   owner: string,
   repo: string,
   ref: string,
   path: string
 ): Promise<string | null> {
-  const res = await fetch(rawUrl(owner, repo, ref, path))
+  const url = rawUrl(owner, repo, ref, path)
+  const res = await fetch(url)
   if (!res.ok) return null
-  return res.text()
+  return readBoundedRawText(res, url)
 }
 
 export async function fetchRawJson<T>(

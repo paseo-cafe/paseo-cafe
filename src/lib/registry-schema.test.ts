@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { registryEntrySchema, registryIdSchema } from "./registry-schema"
+import {
+  CATEGORIES,
+  CATEGORY_LABELS,
+  normalizeCategory,
+  registryEntrySchema,
+  registryIdSchema,
+} from "./registry-schema"
 
 describe("registryEntrySchema", () => {
   it("accepts a minimal valid entry", () => {
@@ -75,5 +81,53 @@ describe("registryEntrySchema", () => {
       repo: "owner/repo",
     })
     expect(result.success).toBe(false)
+  })
+})
+
+describe("category taxonomy", () => {
+  it("keeps a stable canonical order and labels", () => {
+    expect(CATEGORIES).toEqual([
+      "automation",
+      "browser",
+      "code-review",
+      "git",
+      "github",
+      "monitoring",
+      "orchestration",
+      "productivity",
+      "provider",
+      "theme",
+      "other",
+    ])
+    expect(CATEGORIES.map((category) => CATEGORY_LABELS[category])).toEqual([
+      "Automation",
+      "Browser",
+      "Code Review",
+      "Git",
+      "GitHub",
+      "Monitoring",
+      "Orchestration",
+      "Productivity",
+      "Provider",
+      "Theme",
+      "Other",
+    ])
+  })
+
+  it.each([
+    [" GitHub ", "github"],
+    ["CODE REVIEW", "code-review"],
+    ["  code   review  ", "code-review"],
+    ["unrecognized", "other"],
+    ["", "other"],
+  ])("normalizes %j to %s", (source, expected) => {
+    expect(normalizeCategory(source)).toBe(expected)
+  })
+
+  it("does not mutate a registry record's source categories", () => {
+    const categories = [" GitHub ", "custom-category"]
+    const result = registryEntrySchema.parse({ repo: "owner/repo", categories })
+
+    expect(result.categories).toEqual(categories)
   })
 })

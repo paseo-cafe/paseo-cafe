@@ -371,36 +371,39 @@ function PluginDetail() {
             </Badge>
           </AlertTitle>
           <AlertDescription className="space-y-3">
-            {security?.status === "unknown" || !security?.status ? (
+            {security?.status === "passed" || security?.status === "failed" ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">
+                    Blocking findings: {security.blockingFindings}
+                  </Badge>
+                  <Badge variant="secondary">
+                    Advisory findings: {security.advisoryFindings}
+                  </Badge>
+                </div>
+                {security.scannedAt ? (
+                  <p>
+                    Scanned {formatDateTime(security.scannedAt)}
+                    {security.commit ? ` at commit ${security.commit}` : ""}.
+                  </p>
+                ) : null}
+                {security.reportUrl ? (
+                  <a
+                    href={security.reportUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-foreground hover:underline"
+                  >
+                    Open security report{" "}
+                    <IconExternalLink className="size-3.5" />
+                  </a>
+                ) : null}
+              </>
+            ) : (
               <p>
                 No published security scan is available for this plugin yet.
               </p>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">
-                Blocking findings: {security?.blockingFindings ?? "Unknown"}
-              </Badge>
-              <Badge variant="secondary">
-                Advisory findings: {security?.advisoryFindings ?? "Unknown"}
-              </Badge>
-            </div>
-            <p>
-              Scanned{" "}
-              {security?.scannedAt
-                ? formatDateTime(security.scannedAt)
-                : "Unknown"}
-              {security?.commit ? ` at commit ${security.commit}` : ""}.
-            </p>
-            {security?.reportUrl ? (
-              <a
-                href={security.reportUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-foreground hover:underline"
-              >
-                Open security report <IconExternalLink className="size-3.5" />
-              </a>
-            ) : null}
+            )}
           </AlertDescription>
         </Alert>
       </div>

@@ -1,6 +1,6 @@
 import { IconSearch } from "@tabler/icons-react"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { z } from "zod"
 import { PluginCard } from "@/components/plugin-card"
 import { Button } from "@/components/ui/button"
@@ -11,26 +11,52 @@ import {
 } from "@/components/ui/input-group"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { listPlugins } from "@/lib/plugins-data"
+import {
+  CATEGORIES,
+  CATEGORY_LABELS,
+  type Category,
+  normalizeCategory,
+} from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
 
 const sortValues = ["popular", "updated", "az"] as const
+type SortValue = (typeof sortValues)[number]
 const searchSchema = z.object({
   q: z.string().catch(""),
-  category: z.string().catch(""),
+  category: z
+    .string()
+    .catch("")
+    .transform((category) =>
+      category.trim() ? normalizeCategory(category) : ""
+    ),
   sort: z.enum(sortValues).catch("popular"),
+  page: z.coerce
+    .number()
+    .int()
+    .positive()
+    .catch(1)
+    .optional()
+    .transform((page) => page ?? 1),
 })
 
-type SortValue = (typeof sortValues)[number]
+type CatalogSearch = Omit<z.output<typeof searchSchema>, "page"> & {
+  page?: number
+}
+
+function validateSearch(search: unknown): CatalogSearch {
+  return searchSchema.parse(search)
+}
 
 const SECTION_LIMIT = 6
+const PAGE_SIZE = 12
 const collator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: "base",
 })
 
 export const Route = createFileRoute("/")({
-  validateSearch: searchSchema.parse,
+  validateSearch,
   head: () =>
     seo({ title: SITE_NAME, description: SITE_DESCRIPTION, path: "/" }),
   component: App,
@@ -43,18 +69,21 @@ function App() {
   const navigate = Route.useNavigate()
 
   const categoryCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const plugin of plugins)
-      for (const c of plugin.categories) counts.set(c, (counts.get(c) ?? 0) + 1)
+    const counts = Object.fromEntries(
+      CATEGORIES.map((category) => [category, 0])
+    ) as Record<Category, number>
+
+    for (const plugin of plugins) {
+      const pluginCategories = new Set(plugin.categories.map(normalizeCategory))
+      for (const category of pluginCategories) counts[category] += 1
+    }
+
     return counts
   }, [plugins])
 
-  const categories = useMemo(
-    () =>
-      Array.from(categoryCounts.keys()).sort((a, b) => collator.compare(a, b)),
-    [categoryCounts]
+  const categories = CATEGORIES.filter(
+    (category) => categoryCounts[category] > 0
   )
-
   const query = search.q.trim()
   const hasFilters = query.length > 0 || search.category.length > 0
 
@@ -62,7 +91,12 @@ function App() {
     if (!query && !search.category) return plugins
 
     return plugins.filter((plugin) => {
-      if (search.category && !plugin.categories.includes(search.category))
+      if (
+        search.category &&
+        !plugin.categories.some(
+          (category) => normalizeCategory(category) === search.category
+        )
+      )
         return false
       if (!query) return true
       return matchesPluginQuery(plugin, query)
@@ -73,6 +107,23 @@ function App() {
     () => sortPlugins(filtered, search.sort),
     [filtered, search.sort]
   )
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const requestedPage = search.page ?? 1
+  const page = Math.min(requestedPage, totalPages)
+  const pageStart = (page - 1) * PAGE_SIZE
+  const pageEnd = Math.min(pageStart + PAGE_SIZE, sorted.length)
+  const pagePlugins = useMemo(
+    () => sorted.slice(pageStart, pageStart + PAGE_SIZE),
+    [pageStart, sorted]
+  )
+
+  useEffect(() => {
+    if (requestedPage === page) return
+    navigate({
+      search: (previous) => ({ ...previous, page }),
+      replace: true,
+    })
+  }, [navigate, page, requestedPage])
 
   const popular = useMemo(
     () => sortPlugins(plugins, "popular").slice(0, SECTION_LIMIT),
@@ -82,6 +133,7 @@ function App() {
     () => sortPlugins(plugins, "updated").slice(0, SECTION_LIMIT),
     [plugins]
   )
+  const showFeatured = !hasFilters && search.sort === "popular" && page === 1
 
   const summary = hasFilters
     ? `${filtered.length} of ${plugins.length} plugin${plugins.length === 1 ? "" : "s"} found.`
@@ -111,7 +163,7 @@ function App() {
 
       <div className="mx-auto flex w-full flex-col gap-8 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1">
-          {!hasFilters ? (
+          {showFeatured ? (
             <div className="flex flex-col gap-8">
               <FeaturedSection
                 title="Popular"
@@ -149,9 +201,47 @@ function App() {
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {sorted.map((plugin) => (
+                {pagePlugins.map((plugin) => (
                   <PluginCard key={plugin.id} plugin={plugin} />
                 ))}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <p className="text-foreground/50 text-sm" aria-live="polite">
+                  Showing {pageStart + 1}–{pageEnd} of {sorted.length} · Page{" "}
+                  {page} of {totalPages}
+                </p>
+                <nav className="flex gap-2" aria-label="Catalog pagination">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={page === 1}
+                    onClick={() =>
+                      navigate({
+                        search: (previous) => ({
+                          ...previous,
+                          page: page - 1,
+                        }),
+                      })
+                    }
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={page === totalPages}
+                    onClick={() =>
+                      navigate({
+                        search: (previous) => ({
+                          ...previous,
+                          page: page + 1,
+                        }),
+                      })
+                    }
+                  >
+                    Next
+                  </Button>
+                </nav>
               </div>
             </section>
           )}
@@ -168,7 +258,7 @@ function App() {
                 onChange={(e) => {
                   const q = e.target.value
                   navigate({
-                    search: (prev) => ({ ...prev, q }),
+                    search: (prev) => ({ ...prev, q, page: 1 }),
                     replace: true,
                   })
                 }}
@@ -189,7 +279,7 @@ function App() {
                   size="sm"
                   onClick={() =>
                     navigate({
-                      search: (prev) => ({ ...prev, sort: option }),
+                      search: (prev) => ({ ...prev, sort: option, page: 1 }),
                     })
                   }
                   aria-pressed={search.sort === option}
@@ -210,7 +300,7 @@ function App() {
               size="sm"
               onClick={() =>
                 navigate({
-                  search: (prev) => ({ ...prev, category: "" }),
+                  search: (prev) => ({ ...prev, category: "", page: 1 }),
                 })
               }
               aria-pressed={search.category === ""}
@@ -226,17 +316,15 @@ function App() {
                 size="sm"
                 onClick={() =>
                   navigate({
-                    search: (prev) => ({ ...prev, category: c }),
+                    search: (prev) => ({ ...prev, category: c, page: 1 }),
                   })
                 }
                 aria-pressed={search.category === c}
                 className="h-auto w-fit text-sm!"
                 variant={search.category === c ? "default" : "outline"}
               >
-                {c}
-                <span className="text-xs! opacity-70">
-                  {categoryCounts.get(c) ?? 0}
-                </span>
+                {CATEGORY_LABELS[c]}
+                <span className="text-xs! opacity-70">{categoryCounts[c]}</span>
               </Button>
             ))}
           </div>
