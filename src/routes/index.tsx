@@ -59,10 +59,20 @@ function App() {
     const counts = Object.fromEntries(
       PLATFORMS.map((platform) => [platform, 0])
     ) as Record<Platform, number>
+    let unrestricted = 0
 
     for (const plugin of plugins) {
+      if (plugin.platforms.length === 0) {
+        unrestricted += 1
+        continue
+      }
       for (const platform of new Set(plugin.platforms)) counts[platform] += 1
     }
+
+    // Omitted `platforms` means "runs anywhere" (see registry-schema.ts), so
+    // an unrestricted plugin counts toward every platform's total — matching
+    // what the filter below actually returns for that platform.
+    for (const platform of PLATFORMS) counts[platform] += unrestricted
 
     return counts
   }, [plugins])
@@ -91,7 +101,11 @@ function App() {
         )
       )
         return false
-      if (search.platform && !plugin.platforms.includes(search.platform))
+      if (
+        search.platform &&
+        plugin.platforms.length > 0 &&
+        !plugin.platforms.includes(search.platform)
+      )
         return false
       if (!query) return true
       return matchesPluginQuery(plugin, query)
