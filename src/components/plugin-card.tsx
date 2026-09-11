@@ -5,6 +5,7 @@ import {
   IconVersions,
 } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
+import { ReaderDate } from "@/components/reader-date"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -16,8 +17,9 @@ import {
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { formatPluginVersion, PLATFORM_LABELS } from "@/lib/registry-schema"
 import {
+  CATALOG_DATE_LABELS,
   type CatalogDateField,
-  getCatalogDateBadge,
+  getCatalogDateValue,
 } from "../../plugin/shared/catalog"
 
 /**
@@ -33,7 +35,7 @@ export function PluginCard({
   plugin: PluginRecord
   dateField?: CatalogDateField
 }) {
-  const dateBadge = dateField && getCatalogDateBadge(plugin, dateField)
+  const dateValue = dateField && getCatalogDateValue(plugin, dateField)
   const healthIsComplete =
     plugin.health.manifestValid &&
     plugin.health.hasReadme &&
@@ -93,7 +95,12 @@ export function PluginCard({
                 {plugin.owner.login}
               </span>
             ) : null}
-            {dateBadge ? <Badge variant="secondary">{dateBadge}</Badge> : null}
+            {dateField && dateValue ? (
+              <Badge variant="secondary">
+                {CATALOG_DATE_LABELS[dateField]}&nbsp;
+                <ReaderDate iso={dateValue} />
+              </Badge>
+            ) : null}
             <Badge
               variant={plugin.health.updatedRecently ? "secondary" : "outline"}
             >

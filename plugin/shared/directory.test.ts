@@ -215,14 +215,29 @@ describe("catalog URL transport policy", () => {
 })
 
 describe("listing date badges", () => {
-  it("labels each date with the same wording and format as the website", () => {
-    const entry = {
-      addedAt: "2026-09-08T01:09:51Z",
-      repoMeta: { pushedAt: "2026-01-05T23:00:00Z" },
-    }
+  // Mid-month and mid-day, so no time zone can shift it into another month.
+  const entry = {
+    addedAt: "2026-09-15T12:00:00Z",
+    repoMeta: { pushedAt: "2026-01-15T12:00:00Z" },
+  }
+  const localDay = new Date(entry.addedAt).getDate()
 
-    expect(getDirectoryDateBadge(entry, "added")).toBe("Added 08 Sep 2026")
-    expect(getDirectoryDateBadge(entry, "updated")).toBe("Updated 05 Jan 2026")
+  it("labels each date and renders it the reader's way", () => {
+    expect(getDirectoryDateBadge(entry, "added", "en-US")).toBe(
+      `Added Sep ${localDay}, 2026`
+    )
+    expect(getDirectoryDateBadge(entry, "added", "en-GB")).toBe(
+      `Added ${localDay} Sept 2026`
+    )
+    expect(getDirectoryDateBadge(entry, "updated", "en-US")).toMatch(
+      /^Updated Jan \d{1,2}, 2026$/
+    )
+  })
+
+  it("falls back to a fixed UTC rendering when the locale is unusable", () => {
+    expect(getDirectoryDateBadge(entry, "added", "not a locale")).toBe(
+      "Added 15 Sep 2026"
+    )
   })
 
   it("shows nothing for a missing or unusable date", () => {

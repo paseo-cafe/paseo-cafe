@@ -8,9 +8,9 @@ import { Link } from "@tanstack/react-router"
 import { PluginHealthChecks } from "@/components/plugin-health-checks"
 import { PluginManifest } from "@/components/plugin-manifest"
 import { PluginSecurityScanSection } from "@/components/plugin-security-scan"
+import { ReaderDate } from "@/components/reader-date"
 import { Badge } from "@/components/ui/badge"
 import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
-import { formatDate } from "@/lib/format-date"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { pluginOwnerLogin } from "@/lib/plugin-schema"
 import { pluginRepositoryUrl } from "@/lib/plugin-source"
@@ -72,7 +72,9 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
         {plugin.license ? <span>License: {plugin.license}</span> : null}
         {plugin.author ? <span>By {plugin.author}</span> : null}
         {plugin.repoMeta ? (
-          <span>Last updated {formatDate(plugin.repoMeta.pushedAt)}</span>
+          <span>
+            Last updated <ReaderDate iso={plugin.repoMeta.pushedAt} />
+          </span>
         ) : null}
       </div>
 

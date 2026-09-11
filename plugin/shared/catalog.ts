@@ -271,12 +271,52 @@ export function formatCatalogDate(iso: string): string | undefined {
   return `${day} ${CATALOG_MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`
 }
 
-/** "Added 08 Sep 2026" / "Updated 08 Sep 2026", or undefined when unknown. */
-export function getCatalogDateBadge(
+/**
+ * The reader's own rendering of the same instant: Intl picks the field order
+ * and month name from their locale, and the day is the one their clock shows,
+ * so "Sep 11, 2026" for en-US and "11 Sept 2026" for en-GB.
+ *
+ * Falls back to formatCatalogDate for anything Intl can't do. That matters in
+ * two real places: a React Native runtime built without full ICU, and the
+ * website's server render, which happens before the reader's locale and time
+ * zone are knowable — see ReaderDate in src/components/reader-date.tsx, which
+ * renders the fallback and swaps to this once mounted.
+ */
+export function formatCatalogDateForReader(
+  iso: string,
+  locale?: string
+): string | undefined {
+  const parsed = Date.parse(iso)
+  if (!Number.isFinite(parsed)) return undefined
+  if (typeof Intl === "undefined" || !Intl.DateTimeFormat) {
+    return formatCatalogDate(iso)
+  }
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(new Date(parsed))
+  } catch {
+    return formatCatalogDate(iso)
+  }
+}
+
+/** The raw timestamp a listing's date badge is built from, if it has one. */
+export function getCatalogDateValue(
   entry: { addedAt?: string; repoMeta?: { pushedAt?: string } },
   field: CatalogDateField
 ): string | undefined {
-  const iso = field === "added" ? entry.addedAt : entry.repoMeta?.pushedAt
-  const formatted = iso ? formatCatalogDate(iso) : undefined
+  return field === "added" ? entry.addedAt : entry.repoMeta?.pushedAt
+}
+
+/** "Added Sep 11, 2026" / "Updated Sep 11, 2026", or undefined when unknown. */
+export function getCatalogDateBadge(
+  entry: { addedAt?: string; repoMeta?: { pushedAt?: string } },
+  field: CatalogDateField,
+  locale?: string
+): string | undefined {
+  const iso = getCatalogDateValue(entry, field)
+  const formatted = iso ? formatCatalogDateForReader(iso, locale) : undefined
   return formatted && `${CATALOG_DATE_LABELS[field]} ${formatted}`
 }
