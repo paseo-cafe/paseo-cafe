@@ -1,0 +1,13 @@
+{
+  "repo": "3ae3ae/paseo-plugin-agy-provider",
+  "categories": ["provider"],
+  "platforms": ["macos"],
+  "caveats": [
+    "Requires Paseo 0.8.x and a separately installed official Antigravity ACP server.",
+    "Authenticate the official ACP server before use; Paseo 0.8 cannot start its login flow.",
+    "Official server 1.1.1 ignores Paseo system prompts; workflows relying on them are unsupported.",
+    "Real-agent verification: macOS ARM64 only; see README for other official distributions.",
+    "The current shim/server can display duplicate tool rows and split streamed text."
+  ],
+  "submittedBy": "3ae3ae"
+}
