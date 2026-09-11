@@ -120,6 +120,60 @@ describe("selectTargets", () => {
     ])
   })
 
+  it("selects a newly added plugin when a draft becomes ready", async () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    const registry = join(root, "registry")
+    mkdirSync(registry)
+    const eventPath = join(root, "event.json")
+    writeFileSync(
+      eventPath,
+      JSON.stringify({
+        action: "ready_for_review",
+        pull_request: {
+          base: { sha: "base-sha", repo: { full_name: "a/base" } },
+          head: { sha: "head-sha", repo: { full_name: "a/head" } },
+        },
+      })
+    )
+    responses.set(
+      "https://api.github.com/repos/a/base/contents/registry?ref=base-sha",
+      []
+    )
+    responses.set(
+      "https://api.github.com/repos/a/head/contents/registry?ref=head-sha",
+      [
+        {
+          name: "new-plugin.json",
+          path: "registry/new-plugin.json",
+          type: "file",
+        },
+      ]
+    )
+    responses.set(
+      "https://raw.githubusercontent.com/a/head/head-sha/registry/new-plugin.json",
+      JSON.stringify({ repo: "owner/new-plugin" })
+    )
+    responses.set("https://api.github.com/repos/owner/new-plugin", {
+      default_branch: "main",
+    })
+    responses.set(
+      "https://api.github.com/repos/owner/new-plugin/git/ref/heads/main",
+      { object: { sha: "plugin-commit" } }
+    )
+
+    await expect(
+      selectTargets({ registryRoot: registry, eventPath, githubToken: "token" })
+    ).resolves.toEqual([
+      {
+        id: "new-plugin",
+        repo: "owner/new-plugin",
+        path: undefined,
+        ref: "plugin-commit",
+        commit: "plugin-commit",
+      },
+    ])
+  })
+
   it("writes count lines to GITHUB_OUTPUT", () => {
     const output = join(
       mkdtempSync(join(tmpdir(), "plugin-security-")),

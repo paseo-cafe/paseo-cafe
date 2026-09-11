@@ -95,11 +95,18 @@ jobs:
         run: bun run build:generated
 
   plugin:
-    name: Plugin
+    name: Plugin (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.plugin == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      # The plugin is the only thing here that shells out to the Paseo CLI,
+      # and it builds a different invocation per platform (cmd.exe on
+      # Windows), so those branches have to run somewhere.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -118,6 +125,8 @@ jobs:
           cache: npm
           cache-dependency-path: plugin/package-lock.json
 
+      # plugin/ has no Vitest config of its own, so `npm run test` resolves
+      # the root one and needs Vitest installed there on every runner.
       - name: Install root dependencies
         run: bun install --frozen-lockfile
 
@@ -125,7 +134,10 @@ jobs:
         working-directory: plugin
         run: npm ci
 
+      # Formatting is platform-independent, and a Windows checkout's line
+      # endings would make Biome disagree with itself.
       - name: Check with Biome
+        if: runner.os == 'Linux'
         run: bun run check:plugin
 
       - name: Typecheck
