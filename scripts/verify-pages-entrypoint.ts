@@ -1,18 +1,23 @@
 import { readFile } from "node:fs/promises"
 import plugins from "../data/plugins.json" with { type: "json" }
+import { BASE_PATH, SITE_NAME, SITE_URL } from "../src/lib/site.ts"
 
-const publicDirectory = ".output/public"
+// Nitro prerenders each route to its full path, so a deployment served under
+// a base path writes its pages to .output/public/<base>/ while public assets
+// stay at the root — the deploy workflow merges the two afterwards. Check
+// where this build actually put them, not where the canonical site puts them.
+const publicDirectory = `.output/public${BASE_PATH}`.replace(/\/$/, "")
 const entrypoint = await readFile(
   `${publicDirectory}/index.html`,
   "utf8"
 ).catch(() => undefined)
 
 if (
-  !entrypoint?.includes("<title>paseo.cafe</title>") ||
+  !entrypoint?.includes(`<title>${SITE_NAME}</title>`) ||
   !entrypoint.includes("All plugins")
 ) {
   throw new Error(
-    "GitHub Pages build must emit a rendered .output/public/index.html catalog entrypoint"
+    `GitHub Pages build must emit a rendered ${publicDirectory}/index.html catalog entrypoint`
   )
 }
 
@@ -23,8 +28,8 @@ const openApi = JSON.parse(
 ) as { paths?: Record<string, unknown> }
 
 if (
-  !llms.includes("https://paseo.cafe/openapi.json") ||
-  !llmsFull.includes("# paseo.cafe plugin catalog") ||
+  !llms.includes(`${SITE_URL}/openapi.json`) ||
+  !llmsFull.includes(`# ${SITE_NAME} plugin catalog`) ||
   !openApi.paths?.["/api/plugins"] ||
   !openApi.paths["/api/plugin/{id}.json"]
 ) {
@@ -40,7 +45,7 @@ for (const plugin of plugins) {
   ])
   const apiPlugin = JSON.parse(apiText) as { id?: string }
   if (
-    !llms.includes(`https://paseo.cafe/plugins/${plugin.id}.md`) ||
+    !llms.includes(`${SITE_URL}/plugins/${plugin.id}.md`) ||
     !markdown.startsWith(`# ${plugin.name}\n`) ||
     apiPlugin.id !== plugin.id
   ) {
