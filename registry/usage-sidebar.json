@@ -1,0 +1,10 @@
+{
+  "repo": "RUIIIOVO/paseo-usage-sidebar",
+  "categories": ["monitoring"],
+  "caveats": [
+    "Requires Paseo 0.8.0 or later",
+    "The always-visible sidebar meter is desktop and web only; the panel works everywhere",
+    "Only providers that report usage to the daemon get a row"
+  ],
+  "submittedBy": "RUIIIOVO"
+}
