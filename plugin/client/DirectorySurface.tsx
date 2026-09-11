@@ -16,6 +16,8 @@ import type {
   InstalledPlugin,
 } from "../shared/directory"
 import {
+  compareDirectoryAddedAt,
+  DIRECTORY_ADDED_AT_LABEL,
   DIRECTORY_CATEGORIES,
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
@@ -283,6 +285,7 @@ const SORT_OPTIONS: readonly SortOption[] = [
   { value: "updates-first", label: "Updates first" },
   { value: "popular", label: "Popular" },
   { value: "recent", label: "Recently updated" },
+  { value: "recently-added", label: DIRECTORY_ADDED_AT_LABEL },
   { value: "a-z", label: "A–Z" },
 ]
 
@@ -356,6 +359,18 @@ function compareEntries(
   if (sortMode === "recent") {
     return (
       compareDateDesc(a.repoMeta?.pushedAt, b.repoMeta?.pushedAt) ||
+      compareStarsDesc(a, b) ||
+      compareText(a.name, b.name) ||
+      compareText(a.repo, b.repo) ||
+      compareText(a.id, b.id)
+    )
+  }
+
+  // Newest catalog listings first, using the same rule as the website's
+  // "Recently added" sort (see compareCatalogAddedAt in ../shared/catalog).
+  if (sortMode === "recently-added") {
+    return (
+      compareDirectoryAddedAt(a, b) ||
       compareStarsDesc(a, b) ||
       compareText(a.name, b.name) ||
       compareText(a.repo, b.repo) ||
@@ -915,6 +930,19 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         : [],
     [defaultBrowseState, filtered, installationByEntryId]
   )
+  // Entries with no known listing date are left out entirely: a catalog that
+  // doesn't publish addedAt shows no section rather than an arbitrary five.
+  const recentlyAddedHighlights = useMemo(
+    () =>
+      defaultBrowseState
+        ? sortEntries(
+            filtered.filter((entry) => entry.addedAt),
+            "recently-added",
+            installationByEntryId
+          ).slice(0, FEATURED_LIMIT)
+        : [],
+    [defaultBrowseState, filtered, installationByEntryId]
+  )
 
   function openPlugin(entry: DirectoryEntry) {
     setLastOpenedPluginId(entry.id)
@@ -1257,7 +1285,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
               </Text>
             ) : null}
             {defaultBrowseState &&
-            (popularHighlights.length > 0 || recentHighlights.length > 0) ? (
+            (popularHighlights.length > 0 ||
+              recentHighlights.length > 0 ||
+              recentlyAddedHighlights.length > 0) ? (
               <View style={styles.featuredBlock}>
                 {popularHighlights.length > 0 ? (
                   <View style={styles.featuredSection}>
@@ -1305,6 +1335,35 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                       {recentHighlights.map((item) => (
                         <PluginRow
                           key={`recent-${item.id}`}
+                          entry={item}
+                          theme={theme}
+                          installations={
+                            installationByEntryId.get(item.id) ?? []
+                          }
+                          compact={layout.compact}
+                          onPress={() => openPlugin(item)}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+                {recentlyAddedHighlights.length > 0 ? (
+                  <View style={styles.featuredSection}>
+                    <View style={styles.sectionHeading}>
+                      <Text
+                        accessibilityRole="header"
+                        style={styles.featuredHeader}
+                      >
+                        {DIRECTORY_ADDED_AT_LABEL}
+                      </Text>
+                      <Text style={styles.featuredDescription}>
+                        The newest listings in the directory.
+                      </Text>
+                    </View>
+                    <View style={styles.featuredItems}>
+                      {recentlyAddedHighlights.map((item) => (
+                        <PluginRow
+                          key={`recently-added-${item.id}`}
                           entry={item}
                           theme={theme}
                           installations={

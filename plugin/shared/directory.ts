@@ -6,6 +6,7 @@ import {
 } from "@getpaseo/plugin"
 import { z } from "zod"
 import {
+  CATALOG_ADDED_AT_LABEL,
   CATALOG_CATEGORIES,
   CATALOG_CATEGORY_LABELS,
   CATALOG_HEALTH_KEYS,
@@ -14,6 +15,7 @@ import {
   CATALOG_VERSION_MAX_LENGTH,
   type CatalogCategory,
   type CatalogHealthCheck,
+  compareCatalogAddedAt,
   formatCatalogVersion,
   getCatalogInstallCommand,
   getCatalogInstallRef,
@@ -104,8 +106,13 @@ export const DIRECTORY_SORT_MODES = [
   "updates-first",
   "popular",
   "recent",
+  "recently-added",
   "a-z",
 ] as const
+
+/** Shared with the website's "Recently added" sort — see ./catalog.ts. */
+export const DIRECTORY_ADDED_AT_LABEL = CATALOG_ADDED_AT_LABEL
+export const compareDirectoryAddedAt = compareCatalogAddedAt
 
 export const DIRECTORY_STATUS_FILTERS = [
   "all",
@@ -403,6 +410,11 @@ export const directoryEntrySchema = z.object({
   installNotesHtml: z.string().max(100_000).optional(),
   limitationsNotesHtml: z.string().max(100_000).optional(),
   scanError: z.string().max(4_000).optional(),
+  // When the catalog listed this plugin (see PluginRecord.addedAt on the
+  // site). Kept as a plain bounded string like scannedAt below: a catalog
+  // that sends a malformed date should cost that plugin its place in the
+  // "Recently added" order, not drop the whole entry from the list.
+  addedAt: z.string().max(100).optional(),
   scannedAt: z.string().max(100).optional(),
   health: z.object(directoryHealthShape).optional(),
   // Mirrors src/lib/plugin-schema.ts's pluginSecuritySchema invariants — a

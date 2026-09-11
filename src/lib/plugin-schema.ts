@@ -158,6 +158,12 @@ export const pluginRecordSchema = z.object({
   images: z.array(z.string()).default([]),
   videos: z.array(videoEmbedSchema).default([]),
   scanError: z.string().optional(),
+  // When this plugin's registry entry first landed in this repo's git history
+  // — the catalog's "added" date, derived at scan time (see
+  // readRegistryAddedAt in scripts/scan.ts) rather than hand-authored.
+  // Optional: an entry that isn't committed yet, or a shallow checkout, has
+  // no history to read, and an unknown date is left unknown.
+  addedAt: z.iso.datetime({ offset: true }).optional(),
   scannedAt: z.string(),
 })
 

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
 import {
+  compareDirectoryAddedAt,
   DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+  DIRECTORY_ADDED_AT_LABEL,
   DIRECTORY_CATEGORY_LABELS,
   type DirectoryCategory,
   directoryAttachments,
@@ -206,6 +208,48 @@ describe("catalog URL transport policy", () => {
     expect(
       directoryUpdateStatusRpc.input.safeParse({ baseUrl: url }).success
     ).toBe(false)
+  })
+})
+
+describe("directory listing dates", () => {
+  it("keeps the catalog's listing date on parsed entries", () => {
+    expect(
+      directoryEntrySchema.parse({
+        ...validEntry,
+        addedAt: "2026-03-04T05:06:07Z",
+      }).addedAt
+    ).toBe("2026-03-04T05:06:07Z")
+  })
+
+  it("keeps an entry whose listing date is unusable instead of dropping it", () => {
+    const entry = directoryEntrySchema.parse({
+      ...validEntry,
+      addedAt: "whenever",
+    })
+
+    expect(entry.id).toBe("plugin")
+    expect(
+      compareDirectoryAddedAt(entry, { addedAt: "2026-01-01T00:00:00Z" })
+    ).toBeGreaterThan(0)
+  })
+
+  it("orders newest listings first and unknown dates last", () => {
+    const entries = [
+      { id: "unknown" },
+      { id: "older", addedAt: "2026-01-01T00:00:00Z" },
+      { id: "newer", addedAt: "2026-07-01T00:00:00Z" },
+    ]
+
+    expect(
+      [...entries].sort(compareDirectoryAddedAt).map((entry) => entry.id)
+    ).toEqual(["newer", "older", "unknown"])
+  })
+
+  it("persists the shared sort mode under the same label as the website", () => {
+    expect(
+      directoryBrowseSettingsSchema.parse({ sort: "recently-added" }).sort
+    ).toBe("recently-added")
+    expect(DIRECTORY_ADDED_AT_LABEL).toBe("Recently added")
   })
 })
 

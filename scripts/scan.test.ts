@@ -1,10 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { PluginSecurity } from "../src/lib/plugin-schema"
 import {
   loadPublishedSecurityCatalog,
+  readRegistryAddedAt,
   renderPluginsRedirect,
   renderRobotsTxt,
   scanOne,
@@ -324,6 +326,73 @@ describe("renderRobotsTxt", () => {
   })
 })
 
+function git(repository: string, args: string[], committedAt?: string): void {
+  execFileSync("git", args, {
+    cwd: repository,
+    stdio: "ignore",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "Test",
+      GIT_AUTHOR_EMAIL: "test@example.com",
+      GIT_COMMITTER_NAME: "Test",
+      GIT_COMMITTER_EMAIL: "test@example.com",
+      ...(committedAt
+        ? { GIT_AUTHOR_DATE: committedAt, GIT_COMMITTER_DATE: committedAt }
+        : {}),
+    },
+  })
+}
+
+function commitRegistryEntry(
+  repository: string,
+  file: string,
+  contents: Record<string, unknown>,
+  committedAt: string
+): void {
+  writeFileSync(join(repository, "registry", file), JSON.stringify(contents))
+  git(repository, ["add", `registry/${file}`])
+  git(repository, ["commit", "-m", `update ${file}`], committedAt)
+}
+
+describe("readRegistryAddedAt", () => {
+  it("reports when each entry first landed, not when it was last touched", () => {
+    const repository = temporaryDirectory()
+    mkdirSync(join(repository, "registry"))
+    git(repository, ["init", "--initial-branch=main"])
+
+    commitRegistryEntry(
+      repository,
+      "first.json",
+      { repo: "acme/widgets" },
+      "2026-01-02T03:04:05+00:00"
+    )
+    commitRegistryEntry(
+      repository,
+      "second.json",
+      { repo: "acme/gadgets" },
+      "2026-06-07T08:09:10+00:00"
+    )
+    // A later edit to an existing entry must not re-date it.
+    commitRegistryEntry(
+      repository,
+      "first.json",
+      { repo: "acme/widgets", path: "plugin" },
+      "2026-08-09T10:11:12+00:00"
+    )
+
+    const addedAt = readRegistryAddedAt(join(repository, "registry"))
+
+    expect(addedAt.get("first.json")).toBe("2026-01-02T03:04:05Z")
+    expect(addedAt.get("second.json")).toBe("2026-06-07T08:09:10Z")
+  })
+
+  it("returns nothing rather than a wrong date when there is no history", () => {
+    const registryRoot = exampleRegistry()
+
+    expect(readRegistryAddedAt(registryRoot).size).toBe(0)
+  })
+})
+
 describe("scanOne", () => {
   it("keeps branch metadata without attaching security when commit resolution fails", async () => {
     const registryRoot = exampleRegistry()
@@ -400,6 +469,7 @@ describe("scanOne", () => {
 
     const record = await scanOne("example.json", {}, registryRoot)
 
+    expect(record.addedAt).toBeUndefined()
     expect(record.scanError).toBe(
       "scan failed while reading repository: acme/widgets/plugin"
     )
@@ -420,9 +490,11 @@ describe("scanOne", () => {
     const record = await scanOne(
       "example.json",
       { example: security },
-      registryRoot
+      registryRoot,
+      "2026-03-04T05:06:07+00:00"
     )
 
+    expect(record.addedAt).toBe("2026-03-04T05:06:07+00:00")
     expect(record.url).toBe("https://github.com/acme/widgets/tree/main/plugin")
     expect(record.security).toEqual(security)
     expect(record.images).toEqual([

@@ -6,6 +6,10 @@ import {
   PLATFORMS,
   type Platform,
 } from "@/lib/registry-schema"
+import {
+  CATALOG_ADDED_AT_LABEL,
+  compareCatalogAddedAt,
+} from "../../plugin/shared/catalog"
 
 /**
  * Search-param shape, defaults, parsing, and sorting shared by the homepage
@@ -22,7 +26,7 @@ export const HOME_SEARCH_DEFAULT = {
   page: 1,
 } as const
 
-const sortValues = ["popular", "updated", "az"] as const
+const sortValues = ["popular", "updated", "added", "az"] as const
 export type SortValue = (typeof sortValues)[number]
 
 function normalizeCategoryFilter(category: string): Category | "" {
@@ -85,10 +89,11 @@ export function clampCatalogPage(page: number, totalPages: number): number {
 export const sortLabels: Record<SortValue, string> = {
   popular: "Popular",
   updated: "Recently updated",
+  added: CATALOG_ADDED_AT_LABEL,
   az: "A–Z",
 }
 
-export const sortOptions: SortValue[] = ["popular", "updated", "az"]
+export const sortOptions: SortValue[] = ["popular", "updated", "added", "az"]
 
 const collator = new Intl.Collator(undefined, {
   numeric: true,
@@ -116,6 +121,8 @@ export function sortPlugins(
             (Date.parse(a.repoMeta?.pushedAt ?? "") || 0) ||
           comparePluginsByName(a, b)
         )
+      case "added":
+        return compareCatalogAddedAt(a, b) || comparePluginsByName(a, b)
       case "az":
         return comparePluginsByName(a, b)
       default:

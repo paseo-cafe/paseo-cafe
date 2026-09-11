@@ -68,6 +68,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          # Full history: scripts/scan.ts derives each plugin's addedAt from
+          # the commit that first added its registry entry, and a shallow
+          # clone has no such history to read.
+          fetch-depth: 0
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2

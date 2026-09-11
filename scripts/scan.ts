@@ -12,6 +12,7 @@
  * safest defaults, so the listing can surface it as "needs attention"
  * instead of the whole build breaking.
  */
+import { execFileSync } from "node:child_process"
 import {
   existsSync,
   mkdirSync,
@@ -19,7 +20,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs"
-import { join } from "node:path"
+import { basename, join } from "node:path"
 import { z } from "zod"
 import {
   extractReadmeImages,
@@ -78,6 +79,68 @@ const SECURITY_ARTIFACT_PATH = join(
   "plugin-security-results.json"
 )
 const REPOSITORY_COMMIT_SCHEMA = z.object({ sha: gitCommitSchema })
+
+const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T/
+
+/**
+ * When each registry entry first landed in git, keyed by its filename —
+ * the catalog's "added to the directory" date. Derived rather than
+ * hand-authored so every existing entry has a real date and no submitter can
+ * date their own listing to the top of "Recently added".
+ *
+ * One `git log` pass covers the whole registry. Commits arrive newest-first,
+ * so the last date written for a file is its *earliest* add, which is the
+ * one that survives a delete-and-re-add. A shallow clone (or a checkout with
+ * no git at all) yields an empty map instead of a wrong one — callers treat
+ * an unknown date as unknown, never as "just added".
+ */
+export function readRegistryAddedAt(
+  registryDir = REGISTRY_DIR
+): Map<string, string> {
+  const addedAt = new Map<string, string>()
+
+  let log: string
+  try {
+    log = execFileSync(
+      "git",
+      [
+        "log",
+        "--diff-filter=A",
+        // Committer date: when the entry landed on the branch, which is what
+        // "added to the catalog" means. Author dates survive a squash merge
+        // from whenever the contributor first wrote the file locally.
+        "--format=%cI",
+        "--name-only",
+        "--",
+        registryDir,
+      ],
+      {
+        // Anywhere inside the work tree resolves the same repository; using
+        // the registry directory itself keeps the function testable against
+        // a throwaway repo.
+        cwd: registryDir,
+        encoding: "utf8",
+        maxBuffer: 32 * 1_024 * 1_024,
+        stdio: ["ignore", "pipe", "ignore"],
+      }
+    )
+  } catch {
+    return addedAt
+  }
+
+  let commitDate: string | undefined
+  for (const line of log.split("\n")) {
+    const value = line.trim()
+    if (value === "") continue
+    if (ISO_TIMESTAMP_PATTERN.test(value)) {
+      commitDate = value
+    } else if (commitDate && value.endsWith(".json")) {
+      addedAt.set(basename(value), commitDate)
+    }
+  }
+
+  return addedAt
+}
 
 export function securityForRevision(
   security: PluginSecurity | undefined,
@@ -159,7 +222,8 @@ function isRecent(iso: string): boolean {
 export async function scanOne(
   entryFile: string,
   securityCatalog: Record<string, PluginSecurity>,
-  registryDir = REGISTRY_DIR
+  registryDir = REGISTRY_DIR,
+  addedAt?: string
 ): Promise<PluginRecord> {
   const id = registryIdSchema.parse(entryFile.slice(0, -".json".length))
   const raw = JSON.parse(readFileSync(join(registryDir, entryFile), "utf8"))
@@ -188,6 +252,7 @@ export async function scanOne(
     },
     images: [],
     videos: [],
+    addedAt,
     scannedAt,
   }
 
@@ -377,6 +442,7 @@ export async function scanOne(
         archived: repoMeta.archived,
         license: repoMeta.license?.spdx_id ?? null,
       },
+      addedAt,
       scannedAt,
     }
 
@@ -533,11 +599,22 @@ async function main() {
   mkdirSync(OG_DIR, { recursive: true })
 
   const securityCatalog = loadPublishedSecurityCatalog()
+  const addedAt = readRegistryAddedAt()
+  if (addedAt.size === 0 && files.length > 0) {
+    console.warn(
+      "  ! no registry history in git (shallow clone?) — every plugin will be listed without an added date"
+    )
+  }
 
   const records: PluginRecord[] = []
   for (const file of files) {
     console.log(`Scanning ${file}...`)
-    const record = await scanOne(file, securityCatalog)
+    const record = await scanOne(
+      file,
+      securityCatalog,
+      REGISTRY_DIR,
+      addedAt.get(file)
+    )
     if (record.scanError) console.warn(`  ! ${record.scanError}`)
     records.push(record)
     writeFileSync(

@@ -70,6 +70,9 @@ export const directoryPluginSchema = z.object({
   images: z.array(directoryImageUrlSchema).max(32),
   readmeText: z.string().max(MAX_API_README_TEXT_LENGTH).optional(),
   scanError: z.string().max(4_000).optional(),
+  // When the plugin was listed in the catalog — see PluginRecord.addedAt.
+  // The companion plugin sorts its "Recently added" view by this.
+  addedAt: z.iso.datetime({ offset: true }).optional(),
   scannedAt: z.string().max(100),
   health: pluginHealthSchema,
 })
@@ -139,6 +142,7 @@ export function projectPluginForDirectory(
     images: [],
     health: plugin.health,
     scannedAt: boundedString(plugin.scannedAt, 100),
+    ...(plugin.addedAt ? { addedAt: plugin.addedAt } : {}),
     ...(plugin.path ? { path: plugin.path } : {}),
     ...(version !== undefined ? { version } : {}),
     ...(security ? { security } : {}),

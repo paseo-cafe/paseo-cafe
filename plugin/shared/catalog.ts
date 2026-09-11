@@ -196,3 +196,35 @@ export const CATALOG_HEALTH_LABELS: Record<CatalogHealthCheck, string> = {
   hasTypecheckScript: "Has a typecheck script",
   updatedRecently: "Updated in the last 6 months",
 }
+
+/**
+ * When a plugin's registry entry first landed in this repository's git
+ * history (ISO 8601) — i.e. when the catalog accepted it. The scanner
+ * derives it (see scripts/scan.ts on the website); it is never hand-authored,
+ * so it can't be backdated or nudged forward by a submitter, and it means
+ * the same thing on both surfaces. It is absent when the history isn't
+ * available (a shallow clone, or an entry that isn't committed yet).
+ */
+export const CATALOG_ADDED_AT_LABEL = "Recently added"
+
+export interface CatalogAddedAt {
+  addedAt?: string
+}
+
+/** Epoch milliseconds for a catalog timestamp; 0 when missing or unparseable. */
+export function getCatalogAddedAtTime(entry: CatalogAddedAt): number {
+  const parsed = entry.addedAt ? Date.parse(entry.addedAt) : Number.NaN
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+/**
+ * Most recently listed first. Entries with no known date sort last rather
+ * than first, so a missing date never fakes its way to the top of the list.
+ * Callers break ties with their own stable ordering.
+ */
+export function compareCatalogAddedAt(
+  a: CatalogAddedAt,
+  b: CatalogAddedAt
+): number {
+  return getCatalogAddedAtTime(b) - getCatalogAddedAtTime(a)
+}
