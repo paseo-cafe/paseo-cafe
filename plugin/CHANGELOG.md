@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.2.0...v0.3.0) (2026-09-11)
+
+
+### Features
+
+* **brand:** draw the mark from Paseo's loop and one shared module ([#81](https://github.com/paseo-cafe/paseo-cafe/issues/81)) ([4a4a888](https://github.com/paseo-cafe/paseo-cafe/commit/4a4a8888d2107811df36c4b169aaddb8bb211f69))
+
+
+### Bug Fixes
+
+* **plugin:** run the Paseo CLI through cmd.exe on Windows ([#72](https://github.com/paseo-cafe/paseo-cafe/issues/72)) ([1910253](https://github.com/paseo-cafe/paseo-cafe/commit/191025397176d77f88d6052af5199aa3e2131a77))
+
 ## [0.2.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.1.1...v0.2.0) (2026-09-10)
 
 
