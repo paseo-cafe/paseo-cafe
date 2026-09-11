@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs"
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
@@ -138,6 +144,8 @@ describe("scanStaticFiles", () => {
       join(plugin, "server", "handler.ts"),
       'import { contract } from "../shared/contract"\nexport { contract }'
     )
+    writeFileSync(join(plugin, "index.client.ts"), 'import "./client/view"')
+    writeFileSync(join(plugin, "index.server.ts"), 'import "./server/handler"')
 
     const result = scanStaticFiles({
       root,
@@ -196,8 +204,6 @@ describe("scanStaticFiles", () => {
       "index.client.ts",
       "index.server.ts",
       "server/handler.ts",
-      "shared/from-client.ts",
-      "shared/from-server.ts",
     ])
   })
   it("enforces SDK and host-module runtime ownership", () => {
@@ -211,7 +217,7 @@ describe("scanStaticFiles", () => {
     )
     writeFileSync(
       join(root, "index.client.ts"),
-      'import "node:fs"\nimport "@getpaseo/plugin/server"\nimport "./helper"'
+      'import "node:fs"\nimport "@getpaseo/plugin/server"\nimport "./helper"\nimport "./client/private"\nimport "./shared/contract"'
     )
     writeFileSync(join(root, "helper.ts"), "export {}")
     writeFileSync(join(root, "index.server.ts"), 'import "react"')
@@ -265,7 +271,7 @@ describe("scanStaticFiles", () => {
     )
     writeFileSync(
       join(root, "index.client.ts"),
-      'import "./client"\nimport "/tmp/outside.ts"\nimport "#server/handler"\nimport "constructor"\nimport "root-dependency"'
+      'import "./client"\nimport "./shared/contract"\nimport "/tmp/outside.ts"\nimport "#server/handler"\nimport "constructor"\nimport "root-dependency"'
     )
     writeFileSync(
       join(root, "client", "index.ts"),
@@ -309,15 +315,17 @@ describe("scanStaticFiles", () => {
     )
   })
 
-  it("flags symlinks", () => {
+  it("flags reachable symlinks", () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
     const plugin = join(root, "plugin")
-    mkdirSync(plugin)
+    mkdirSync(join(plugin, "server"), { recursive: true })
     writeFileSync(
       join(plugin, "paseo-plugin.json"),
-      JSON.stringify({ id: "plugin" })
+      JSON.stringify({ id: "plugin", requirements: { paseo: ">=0.8.0" } })
     )
-    symlinkSync(join(root, "outside"), join(plugin, "link"))
+    writeFileSync(join(plugin, "index.server.ts"), 'import "./server/handler"')
+    writeFileSync(join(root, "outside.ts"), "export {}")
+    symlinkSync(join(root, "outside.ts"), join(plugin, "server", "handler.ts"))
     const result = scanStaticFiles({
       root,
       pluginPath: "plugin",
@@ -325,6 +333,54 @@ describe("scanStaticFiles", () => {
     })
     expect(result.findings.some((f) => f.ruleId === "symlink")).toBe(true)
     expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
+  })
+
+  it("allows regular files beneath a symlinked scanner workspace", () => {
+    const parent = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    const root = join(parent, "real")
+    mkdirSync(root)
+    symlinkSync(root, join(parent, "link"), "dir")
+    writeFileSync(
+      join(root, "paseo-plugin.json"),
+      JSON.stringify({ id: "plugin", requirements: { paseo: ">=0.8.0" } })
+    )
+    writeFileSync(
+      join(root, "index.server.ts"),
+      "export default () => () => {}"
+    )
+
+    const result = scanStaticFiles({
+      root: join(parent, "link"),
+      registryId: "plugin",
+    })
+
+    expect(result.findings).toEqual([])
+  })
+
+  it("fails closed when reachable source is not a regular file", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    mkdirSync(join(root, "server", "handler.ts"), { recursive: true })
+    writeFileSync(join(root, "index.server.ts"), 'import "./server/handler.ts"')
+
+    const result = scanStaticFiles({ root })
+
+    expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
+  })
+
+  it("fails closed when reachable source cannot be read", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    mkdirSync(join(root, "server"))
+    writeFileSync(join(root, "index.server.ts"), 'import "./server/handler"')
+    const handler = join(root, "server", "handler.ts")
+    writeFileSync(handler, "export {}")
+    chmodSync(handler, 0)
+
+    try {
+      const result = scanStaticFiles({ root })
+      expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
+    } finally {
+      chmodSync(handler, 0o600)
+    }
   })
 
   it("excludes Git metadata from coverage", () => {
@@ -351,20 +407,35 @@ describe("scanStaticFiles", () => {
     expect(result.findings).toEqual([])
   })
 
-  it("counts binary files by their on-disk size", () => {
+  it("ignores unreachable documentation and media", () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
-    const binary = Buffer.from([0xff, 0xfe])
-    writeFileSync(join(root, "artifact.bin"), binary)
+    mkdirSync(join(root, "docs", "media"), { recursive: true })
+    const manifest = JSON.stringify({
+      id: "plugin",
+      requirements: { paseo: ">=0.8.0" },
+    })
+    const entrypoint = "export default () => () => {}"
+    writeFileSync(join(root, "paseo-plugin.json"), manifest)
+    writeFileSync(join(root, "index.server.ts"), entrypoint)
+    writeFileSync(
+      join(root, "docs", "media", "demo.mp4"),
+      Buffer.alloc(2_000_001)
+    )
 
-    const result = scanStaticFiles({ root })
+    const result = scanStaticFiles({ root, registryId: "plugin" })
 
-    expect(result.files).toBe(1)
-    expect(result.bytes).toBe(binary.byteLength)
+    expect(result.files).toBe(2)
+    expect(result.bytes).toBe(
+      Buffer.byteLength(manifest) + Buffer.byteLength(entrypoint)
+    )
+    expect(result.findings).toEqual([])
   })
 
-  it("fails closed on oversized files", () => {
+  it("fails closed on oversized reachable source files", () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
-    writeFileSync(join(root, "artifact.bin"), Buffer.alloc(2_000_001))
+    mkdirSync(join(root, "server"))
+    writeFileSync(join(root, "index.server.ts"), 'import "./server/artifact"')
+    writeFileSync(join(root, "server", "artifact.ts"), Buffer.alloc(2_000_001))
 
     const result = scanStaticFiles({ root })
 
@@ -372,29 +443,38 @@ describe("scanStaticFiles", () => {
     expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
   })
 
-  it("stops reading before exceeding the aggregate byte limit", () => {
+  it("stops reading before reachable sources exceed the byte limit", () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
-    writeFileSync(join(root, "first.bin"), Buffer.alloc(1_100_000))
-    writeFileSync(join(root, "second.bin"), Buffer.alloc(1_100_000))
+    mkdirSync(join(root, "server"))
+    writeFileSync(
+      join(root, "index.server.ts"),
+      'import "./server/first"\nimport "./server/second"'
+    )
+    writeFileSync(join(root, "server", "first.ts"), Buffer.alloc(1_100_000))
+    writeFileSync(join(root, "server", "second.ts"), Buffer.alloc(1_100_000))
 
     const result = scanStaticFiles({ root })
 
-    expect(result.files).toBe(1)
-    expect(result.bytes).toBe(1_100_000)
+    expect(result.bytes).toBeLessThanOrEqual(2_000_000)
     expect(
       result.findings.some((finding) => finding.ruleId === "incomplete")
     ).toBe(true)
   })
 
-  it("stops reading after the global file-count limit", () => {
+  it("stops reading after the reachable file-count limit", () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
-    for (let index = 0; index < 250; index += 1)
-      writeFileSync(join(root, `${index.toString().padStart(3, "0")}.txt`), "x")
+    mkdirSync(join(root, "server"))
+    const imports: string[] = []
+    for (let index = 0; index < 250; index += 1) {
+      const id = index.toString().padStart(3, "0")
+      imports.push(`import "./server/${id}"`)
+      writeFileSync(join(root, "server", `${id}.ts`), "export {}")
+    }
+    writeFileSync(join(root, "index.server.ts"), imports.join("\n"))
 
     const result = scanStaticFiles({ root })
 
     expect(result.files).toBe(200)
-    expect(result.bytes).toBe(200)
     expect(
       result.findings.some((finding) => finding.ruleId === "incomplete")
     ).toBe(true)

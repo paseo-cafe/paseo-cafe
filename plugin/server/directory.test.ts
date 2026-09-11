@@ -1,3 +1,6 @@
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { delimiter, join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { InstalledPlugin } from "../shared/directory"
 import {
@@ -8,6 +11,7 @@ import {
 import {
   buildInstallArgs,
   buildPaseoInvocation,
+  execPaseo,
   inspectUpdateStatus,
   installDirectoryPlugin,
   listDirectory,
@@ -653,26 +657,70 @@ describe("Paseo CLI invocation", () => {
       executable: "paseo",
       args: ["plugin", "ls", "--json"],
       env: { PATH: "/usr/bin" },
+      windowsVerbatimArguments: false,
     })
   })
 
   it("quotes the npm command shim invocation on Windows", () => {
-    const invocation = buildPaseoInvocation(
-      ["plugin", "update", "review", "--json"],
-      "win32"
-    )
-
-    expect(invocation.args).toEqual([
-      "/d",
-      "/s",
-      "/c",
-      '"paseo" "plugin" "update" "review" "--json"',
-    ])
+    // The extra outer pair and the verbatim flag are only correct together:
+    // cmd.exe /s eats that pair, and node would rewrite it as \" without the
+    // flag. Assert both, since no CI runner executes this branch.
+    expect(
+      buildPaseoInvocation(["plugin", "update", "review", "--json"], "win32", {
+        ComSpec: "C:\\Windows\\system32\\cmd.exe",
+      })
+    ).toEqual({
+      executable: "C:\\Windows\\system32\\cmd.exe",
+      args: ["/d", "/s", "/c", '""paseo" "plugin" "update" "review" "--json""'],
+      env: { ComSpec: "C:\\Windows\\system32\\cmd.exe" },
+      windowsVerbatimArguments: true,
+    })
   })
+
+  it("runs the shim cmd.exe resolves, with the arguments intact", async () => {
+    // Asserting the argv is only half the contract: cmd.exe — not node —
+    // decides how the command string splits, so the pair has to run for real.
+    const binDir = await mkdtemp(join(tmpdir(), "paseo-cli-invocation-"))
+    const originalPath = process.env.PATH
+    try {
+      const isWindows = process.platform === "win32"
+      const shim = join(binDir, isWindows ? "paseo.cmd" : "paseo")
+      // Report the arguments the way a real CLI process receives them, so the
+      // assertion covers node's parsing of what cmd.exe handed over instead of
+      // the raw command text.
+      const report = `console.log(JSON.stringify(process.argv.slice(1)))`
+      const node = `"${process.execPath}"`
+      await writeFile(
+        shim,
+        isWindows
+          ? `@echo off\r\n${node} -e "${report}" %*\r\n`
+          : `#!/bin/sh\nexec ${node} -e '${report}' "$@"\n`,
+        "utf8"
+      )
+      if (!isWindows) await chmod(shim, 0o755)
+      process.env.PATH = `${binDir}${delimiter}${originalPath ?? ""}`
+
+      const { stdout } = await execPaseo(["plugin", "ls", "--json"], 10_000)
+
+      expect(JSON.parse(stdout)).toEqual(["plugin", "ls", "--json"])
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH
+      else process.env.PATH = originalPath
+      await rm(binDir, { recursive: true, force: true })
+    }
+  }, 20_000)
 
   it("rejects Windows command metacharacters", () => {
     expect(() =>
       buildPaseoInvocation(["plugin", "update", "review&calc"], "win32")
+    ).toThrow("unsupported Windows shell characters")
+  })
+
+  it("rejects a token that would escape its own closing quote", () => {
+    // `"review\"` leaves the closing quote escaped for the argv parser behind
+    // cmd.exe, which then swallows the following argument.
+    expect(() =>
+      buildPaseoInvocation(["plugin", "update", "review\\", "--json"], "win32")
     ).toThrow("unsupported Windows shell characters")
   })
 })

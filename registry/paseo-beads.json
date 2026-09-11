@@ -1,0 +1,11 @@
+{
+  "repo": "omercnet/paseo-plugins",
+  "path": "paseo-beads",
+  "categories": ["monitoring", "productivity"],
+  "caveats": [
+    "Requires Paseo 0.8.x",
+    "Requires bd 1.0 or newer on the Paseo daemon host and an initialized Beads workspace",
+    "Read-only: does not create or update Beads issues"
+  ],
+  "submittedBy": "omercnet"
+}
