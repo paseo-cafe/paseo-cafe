@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { existsSync, lstatSync, opendirSync, readFileSync } from "node:fs"
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs"
 import { isBuiltin } from "node:module"
 import {
   dirname,
@@ -36,13 +36,11 @@ type ScanState = {
   clientEntry: boolean
   serverEntry: boolean
   legacyEntry: string | null
-  sources: Map<string, string>
+  sources: Map<string, string | undefined>
 }
 
 const PLUGIN_ID = /^[a-z][a-z0-9-]*$/
 const CODE_MODULE = /\.[cm]?[jt]sx?$/
-const RUNTIME_ENTRY = /^index\.(client|server)\.(?:ts|tsx)$/
-const LEGACY_ENTRY = /^index\.(?:ts|tsx)$/
 const CLIENT_ONLY_SDK: Record<string, true> = {
   "@getpaseo/plugin/client": true,
   "@getpaseo/plugin/client/ui": true,
@@ -104,6 +102,11 @@ function createImportResolver(directory: string): ImportResolver {
   }
 }
 
+/**
+ * Scans exactly what Paseo can compile from the plugin manifest and runtime
+ * entrypoints. Unreachable tests, documentation, and media are not executable
+ * plugin inputs and must not consume the scanner's bounded file budget.
+ */
 export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
   const root = resolve(input.root, input.pluginPath ?? ".")
   const state: ScanState = {
@@ -118,28 +121,41 @@ export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
   }
   const findings: SecurityFinding[] = []
   const buildCommands: string[][] = []
-  const resolveImport = createImportResolver(root)
-  walk(
-    root,
-    root,
-    0,
-    state,
-    findings,
-    buildCommands,
-    resolveImport,
-    input.registryId
+  const manifestPath = "paseo-plugin.json"
+  if (existsSync(join(root, manifestPath))) {
+    state.manifest = true
+    const manifest = readScannedFile(root, manifestPath, state, findings)
+    if (manifest !== undefined)
+      validateManifest(
+        manifest,
+        manifestPath,
+        input.registryId,
+        findings,
+        buildCommands
+      )
+  }
+
+  const entrypoints = [
+    "index.client.ts",
+    "index.client.tsx",
+    "index.server.ts",
+    "index.server.tsx",
+  ].filter((path) => existsSync(join(root, path)))
+  state.clientEntry = entrypoints.some((path) =>
+    path.startsWith("index.client")
   )
+  state.serverEntry = entrypoints.some((path) =>
+    path.startsWith("index.server")
+  )
+  state.legacyEntry =
+    ["index.ts", "index.tsx"].find((path) => existsSync(join(root, path))) ??
+    null
+
+  const resolveImport = createImportResolver(root)
   const checkedImports = new Set<string>()
-  for (const [path, content] of state.sources)
-    scanBoundaries(
-      content,
-      path,
-      root,
-      resolveImport,
-      findings,
-      state.sources,
-      checkedImports
-    )
+  for (const path of entrypoints)
+    scanBoundaries(path, root, resolveImport, findings, state, checkedImports)
+
   if (!state.manifest)
     findings.push(
       finding(
@@ -147,7 +163,7 @@ export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
         "missing",
         "high",
         true,
-        "paseo-plugin.json",
+        manifestPath,
         "plugin manifest is missing"
       )
     )
@@ -189,89 +205,55 @@ export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
   return { files: state.files, bytes: state.bytes, findings, buildCommands }
 }
 
-function walk(
+function readScannedFile(
   base: string,
-  dir: string,
-  depth: number,
+  path: string,
   state: ScanState,
-  findings: SecurityFinding[],
-  buildCommands: string[][],
-  resolveImport: ImportResolver,
-  registryId?: string
-): boolean {
-  if (depth > MAX_DEPTH) {
+  findings: SecurityFinding[]
+): string | undefined {
+  if (state.sources.has(path)) return state.sources.get(path)
+  state.sources.set(path, undefined)
+
+  const full = resolve(base, path)
+  if (!containsPath(base, full) || path.split(/[\\/]/).length - 1 > MAX_DEPTH) {
     state.incomplete = true
-    return false
+    return undefined
   }
-  const directory = opendirSync(dir)
   try {
-    for (
-      let entry = directory.readSync();
-      entry !== null;
-      entry = directory.readSync()
-    ) {
-      const full = join(dir, entry.name)
-      const rel = relative(base, full) || entry.name
-      if (entry.isDirectory() && entry.name === ".git") continue
-      if (entry.isSymbolicLink()) {
-        state.incomplete = true
-        findings.push(
-          finding("scanner", "symlink", "high", true, rel, "symlink rejected")
-        )
-        continue
-      }
-      const meta = lstatSync(full)
-      if (entry.isDirectory()) {
-        if (
-          !walk(
-            base,
-            full,
-            depth + 1,
-            state,
-            findings,
-            buildCommands,
-            resolveImport,
-            registryId
-          )
-        )
-          return false
-        continue
-      }
-      if (!entry.isFile()) continue
-      if (meta.size > MAX_BYTES) {
-        state.incomplete = true
-        findings.push(
-          finding(
-            "scanner",
-            "size-limit",
-            "high",
-            true,
-            rel,
-            "file exceeds size budget"
-          )
-        )
-        return false
-      }
-      if (state.files >= MAX_FILES || state.bytes + meta.size > MAX_BYTES) {
-        state.incomplete = true
-        return false
-      }
-      state.files += 1
-      state.bytes += meta.size
-      const content = readFileSync(full, "utf8")
-      if (rel === "paseo-plugin.json") {
-        state.manifest = true
-        validateManifest(content, rel, registryId, findings, buildCommands)
-      }
-      const entryMatch = RUNTIME_ENTRY.exec(rel)
-      if (entryMatch?.[1] === "client") state.clientEntry = true
-      if (entryMatch?.[1] === "server") state.serverEntry = true
-      if (LEGACY_ENTRY.test(rel)) state.legacyEntry = rel
-      if (CODE_MODULE.test(rel)) state.sources.set(rel, content)
+    const meta = lstatSync(full)
+    if (meta.isSymbolicLink() || realpathSync(full) !== full) {
+      state.incomplete = true
+      findings.push(
+        finding("scanner", "symlink", "high", true, path, "symlink rejected")
+      )
+      return undefined
     }
-    return true
-  } finally {
-    directory.closeSync()
+    if (!meta.isFile()) return undefined
+    if (meta.size > MAX_BYTES) {
+      state.incomplete = true
+      findings.push(
+        finding(
+          "scanner",
+          "size-limit",
+          "high",
+          true,
+          path,
+          "file exceeds size budget"
+        )
+      )
+      return undefined
+    }
+    if (state.files >= MAX_FILES || state.bytes + meta.size > MAX_BYTES) {
+      state.incomplete = true
+      return undefined
+    }
+    const content = readFileSync(full, "utf8")
+    state.files += 1
+    state.bytes += meta.size
+    state.sources.set(path, content)
+    return content
+  } catch {
+    return undefined
   }
 }
 
@@ -552,12 +534,11 @@ function isHostProvidedModule(specifier: string): boolean {
 }
 
 function scanBoundaries(
-  content: string,
   path: string,
   base: string,
   resolveImport: ImportResolver,
   findings: SecurityFinding[],
-  sources: Map<string, string>,
+  state: ScanState,
   checked: Set<string>,
   inheritedOwner?: PluginRuntime
 ) {
@@ -570,6 +551,8 @@ function scanBoundaries(
   if (checked.has(visitKey)) return
   checked.add(visitKey)
 
+  const content = readScannedFile(base, path, state, findings)
+  if (content === undefined) return
   const imports = ts.preProcessFile(content, true, true)
   const specifiers = [
     ...imports.importedFiles.map(({ fileName }) => fileName),
@@ -627,20 +610,16 @@ function scanBoundaries(
           `${owner} code cannot import ${imported.location} code: ${specifier}`
         )
       )
-    if (imported.location === null && imported.path) {
-      const dependency = sources.get(imported.path)
-      if (dependency !== undefined)
-        scanBoundaries(
-          dependency,
-          imported.path,
-          base,
-          resolveImport,
-          findings,
-          sources,
-          checked,
-          owner
-        )
-    }
+    if (imported.location !== "invalid" && imported.path)
+      scanBoundaries(
+        imported.path,
+        base,
+        resolveImport,
+        findings,
+        state,
+        checked,
+        owner
+      )
   }
 }
 function finding(
