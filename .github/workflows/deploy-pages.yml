@@ -18,6 +18,13 @@ jobs:
   build:
     name: Enrich and build static site
     runs-on: ubuntu-latest
+    # Forks inherit the schedule above, where it does something nobody asked
+    # for: it rebuilds main every six hours and republishes it over whatever
+    # the fork owner actually deployed, spending their Actions minutes and
+    # GitHub API quota to do it. Pushes and manual runs still work everywhere;
+    # a fork that does want the periodic refresh can run it from the Actions
+    # tab, or drop this condition.
+    if: github.event_name != 'schedule' || github.repository == 'paseo-cafe/paseo-cafe'
     timeout-minutes: 35
     permissions:
       contents: read
