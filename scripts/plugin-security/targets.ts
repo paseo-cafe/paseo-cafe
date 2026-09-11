@@ -46,7 +46,9 @@ export async function selectTargets(opts: {
   const pr = event.pull_request
   if (
     !pr ||
-    !["opened", "synchronize", "reopened"].includes(event.action ?? "")
+    !["opened", "synchronize", "reopened", "ready_for_review"].includes(
+      event.action ?? ""
+    )
   ) {
     return await resolveLocalTargets(local, opts.githubToken)
   }
