@@ -29,6 +29,7 @@ import {
   directoryUpdateStatusRpc,
   findInstallations,
   getInstallRef,
+  isDefaultDirectoryBrowseView,
   normalizeDirectoryCategories,
 } from "../shared/directory"
 import { filterAccessibilityLabel } from "./accessibility"
@@ -392,20 +393,6 @@ function sortEntries(
 ): DirectoryEntry[] {
   return [...entries].sort((a, b) =>
     compareEntries(a, b, sortMode, installationByEntryId)
-  )
-}
-
-function isDefaultBrowseState(
-  search: string,
-  categoryFilter: ReadonlySet<string>,
-  platformFilter: ReadonlySet<string>,
-  statusFilter: InstallationStatusFilter
-): boolean {
-  return (
-    search.trim() === "" &&
-    categoryFilter.size === 0 &&
-    platformFilter.size === 0 &&
-    statusFilter === "all"
   )
 }
 
@@ -898,12 +885,8 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       }),
     [nonStatusFiltered, effectiveStatusFilter, installationByEntryId]
   )
-  const defaultBrowseState = isDefaultBrowseState(
-    search,
-    categoryFilter,
-    platformFilter,
-    statusFilter
-  )
+  // browseSettings already carries exactly the state this depends on.
+  const defaultBrowseState = isDefaultDirectoryBrowseView(browseSettings)
 
   const sorted = useMemo(
     () => sortEntries(filtered, sortMode, installationByEntryId),

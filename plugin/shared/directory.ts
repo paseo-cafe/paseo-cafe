@@ -150,6 +150,29 @@ function containsSameValues(
   return true
 }
 
+/**
+ * Whether the surface is showing its default, unfiltered view — the only
+ * state where the curated highlight sections belong. The sort is part of
+ * that: the highlights are the one part of the surface that does *not*
+ * reorder, so leaving them in place after someone picks a different sort
+ * reads as the sort having done nothing. Mirrors the website's `showFeatured`
+ * rule in src/routes/index.tsx; keep the two in step.
+ */
+export function isDefaultDirectoryBrowseView(
+  browse: Pick<
+    DirectoryBrowseSettings,
+    "query" | "categories" | "platforms" | "status" | "sort"
+  >
+): boolean {
+  return (
+    browse.query.trim() === "" &&
+    browse.categories.length === 0 &&
+    browse.platforms.length === 0 &&
+    browse.status === DEFAULT_DIRECTORY_BROWSE_SETTINGS.status &&
+    browse.sort === DEFAULT_DIRECTORY_BROWSE_SETTINGS.sort
+  )
+}
+
 /** Compares persisted browse state using set semantics for multi-select filters. */
 export function directoryBrowseSettingsEqual(
   left: DirectoryBrowseSettings,

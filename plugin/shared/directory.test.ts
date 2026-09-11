@@ -20,6 +20,7 @@ import {
   getRepositoryUrl,
   getRepositoryUrlAtRef,
   getSiteUrl,
+  isDefaultDirectoryBrowseView,
   isOfficialPlugin,
   isTrustedCatalogUrl,
   isValidInstallPath,
@@ -207,6 +208,37 @@ describe("catalog URL transport policy", () => {
     )
     expect(
       directoryUpdateStatusRpc.input.safeParse({ baseUrl: url }).success
+    ).toBe(false)
+  })
+})
+
+describe("default browse view", () => {
+  it("treats the untouched surface as the default view", () => {
+    expect(
+      isDefaultDirectoryBrowseView(DEFAULT_DIRECTORY_BROWSE_SETTINGS)
+    ).toBe(true)
+  })
+
+  it("stops being the default view once a different sort is chosen", () => {
+    expect(
+      isDefaultDirectoryBrowseView({
+        ...DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+        sort: "recently-added",
+      })
+    ).toBe(false)
+  })
+
+  it.each([
+    { query: "git" },
+    { categories: ["git" as const] },
+    { platforms: ["macos"] },
+    { status: "installed" as const },
+  ])("stops being the default view when filtered by %o", (overrides) => {
+    expect(
+      isDefaultDirectoryBrowseView({
+        ...DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+        ...overrides,
+      })
     ).toBe(false)
   })
 })
