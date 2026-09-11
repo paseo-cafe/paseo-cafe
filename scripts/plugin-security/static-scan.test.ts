@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs"
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
@@ -327,6 +333,54 @@ describe("scanStaticFiles", () => {
     })
     expect(result.findings.some((f) => f.ruleId === "symlink")).toBe(true)
     expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
+  })
+
+  it("allows regular files beneath a symlinked scanner workspace", () => {
+    const parent = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    const root = join(parent, "real")
+    mkdirSync(root)
+    symlinkSync(root, join(parent, "link"), "dir")
+    writeFileSync(
+      join(root, "paseo-plugin.json"),
+      JSON.stringify({ id: "plugin", requirements: { paseo: ">=0.8.0" } })
+    )
+    writeFileSync(
+      join(root, "index.server.ts"),
+      "export default () => () => {}"
+    )
+
+    const result = scanStaticFiles({
+      root: join(parent, "link"),
+      registryId: "plugin",
+    })
+
+    expect(result.findings).toEqual([])
+  })
+
+  it("fails closed when reachable source is not a regular file", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    mkdirSync(join(root, "server", "handler.ts"), { recursive: true })
+    writeFileSync(join(root, "index.server.ts"), 'import "./server/handler.ts"')
+
+    const result = scanStaticFiles({ root })
+
+    expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
+  })
+
+  it("fails closed when reachable source cannot be read", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    mkdirSync(join(root, "server"))
+    writeFileSync(join(root, "index.server.ts"), 'import "./server/handler"')
+    const handler = join(root, "server", "handler.ts")
+    writeFileSync(handler, "export {}")
+    chmodSync(handler, 0)
+
+    try {
+      const result = scanStaticFiles({ root })
+      expect(result.findings.some((f) => f.ruleId === "incomplete")).toBe(true)
+    } finally {
+      chmodSync(handler, 0o600)
+    }
   })
 
   it("excludes Git metadata from coverage", () => {

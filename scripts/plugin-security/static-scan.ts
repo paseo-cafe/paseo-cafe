@@ -36,6 +36,7 @@ type ScanState = {
   clientEntry: boolean
   serverEntry: boolean
   legacyEntry: string | null
+  realBase: string
   sources: Map<string, string | undefined>
 }
 
@@ -112,6 +113,7 @@ export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
   const state: ScanState = {
     files: 0,
     bytes: 0,
+    realBase: realpathSync(root),
     incomplete: false,
     manifest: false,
     clientEntry: false,
@@ -221,14 +223,20 @@ function readScannedFile(
   }
   try {
     const meta = lstatSync(full)
-    if (meta.isSymbolicLink() || realpathSync(full) !== full) {
+    if (
+      meta.isSymbolicLink() ||
+      realpathSync(full) !== resolve(state.realBase, path)
+    ) {
       state.incomplete = true
       findings.push(
         finding("scanner", "symlink", "high", true, path, "symlink rejected")
       )
       return undefined
     }
-    if (!meta.isFile()) return undefined
+    if (!meta.isFile()) {
+      state.incomplete = true
+      return undefined
+    }
     if (meta.size > MAX_BYTES) {
       state.incomplete = true
       findings.push(
@@ -252,7 +260,9 @@ function readScannedFile(
     state.bytes += meta.size
     state.sources.set(path, content)
     return content
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      state.incomplete = true
     return undefined
   }
 }
