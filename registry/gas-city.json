@@ -1,0 +1,11 @@
+{
+  "repo": "omercnet/paseo-plugins",
+  "path": "paseo-gas-city",
+  "categories": ["orchestration", "monitoring", "productivity"],
+  "caveats": [
+    "Requires Paseo 0.8.x",
+    "Requires a reachable Gas City v1.4.1 supervisor on the Paseo daemon host",
+    "Native Open in Paseo session bridging is unavailable until Gas City exposes correlated prompt and reply identifiers"
+  ],
+  "submittedBy": "omercnet"
+}
