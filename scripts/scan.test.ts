@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -384,6 +390,36 @@ describe("readRegistryAddedAt", () => {
 
     expect(addedAt.get("first.json")).toBe("2026-01-02T03:04:05Z")
     expect(addedAt.get("second.json")).toBe("2026-06-07T08:09:10Z")
+  })
+
+  it("refuses a shallow clone rather than dating everything to its tip", () => {
+    const repository = temporaryDirectory()
+    mkdirSync(join(repository, "registry"))
+    git(repository, ["init", "--initial-branch=main"])
+    commitRegistryEntry(
+      repository,
+      "first.json",
+      { repo: "acme/widgets" },
+      "2026-01-02T03:04:05+00:00"
+    )
+    commitRegistryEntry(
+      repository,
+      "second.json",
+      { repo: "acme/gadgets" },
+      "2026-06-07T08:09:10+00:00"
+    )
+
+    // A depth-1 clone grafts a root commit that appears to add every tracked
+    // file, so an unguarded `git log` would report both entries as added on
+    // the day of the clone.
+    const shallow = temporaryDirectory()
+    git(shallow, ["clone", "--depth", "1", `file://${repository}`, "checkout"])
+
+    // Guard against the clone silently failing and the assertion below
+    // passing for the wrong reason.
+    const registryDir = join(shallow, "checkout", "registry")
+    expect(existsSync(join(registryDir, "first.json"))).toBe(true)
+    expect(readRegistryAddedAt(registryDir).size).toBe(0)
   })
 
   it("returns nothing rather than a wrong date when there is no history", () => {

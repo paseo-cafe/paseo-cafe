@@ -82,6 +82,23 @@ const REPOSITORY_COMMIT_SCHEMA = z.object({ sha: gitCommitSchema })
 
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T/
 
+/** True only for a clone whose history was truncated — see readRegistryAddedAt. */
+function isShallowRepository(directory: string): boolean {
+  try {
+    return (
+      execFileSync("git", ["rev-parse", "--is-shallow-repository"], {
+        cwd: directory,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim() === "true"
+    )
+  } catch {
+    // No git, or not a work tree. readRegistryAddedAt's own git call fails
+    // next and returns an empty map, which is the same answer.
+    return false
+  }
+}
+
 /**
  * When each registry entry first landed in git, keyed by its filename —
  * the catalog's "added to the directory" date. Derived rather than
@@ -90,14 +107,20 @@ const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T/
  *
  * One `git log` pass covers the whole registry. Commits arrive newest-first,
  * so the last date written for a file is its *earliest* add, which is the
- * one that survives a delete-and-re-add. A shallow clone (or a checkout with
- * no git at all) yields an empty map instead of a wrong one — callers treat
- * an unknown date as unknown, never as "just added".
+ * one that survives a delete-and-re-add.
+ *
+ * A shallow clone is refused rather than read. Its grafted root commit
+ * appears to add every tracked file at once, so `git log` reports the entire
+ * registry as added on the day the clone was made: every listing stamped
+ * with the build date, "Recently added" collapsed into one big tie, and
+ * nothing in the output to say so. An unknown date has to stay unknown, so
+ * this returns an empty map there — same as a checkout with no git at all.
  */
 export function readRegistryAddedAt(
   registryDir = REGISTRY_DIR
 ): Map<string, string> {
   const addedAt = new Map<string, string>()
+  if (isShallowRepository(registryDir)) return addedAt
 
   let log: string
   try {
