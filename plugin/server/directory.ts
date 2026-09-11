@@ -73,20 +73,34 @@ export function buildPaseoInvocation(
   args: readonly string[],
   platform = process.platform,
   env = process.env
-): { executable: string; args: string[]; env: NodeJS.ProcessEnv } {
+): {
+  executable: string
+  args: string[]
+  env: NodeJS.ProcessEnv
+  windowsVerbatimArguments: boolean
+} {
   const childEnv = { ...env }
   // A plugin subprocess launched by the packaged Electron app inherits this.
   // Passing it back to the AppImage makes Electron treat "plugin" as a Node
   // entrypoint instead of dispatching the Paseo CLI.
   delete childEnv.ELECTRON_RUN_AS_NODE
   if (platform !== "win32") {
-    return { executable: "paseo", args: [...args], env: childEnv }
+    return {
+      executable: "paseo",
+      args: [...args],
+      env: childEnv,
+      windowsVerbatimArguments: false,
+    }
   }
   const tokens = ["paseo", ...args].map((value) => {
+    // Every token is passed as its own quoted argument, so it must not be
+    // able to close that quote: no literal `"`, and no backslash, since an
+    // odd trailing run of them escapes the closing quote for the argv parser
+    // downstream of cmd.exe and merges the next token into this one.
     if (
       value.includes(String.fromCharCode(0)) ||
       value.includes('"') ||
-      /[\r\n&|<>()^%!]/.test(value)
+      /[\\\r\n&|<>()^%!]/.test(value)
     ) {
       throw new Error(
         "Paseo CLI argument contains unsupported Windows shell characters"
@@ -94,18 +108,26 @@ export function buildPaseoInvocation(
     }
     return `"${value}"`
   })
+  // cmd.exe /s strips one outer pair of quotes, and only after that does it
+  // resolve the first token as a command. Without the extra pair the quoted
+  // name survives as `paseo" "plugin` and the shim is never found. The pair
+  // only reaches cmd.exe intact when the command string is passed verbatim,
+  // so the two travel together. This is the same shape Node itself builds
+  // for `shell: true` on Windows (lib/child_process.js, normalizeSpawnArguments).
   return {
-    executable: process.env.ComSpec || "cmd.exe",
-    args: ["/d", "/s", "/c", tokens.join(" ")],
+    executable: env.ComSpec || "cmd.exe",
+    args: ["/d", "/s", "/c", `"${tokens.join(" ")}"`],
     env: childEnv,
+    windowsVerbatimArguments: true,
   }
 }
 
-async function execPaseo(args: readonly string[], timeout: number) {
+export async function execPaseo(args: readonly string[], timeout: number) {
   const invocation = buildPaseoInvocation(args)
   return execFileAsync(invocation.executable, invocation.args, {
     timeout,
     env: invocation.env,
+    windowsVerbatimArguments: invocation.windowsVerbatimArguments,
   })
 }
 

@@ -180,8 +180,8 @@ type RuleGuidance = {
 const RULE_GUIDANCE: Record<string, RuleGuidance> = {
   "scanner/incomplete": {
     issue:
-      "The scanner could not inspect the complete plugin, so a clean result cannot be trusted.",
-    fix: "Keep the plugin within 200 files, 2 MB (2,000,000 bytes) total, 2 MB per file, and six directory levels. Resolve any accompanying scanner finding first.",
+      "The scanner could not inspect the complete executable plugin graph, so a clean result cannot be trusted.",
+    fix: "Keep the reachable runtime graph within 200 files, 2 MB (2,000,000 bytes) total, 2 MB per file, and six directory levels. Resolve any accompanying scanner finding first.",
   },
   "scanner/symlink": {
     issue:
@@ -189,8 +189,9 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
     fix: "Replace the symlink with a regular file or directory inside the plugin.",
   },
   "scanner/size-limit": {
-    issue: "The scanner skipped a file larger than its 2 MB inspection limit.",
-    fix: "Remove generated artifacts from the plugin or reduce the file below 2,000,000 bytes.",
+    issue:
+      "The scanner skipped a reachable runtime file larger than its 2 MB inspection limit.",
+    fix: "Reduce the reachable runtime file below 2,000,000 bytes.",
   },
   "scanner/scan-error": {
     issue:
