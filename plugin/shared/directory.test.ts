@@ -14,7 +14,6 @@ import {
   directoryReadmeAttachments,
   directorySecurityAttachments,
   directorySettings,
-  directorySortDateField,
   directoryUpdateStatusRpc,
   getDirectoryDateBadge,
   getInstallCommand,
@@ -246,14 +245,6 @@ describe("listing date badges", () => {
       getDirectoryDateBadge({ addedAt: "whenever" }, "added")
     ).toBeUndefined()
     expect(getDirectoryDateBadge({ repoMeta: {} }, "updated")).toBeUndefined()
-  })
-
-  it("labels the date each sort orders by, and no other", () => {
-    expect(directorySortDateField("recently-added")).toBe("added")
-    expect(directorySortDateField("recent")).toBe("updated")
-    expect(directorySortDateField("popular")).toBeUndefined()
-    expect(directorySortDateField("updates-first")).toBeUndefined()
-    expect(directorySortDateField("a-z")).toBeUndefined()
   })
 })
 

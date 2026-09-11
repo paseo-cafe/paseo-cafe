@@ -2,11 +2,7 @@ import type { PluginTheme } from "@getpaseo/plugin"
 import { Icon } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Image, Pressable, Text, View } from "react-native"
-import type {
-  DirectoryDateField,
-  DirectoryEntry,
-  InstalledPlugin,
-} from "../shared/directory"
+import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
@@ -23,11 +19,12 @@ interface PluginRowProps {
   compact: boolean
   installations: readonly InstalledPlugin[]
   /**
-   * The date this list is currently ordered by, if any. The row always shows
-   * when its source repository was last updated; ordering by listing date
-   * adds that date too, so the order can be read off the rows.
+   * Whether to show when the catalog listed this plugin. The row always shows
+   * when the source repository was last updated, so that date needs no flag;
+   * this one appears when the list is ordered by it, so the order can be read
+   * off the rows.
    */
-  dateField?: DirectoryDateField
+  showAddedDate?: boolean
   onPress: () => void
 }
 
@@ -84,7 +81,7 @@ export function PluginRow({
   theme,
   compact,
   installations,
-  dateField,
+  showAddedDate,
   onPress,
 }: PluginRowProps) {
   const styles = useMemo(
@@ -211,8 +208,9 @@ export function PluginRow({
 
   const starCount = entry.repoMeta?.stars
   const updatedBadge = getDirectoryDateBadge(entry, "updated")
-  const addedBadge =
-    dateField === "added" ? getDirectoryDateBadge(entry, "added") : undefined
+  const addedBadge = showAddedDate
+    ? getDirectoryDateBadge(entry, "added")
+    : undefined
   const healthBadge = getHealthBadge(entry)
   const versionLabel = formatDirectoryVersion(entry.version)
   const compatibilityLabel = entry.paseoVersionRequirement
