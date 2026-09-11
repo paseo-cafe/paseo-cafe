@@ -1,17 +1,4 @@
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-]
+import { formatCatalogDate } from "../../plugin/shared/catalog"
 
 function pad(n: number): string {
   return String(n).padStart(2, "0")
@@ -20,13 +7,14 @@ function pad(n: number): string {
 /**
  * `toLocaleDateString()`/`toLocaleString()` depend on the runtime's ICU data
  * and locale, which can (and did) differ between the Node SSR render and the
- * browser hydrating it, producing a React hydration mismatch. These format
- * dates by hand instead, using UTC fields, so the output is identical
- * everywhere regardless of server/browser locale or timezone.
+ * browser hydrating it, producing a React hydration mismatch. The shared
+ * formatter in plugin/shared/catalog.ts builds dates by hand from UTC fields
+ * instead, so the output is identical everywhere — and identical to the date
+ * the companion plugin renders for the same listing. An unparseable value is
+ * echoed back rather than rendered as "NaN NaN NaN".
  */
 export function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return `${pad(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+  return formatCatalogDate(iso) ?? iso
 }
 
 export function formatDateTime(iso: string): string {

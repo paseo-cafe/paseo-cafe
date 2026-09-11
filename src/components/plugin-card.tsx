@@ -15,8 +15,25 @@ import {
 } from "@/components/ui/card"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { formatPluginVersion, PLATFORM_LABELS } from "@/lib/registry-schema"
+import {
+  type CatalogDateField,
+  getCatalogDateBadge,
+} from "../../plugin/shared/catalog"
 
-export function PluginCard({ plugin }: { plugin: PluginRecord }) {
+/**
+ * `dateField` is the date the catalog is currently ordered by, if any (see
+ * sortDateField in src/lib/catalog-search.ts). The card shows that one date
+ * so a "Recently added" or "Recently updated" ordering can be read off the
+ * results instead of taken on trust.
+ */
+export function PluginCard({
+  plugin,
+  dateField,
+}: {
+  plugin: PluginRecord
+  dateField?: CatalogDateField
+}) {
+  const dateBadge = dateField && getCatalogDateBadge(plugin, dateField)
   const healthIsComplete =
     plugin.health.manifestValid &&
     plugin.health.hasReadme &&
@@ -76,6 +93,7 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
                 {plugin.owner.login}
               </span>
             ) : null}
+            {dateBadge ? <Badge variant="secondary">{dateBadge}</Badge> : null}
             <Badge
               variant={plugin.health.updatedRecently ? "secondary" : "outline"}
             >

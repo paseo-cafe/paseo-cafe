@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router"
 import { PluginGrid } from "@/components/plugin-grid"
 import { Button } from "@/components/ui/button"
 import type { CatalogSearch } from "@/lib/catalog-search"
-import { sortLabels } from "@/lib/catalog-search"
+import { sortDateField, sortLabels } from "@/lib/catalog-search"
 import type { PluginRecord } from "@/lib/plugin-schema"
 
 interface CatalogResultsProps {
@@ -50,7 +50,7 @@ export function CatalogResults({
           </p>
         </div>
       </div>
-      <PluginGrid plugins={plugins} />
+      <PluginGrid plugins={plugins} dateField={sortDateField(search.sort)} />
       <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
         <p className="text-foreground/50 text-sm" aria-live="polite">
           Showing {pageStart + 1}–{pageEnd} of {totalCount} · Page {page} of{" "}

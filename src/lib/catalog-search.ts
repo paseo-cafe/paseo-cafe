@@ -8,6 +8,7 @@ import {
 } from "@/lib/registry-schema"
 import {
   CATALOG_ADDED_AT_LABEL,
+  type CatalogDateField,
   compareCatalogAddedAt,
 } from "../../plugin/shared/catalog"
 
@@ -94,6 +95,16 @@ export const sortLabels: Record<SortValue, string> = {
 }
 
 export const sortOptions: SortValue[] = ["popular", "updated", "added", "az"]
+
+/**
+ * The date a listing should show while this sort is active — the value the
+ * ordering is actually based on. Sorts that don't order by a date show none.
+ */
+export function sortDateField(sort: SortValue): CatalogDateField | undefined {
+  if (sort === "added") return "added"
+  if (sort === "updated") return "updated"
+  return undefined
+}
 
 const collator = new Intl.Collator(undefined, {
   numeric: true,

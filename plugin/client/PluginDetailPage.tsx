@@ -16,6 +16,7 @@ import type {
 import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
+  formatDirectoryDate,
   formatDirectoryVersion,
   getInstallCommand,
   getInstallRef,
@@ -49,9 +50,9 @@ interface PluginDetailPageProps {
   onBack: () => void
 }
 
-/** "2026-09-08T01:09:51Z" -> "2026-09-08". No Intl formatting — good enough for a byline. */
+/** "2026-09-08T01:09:51Z" -> "08 Sep 2026", the same rendering the website uses. */
 function formatDate(iso: string | undefined): string | undefined {
-  return iso ? iso.slice(0, 10) : undefined
+  return iso ? formatDirectoryDate(iso) : undefined
 }
 
 function installationStateLabel(installation: InstalledPlugin): string {

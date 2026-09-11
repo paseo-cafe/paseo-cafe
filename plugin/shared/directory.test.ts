@@ -14,7 +14,9 @@ import {
   directoryReadmeAttachments,
   directorySecurityAttachments,
   directorySettings,
+  directorySortDateField,
   directoryUpdateStatusRpc,
+  getDirectoryDateBadge,
   getInstallCommand,
   getInstallRef,
   getRepositoryUrl,
@@ -209,6 +211,34 @@ describe("catalog URL transport policy", () => {
     expect(
       directoryUpdateStatusRpc.input.safeParse({ baseUrl: url }).success
     ).toBe(false)
+  })
+})
+
+describe("listing date badges", () => {
+  it("labels each date with the same wording and format as the website", () => {
+    const entry = {
+      addedAt: "2026-09-08T01:09:51Z",
+      repoMeta: { pushedAt: "2026-01-05T23:00:00Z" },
+    }
+
+    expect(getDirectoryDateBadge(entry, "added")).toBe("Added 08 Sep 2026")
+    expect(getDirectoryDateBadge(entry, "updated")).toBe("Updated 05 Jan 2026")
+  })
+
+  it("shows nothing for a missing or unusable date", () => {
+    expect(getDirectoryDateBadge({}, "added")).toBeUndefined()
+    expect(
+      getDirectoryDateBadge({ addedAt: "whenever" }, "added")
+    ).toBeUndefined()
+    expect(getDirectoryDateBadge({ repoMeta: {} }, "updated")).toBeUndefined()
+  })
+
+  it("labels the date each sort orders by, and no other", () => {
+    expect(directorySortDateField("recently-added")).toBe("added")
+    expect(directorySortDateField("recent")).toBe("updated")
+    expect(directorySortDateField("popular")).toBeUndefined()
+    expect(directorySortDateField("updates-first")).toBeUndefined()
+    expect(directorySortDateField("a-z")).toBeUndefined()
   })
 })
 

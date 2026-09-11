@@ -228,3 +228,55 @@ export function compareCatalogAddedAt(
 ): number {
   return getCatalogAddedAtTime(b) - getCatalogAddedAtTime(a)
 }
+
+/**
+ * Which date a listing is being ordered by. Both surfaces put the matching
+ * date on the row while that sort is active, so the ordering is legible
+ * instead of implied — "Recently added" without a date is just a list.
+ */
+export type CatalogDateField = "added" | "updated"
+
+export const CATALOG_DATE_LABELS: Record<CatalogDateField, string> = {
+  added: "Added",
+  updated: "Updated",
+}
+
+const CATALOG_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+]
+
+/**
+ * "2026-09-08T01:09:51Z" -> "08 Sep 2026". Built by hand from UTC fields
+ * rather than through Intl: the website renders this on the server and again
+ * in the browser, and a locale or ICU difference between the two is a React
+ * hydration mismatch. Undefined for anything unparseable, so a bad date shows
+ * nothing rather than "NaN".
+ */
+export function formatCatalogDate(iso: string): string | undefined {
+  const parsed = Date.parse(iso)
+  if (!Number.isFinite(parsed)) return undefined
+  const date = new Date(parsed)
+  const day = String(date.getUTCDate()).padStart(2, "0")
+  return `${day} ${CATALOG_MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`
+}
+
+/** "Added 08 Sep 2026" / "Updated 08 Sep 2026", or undefined when unknown. */
+export function getCatalogDateBadge(
+  entry: { addedAt?: string; repoMeta?: { pushedAt?: string } },
+  field: CatalogDateField
+): string | undefined {
+  const iso = field === "added" ? entry.addedAt : entry.repoMeta?.pushedAt
+  const formatted = iso ? formatCatalogDate(iso) : undefined
+  return formatted && `${CATALOG_DATE_LABELS[field]} ${formatted}`
+}

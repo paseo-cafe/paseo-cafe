@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   parseCatalogSearch,
+  sortDateField,
   sortLabels,
   sortOptions,
   sortPlugins,
@@ -86,5 +87,14 @@ describe("sortPlugins by listing date", () => {
     expect(sortOptions).toContain("added")
     expect(sortLabels.added).toBe("Recently added")
     expect(parseCatalogSearch({ sort: "added" }).sort).toBe("added")
+  })
+})
+
+describe("sortDateField", () => {
+  it("labels the date each sort orders by, and no other", () => {
+    expect(sortDateField("added")).toBe("added")
+    expect(sortDateField("updated")).toBe("updated")
+    expect(sortDateField("popular")).toBeUndefined()
+    expect(sortDateField("az")).toBeUndefined()
   })
 })

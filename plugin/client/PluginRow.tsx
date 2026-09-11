@@ -2,11 +2,16 @@ import type { PluginTheme } from "@getpaseo/plugin"
 import { Icon } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Image, Pressable, Text, View } from "react-native"
-import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
+import type {
+  DirectoryDateField,
+  DirectoryEntry,
+  InstalledPlugin,
+} from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
   formatDirectoryVersion,
+  getDirectoryDateBadge,
   HEALTH_KEYS,
   normalizeDirectoryCategory,
 } from "../shared/directory"
@@ -17,6 +22,12 @@ interface PluginRowProps {
   theme: PluginTheme
   compact: boolean
   installations: readonly InstalledPlugin[]
+  /**
+   * The date this list is currently ordered by, if any. The row always shows
+   * when its source repository was last updated; ordering by listing date
+   * adds that date too, so the order can be read off the rows.
+   */
+  dateField?: DirectoryDateField
   onPress: () => void
 }
 
@@ -73,6 +84,7 @@ export function PluginRow({
   theme,
   compact,
   installations,
+  dateField,
   onPress,
 }: PluginRowProps) {
   const styles = useMemo(
@@ -198,7 +210,9 @@ export function PluginRow({
         : undefined
 
   const starCount = entry.repoMeta?.stars
-  const updatedAt = entry.repoMeta?.pushedAt?.slice(0, 10)
+  const updatedBadge = getDirectoryDateBadge(entry, "updated")
+  const addedBadge =
+    dateField === "added" ? getDirectoryDateBadge(entry, "added") : undefined
   const healthBadge = getHealthBadge(entry)
   const versionLabel = formatDirectoryVersion(entry.version)
   const compatibilityLabel = entry.paseoVersionRequirement
@@ -249,11 +263,14 @@ export function PluginRow({
             </Text>
           </View>
         ) : null}
-        {updatedAt ? (
+        {addedBadge ? (
           <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText("muted")}>
-              Updated {updatedAt}
-            </Text>
+            <Text style={styles.metaBadgeText("muted")}>{addedBadge}</Text>
+          </View>
+        ) : null}
+        {updatedBadge ? (
+          <View style={styles.metaBadge}>
+            <Text style={styles.metaBadgeText("muted")}>{updatedBadge}</Text>
           </View>
         ) : null}
         <View style={styles.metaBadge}>
