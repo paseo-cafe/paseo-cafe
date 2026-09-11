@@ -1,14 +1,8 @@
 {
   "repo": "kschniedergers/paseo-plugins",
   "path": "video-embeds",
-  "categories": [
-    "productivity"
-  ],
-  "platforms": [
-    "macos",
-    "linux",
-    "windows"
-  ],
+  "categories": ["productivity"],
+  "platforms": ["macos", "linux", "windows"],
   "caveats": [
     "Playback is desktop/web only; iOS and Android show a placeholder card instead of a player",
     "Files over 30 MB are not embedded"
