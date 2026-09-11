@@ -48,6 +48,7 @@ import {
 } from "../src/lib/registry-schema.ts"
 import {
   BASE_PATH,
+  IS_CANONICAL_DEPLOYMENT,
   SITE_DESCRIPTION,
   SITE_NAME,
   SITE_URL,
@@ -480,10 +481,20 @@ export function writeSitemap(records: PluginRecord[]) {
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`
   writeFileSync(join(PUBLIC_DIR, "sitemap.xml"), xml)
-  writeFileSync(
-    join(PUBLIC_DIR, "robots.txt"),
-    `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
-  )
+  writeFileSync(join(PUBLIC_DIR, "robots.txt"), renderRobotsTxt())
+}
+
+/**
+ * Crawlers get the catalog and its sitemap from the canonical site, and
+ * nothing from a copy of it — see IS_CANONICAL_DEPLOYMENT in src/lib/site.ts.
+ * A fork's sitemap is still written, since it is useful for checking a
+ * deployment by hand.
+ */
+export function renderRobotsTxt(): string {
+  if (!IS_CANONICAL_DEPLOYMENT) {
+    return `User-agent: *\nDisallow: /\n`
+  }
+  return `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
 }
 
 async function main() {

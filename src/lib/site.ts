@@ -9,6 +9,9 @@ export const SITE_TAGLINE = "A directory of paseo.sh plugins"
 export const SITE_DESCRIPTION =
   "An independent, community-run directory of paseo.sh plugins, generated straight from each plugin's own GitHub repo."
 export const SITE_REPO = "paseo-cafe/paseo-cafe"
+
+/** The one deployment search engines should index. */
+export const CANONICAL_SITE_URL = "https://paseo.cafe"
 /**
  * Where this particular deployment lives, and the path it is served under.
  * Default to the canonical site; the deploy workflow overrides both from
@@ -24,8 +27,17 @@ export const SITE_REPO = "paseo-cafe/paseo-cafe"
  * import.meta.env onto process.env for the scanner scripts.
  */
 export const SITE_URL = (
-  import.meta.env.VITE_SITE_URL ?? "https://paseo.cafe"
+  import.meta.env.VITE_SITE_URL ?? CANONICAL_SITE_URL
 ).replace(/\/+$/, "")
+
+/**
+ * Whether this build is the canonical site. A fork's deployment is a copy of
+ * the same catalog on a different host, so it stays out of search indexes:
+ * indexed, it would compete with the site it copied, and the duplicate is
+ * worth nothing to a reader who found it. Anything else about a fork's build
+ * is identical.
+ */
+export const IS_CANONICAL_DEPLOYMENT = SITE_URL === CANONICAL_SITE_URL
 
 /** Normalized to "/" or "/segment/" — always both a leading and a trailing slash, so joins are unambiguous. */
 export const BASE_PATH = normalizeBasePath(import.meta.env.VITE_BASE_PATH)

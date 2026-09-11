@@ -11,7 +11,12 @@ import { SiteHeader } from "@/components/site-header"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
-import { asset, SITE_DESCRIPTION, SITE_NAME } from "@/lib/site"
+import {
+  asset,
+  IS_CANONICAL_DEPLOYMENT,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+} from "@/lib/site"
 import appCss from "../styles.css?url"
 
 export const Route = createRootRoute({
@@ -28,6 +33,12 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: SITE_NAME },
       { name: "description", content: SITE_DESCRIPTION },
+      // A non-canonical deployment is a copy of the canonical catalog, so it
+      // asks not to be indexed here as well as in robots.txt — a crawler that
+      // arrives at a deep link never reads robots.txt first.
+      ...(IS_CANONICAL_DEPLOYMENT
+        ? []
+        : [{ name: "robots", content: "noindex, nofollow" }]),
     ],
     links: [
       { rel: "stylesheet", href: appCss },
