@@ -1,3 +1,6 @@
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { delimiter, join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { InstalledPlugin } from "../shared/directory"
 import {
@@ -8,6 +11,7 @@ import {
 import {
   buildInstallArgs,
   buildPaseoInvocation,
+  execPaseo,
   inspectUpdateStatus,
   installDirectoryPlugin,
   listDirectory,
@@ -666,9 +670,39 @@ describe("Paseo CLI invocation", () => {
       "/d",
       "/s",
       "/c",
-      '"paseo" "plugin" "update" "review" "--json"',
+      '""paseo" "plugin" "update" "review" "--json""',
     ])
   })
+
+  it("runs the shim cmd.exe resolves, with the arguments intact", async () => {
+    // Asserting the argv is only half the contract: cmd.exe — not node —
+    // decides how the command string splits, so the pair has to run for real.
+    const binDir = await mkdtemp(join(tmpdir(), "paseo-cli-invocation-"))
+    const isWindows = process.platform === "win32"
+    const shim = join(binDir, isWindows ? "paseo.cmd" : "paseo")
+    // Report the arguments the way a real CLI process receives them, so the
+    // assertion covers node's parsing of what cmd.exe handed over instead of
+    // the raw command text.
+    const report = `console.log(JSON.stringify(process.argv.slice(1)))`
+    await writeFile(
+      shim,
+      isWindows
+        ? `@echo off\r\nnode -e "${report}" %*\r\n`
+        : `#!/bin/sh\nexec node -e '${report}' "$@"\n`,
+      "utf8"
+    )
+    if (!isWindows) await chmod(shim, 0o755)
+    const originalPath = process.env.PATH
+    process.env.PATH = `${binDir}${delimiter}${originalPath ?? ""}`
+    try {
+      const { stdout } = await execPaseo(["plugin", "ls", "--json"], 30_000)
+
+      expect(JSON.parse(stdout)).toEqual(["plugin", "ls", "--json"])
+    } finally {
+      process.env.PATH = originalPath
+      await rm(binDir, { recursive: true, force: true })
+    }
+  }, 30_000)
 
   it("rejects Windows command metacharacters", () => {
     expect(() =>

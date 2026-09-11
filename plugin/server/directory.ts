@@ -94,18 +94,25 @@ export function buildPaseoInvocation(
     }
     return `"${value}"`
   })
+  // cmd.exe /s strips one outer pair of quotes, and only after that does it
+  // resolve the first token as a command. Without the extra pair the quoted
+  // name survives as `paseo" "plugin` and the shim is never found.
   return {
     executable: process.env.ComSpec || "cmd.exe",
-    args: ["/d", "/s", "/c", tokens.join(" ")],
+    args: ["/d", "/s", "/c", `"${tokens.join(" ")}"`],
     env: childEnv,
   }
 }
 
-async function execPaseo(args: readonly string[], timeout: number) {
+export async function execPaseo(args: readonly string[], timeout: number) {
   const invocation = buildPaseoInvocation(args)
   return execFileAsync(invocation.executable, invocation.args, {
     timeout,
     env: invocation.env,
+    // Node re-escapes the quotes above as \" unless it hands the command
+    // string to cmd.exe verbatim, and cmd.exe has no \" escape: it looked for
+    // a command literally named \"paseo\".
+    windowsVerbatimArguments: process.platform === "win32",
   })
 }
 
