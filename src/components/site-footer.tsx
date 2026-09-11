@@ -27,7 +27,7 @@ export function SiteFooter() {
         <p>
           Join the official Paseo community on{" "}
           <a
-            href="https://discord.com/channels/1481169421832814616/1547511972830912593"
+            href="https://discord.gg/tnHH52NDMs"
             target="_blank"
             rel="noreferrer"
             className="underline underline-offset-3 hover:text-foreground"
