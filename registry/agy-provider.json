@@ -3,8 +3,8 @@
   "categories": ["provider"],
   "platforms": ["macos"],
   "caveats": [
-    "Requires Paseo 0.8.x and a separately installed official Antigravity ACP server.",
-    "Authenticate the official ACP server before use; Paseo 0.8 cannot start its login flow.",
+    "Requires Paseo 0.8.x and the official ACP server; the login action also needs Node.js 22.18+ on the daemon host.",
+    "Log in from the workspace Command Center; API-key authentication can instead use the official server settings.",
     "Official server 1.1.1 ignores Paseo system prompts; workflows relying on them are unsupported.",
     "Real-agent verification: macOS ARM64 only; see README for other official distributions.",
     "The current shim/server can display duplicate tool rows and split streamed text."
