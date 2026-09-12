@@ -24,7 +24,7 @@ export function PluginInstallSection({ plugin }: { plugin: PluginRecord }) {
               before it's ever written to data/plugins.json — never render
               raw third-party markdown here. */}
           <div
-            className="prose prose-sm dark:prose-invert max-w-none prose-pre:rounded-none prose-pre:bg-muted font-mono text-foreground/70"
+            className="prose prose-sm dark:prose-invert max-w-none prose-pre:rounded-none prose-pre:bg-muted font-mono prose-pre:text-foreground text-foreground/70"
             /* biome-ignore lint/security/noDangerouslySetInnerHtml: The scan pipeline sanitizes this HTML with rehype-sanitize. */
             dangerouslySetInnerHTML={{ __html: plugin.installNotesHtml }}
           />

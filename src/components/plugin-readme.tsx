@@ -7,7 +7,7 @@ export function PluginReadme({ html }: { html: string }) {
         README
       </p>
       <div
-        className="prose prose-sm dark:prose-invert max-w-none prose-pre:rounded-none prose-pre:bg-muted"
+        className="prose prose-sm dark:prose-invert max-w-none prose-pre:rounded-none prose-pre:bg-muted prose-pre:text-foreground"
         /* biome-ignore lint/security/noDangerouslySetInnerHtml: The scan pipeline sanitizes this HTML; legacy image tags and relative links are removed again here. */
         dangerouslySetInnerHTML={{
           __html: sanitizeReadmeHtmlForDisplay(html),

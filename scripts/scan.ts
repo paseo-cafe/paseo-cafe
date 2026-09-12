@@ -11,6 +11,9 @@
  * its record is written with `scanError` set and health flags at their
  * safest defaults, so the listing can surface it as "needs attention"
  * instead of the whole build breaking.
+ *
+ * `--limit N` caps how many entries a run scans (see parseLimitArg) — used
+ * by `bun run dev:light` so local dev doesn't wait on the whole registry.
  */
 import { execFileSync } from "node:child_process"
 import {
@@ -595,6 +598,49 @@ export function renderRobotsTxt(): string {
   return `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
 }
 
+/** True once both a plugin's data record and OG image are on disk from a previous scan. */
+function isFullyScanned(file: string): boolean {
+  const id = file.slice(0, -".json".length)
+  return (
+    existsSync(join(OUTPUT_DIR, `${id}.json`)) &&
+    existsSync(join(OG_DIR, `${id}.png`))
+  )
+}
+
+/**
+ * Loads a plugin's previously written data/plugins/<id>.json so it can be
+ * folded into the aggregate index without rescanning it — used when a run
+ * only covers part of the registry (see --limit).
+ */
+function readCachedRecord(id: string): PluginRecord | undefined {
+  const path = join(OUTPUT_DIR, `${id}.json`)
+  if (!existsSync(path)) return undefined
+  try {
+    return pluginRecordSchema.parse(JSON.parse(readFileSync(path, "utf8")))
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * `--limit N`: cap how many registry entries this run scans, for a fast
+ * local `bun run dev:light` on a registry with hundreds of entries. Combined
+ * with --if-missing, repeated light runs scan a fresh N entries each time
+ * (in filename order) until the whole registry is warm, without ever paying
+ * for a full scan up front. The aggregate index/sitemap only ever list
+ * entries that have actually been scanned at least once.
+ */
+function parseLimitArg(): number | undefined {
+  const flagIndex = process.argv.indexOf("--limit")
+  if (flagIndex === -1) return undefined
+  const raw = process.argv[flagIndex + 1]
+  const value = raw ? Number(raw) : Number.NaN
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error("--limit requires a positive integer, e.g. --limit 20")
+  }
+  return value
+}
+
 async function main() {
   if (process.argv.includes("--deployment-files-only")) {
     const records = pluginRecordSchema
@@ -605,24 +651,33 @@ async function main() {
     return
   }
 
-  const files = readdirSync(REGISTRY_DIR).filter((file) =>
-    file.endsWith(".json")
-  )
-  const outputExists =
+  const files = readdirSync(REGISTRY_DIR)
+    .filter((file) => file.endsWith(".json"))
+    .sort()
+  const useIfMissing = process.argv.includes("--if-missing")
+  const limit = parseLimitArg()
+
+  let filesToScan = useIfMissing
+    ? files.filter((file) => !isFullyScanned(file))
+    : files
+  if (limit !== undefined) filesToScan = filesToScan.slice(0, limit)
+
+  const staticFilesReady =
     existsSync(INDEX_PATH) &&
     existsSync(join(PUBLIC_DIR, "sitemap.xml")) &&
     existsSync(join(PUBLIC_DIR, "robots.txt")) &&
     existsSync(join(PUBLIC_DIR, "plugins", "index.html")) &&
-    existsSync(join(OG_DIR, "default.png")) &&
-    files.every((file) => {
-      const id = file.slice(0, -".json".length)
-      return (
-        existsSync(join(OUTPUT_DIR, `${id}.json`)) &&
-        existsSync(join(OG_DIR, `${id}.png`))
-      )
-    })
+    existsSync(join(OG_DIR, "default.png"))
 
-  if (process.argv.includes("--if-missing") && outputExists) return
+  if (
+    useIfMissing &&
+    limit === undefined &&
+    filesToScan.length === 0 &&
+    staticFilesReady
+  ) {
+    return
+  }
+
   mkdirSync(OUTPUT_DIR, { recursive: true })
   mkdirSync(OG_DIR, { recursive: true })
 
@@ -635,8 +690,8 @@ async function main() {
   }
   const offline = process.argv.includes("--offline")
 
-  const records: PluginRecord[] = []
-  for (const file of files) {
+  const scanned = new Map<string, PluginRecord>()
+  for (const file of filesToScan) {
     console.log(`Scanning ${file}...`)
     const record = await scanOne(
       file,
@@ -646,7 +701,7 @@ async function main() {
       offline
     )
     if (record.scanError) console.warn(`  ! ${record.scanError}`)
-    records.push(record)
+    scanned.set(record.id, record)
     writeFileSync(
       join(OUTPUT_DIR, `${record.id}.json`),
       `${JSON.stringify(record, null, 2)}\n`
@@ -662,6 +717,15 @@ async function main() {
     })
   }
 
+  // The aggregate index covers everything scanned in this run plus anything
+  // already cached from a prior run; a registry entry that's never been
+  // scanned yet is simply left out (that's the point of --limit).
+  const records = files
+    .map((file) => {
+      const id = file.slice(0, -".json".length)
+      return scanned.get(id) ?? readCachedRecord(id)
+    })
+    .filter((record): record is PluginRecord => record !== undefined)
   records.sort((a, b) => a.name.localeCompare(b.name))
   writeFileSync(INDEX_PATH, `${JSON.stringify(records, null, 2)}\n`)
 
@@ -673,11 +737,15 @@ async function main() {
   writePluginsRedirect()
 
   const ok = records.filter((r) => !r.scanError).length
+  const coverage =
+    records.length < files.length
+      ? ` (${files.length - records.length} of ${files.length} registry entries not yet scanned — run \`bun run registry:scan\` for the full catalog)`
+      : ""
   console.log(
-    `\nWrote ${records.length} record(s) (${ok} clean, ${records.length - ok} with warnings) to data/plugins.json`
+    `\nWrote ${records.length} record(s) (${ok} clean, ${records.length - ok} with warnings) to data/plugins.json${coverage}`
   )
   console.log(
-    `Wrote ${records.length + 1} OG image(s), sitemap.xml, robots.txt, and plugins/index.html to public/`
+    `Wrote ${scanned.size} OG image(s) this run, plus sitemap.xml, robots.txt, and plugins/index.html to public/`
   )
 }
 

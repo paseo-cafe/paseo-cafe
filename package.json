@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run registry:ensure && vite dev --port 3000",
+    "dev:light": "bun run scripts/scan.ts --if-missing --limit 20 && vite dev --port 3000",
     "build": "bun run registry:ensure && bun run build:generated",
     "preview": "vite preview",
     "test": "bun run registry:ensure && vitest run",
