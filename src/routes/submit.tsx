@@ -80,6 +80,7 @@ const FIELDS: { field: string; required: boolean; description: string }[] = [
 const REQUIRED_CHECKS = [
   "Your repo is public on GitHub.",
   "Its paseo-plugin.json id matches the registry filename.",
+  "Its package.json has a released semantic version, not 0.0.0, and you will increment it for each plugin update.",
 ]
 
 const RECOMMENDED = [
@@ -93,7 +94,8 @@ const RECOMMENDED = [
 ]
 
 const AUTO_GENERATED = [
-  "Name from the validated plugin ID; description, version, author, and license from package.json, paseo-plugin.json, and the README.",
+  "Name from the validated plugin ID; description, author, and license from package.json, paseo-plugin.json, and the README. package.json.version is the update identity used by the companion catalog.",
+
   "The exact install command (paseo plugin add ...), derived from repo + path.",
   "Screenshots, from an images/ folder in your repo.",
   "Demo videos, detected in your README (YouTube, Loom, or an uploaded GitHub video).",

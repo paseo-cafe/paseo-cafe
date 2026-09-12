@@ -10,6 +10,12 @@ on the daemon host behind a confirmation step. A **Paseo plugin** composer attac
 lets you attach a plugin's full listing to a prompt when you want an agent to review it before
 you trust it.
 
+Update availability is based on each plugin directory's `package.json` semver. An unrelated
+monorepo commit therefore does not mark every plugin as outdated. A missing or invalid installed
+or catalog version leaves update status unavailable rather than guessing. Until Paseo supports
+explicit-ref updates, applying an update still installs the tracked branch's current HEAD, which
+may be newer than the commit scanned by the catalog.
+
 ## Screenshots
 
 ### Browse and filter the catalog
@@ -43,6 +49,8 @@ daemon host.
 - Plugins listed here are community-submitted and are not vetted by paseo.cafe. They are
   trusted, unsandboxed code on your daemon host: read the source before installing.
 - Installing shells out to the `paseo` CLI, so that binary must be on the daemon's `PATH`.
+- Git installs and updates of this companion plugin run `npm ci --omit=dev` so its server-side
+  semver dependency is available in the managed checkout.
 - The composer attachment source always searches the default catalog. Paseo calls an
   attachment search with the query alone, and a plugin's server handler cannot read its own
   settings, so a custom Catalog URL applies to the sidebar surface only.

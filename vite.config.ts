@@ -11,7 +11,15 @@ const machineRoutes = plugins.flatMap((plugin) => [
   `/plugins/${plugin.id}.md`,
 ])
 
+// configure-pages reports "/" or "/<repo>"; Vite wants a trailing slash.
+const RAW_BASE = process.env.VITE_BASE_PATH || "/"
+const BASE = RAW_BASE.endsWith("/") ? RAW_BASE : `${RAW_BASE}/`
+
 const config = defineConfig({
+  // Where the site is served from: "/" for the canonical custom domain, and
+  // "/<repo>/" for a fork's GitHub Pages project site. The deploy workflow
+  // fills this in from actions/configure-pages; see src/lib/site.ts.
+  base: BASE,
   resolve: { tsconfigPaths: true },
   plugins: [
     devtools(),
@@ -26,15 +34,18 @@ const config = defineConfig({
       prerender: {
         crawlLinks: true,
         failOnError: true,
-        ignore: ["/404.html"],
+        ignore: [
+          "/404.html",
+          ...(BASE === "/" ? [] : [(path: string) => path === "/"]),
+        ],
         routes: [
-          "/",
-          "/submit",
-          "/api/plugins",
-          "/llms.txt",
-          "/llms-full.txt",
-          "/openapi.json",
-          ...machineRoutes,
+          BASE,
+          `${BASE}submit`,
+          `${BASE}api/plugins`,
+          `${BASE}llms.txt`,
+          `${BASE}llms-full.txt`,
+          `${BASE}openapi.json`,
+          ...machineRoutes.map((route) => `${BASE}${route.replace(/^\//, "")}`),
         ],
       },
     }),

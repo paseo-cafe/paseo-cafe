@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { PluginSecurity } from "../src/lib/plugin-schema"
 import {
   loadPublishedSecurityCatalog,
+  renderPluginsRedirect,
+  renderRobotsTxt,
   scanOne,
   securityForRevision,
 } from "./scan"
@@ -175,7 +177,10 @@ function exampleRegistry(): string {
   return registryRoot
 }
 
-function mockRepository(commitResponse: Response): void {
+function mockRepository(
+  commitResponse: Response,
+  packageVersion: unknown
+): void {
   globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url === "https://api.github.com/repos/acme/widgets") {
@@ -246,7 +251,7 @@ function mockRepository(commitResponse: Response): void {
     if (url.endsWith("/plugin/package.json")) {
       return Response.json({
         description: "Package description",
-        version: "1.2.3",
+        version: packageVersion,
         scripts: { test: "vitest" },
       })
     }
@@ -259,10 +264,70 @@ function mockRepository(commitResponse: Response): void {
   }) as typeof fetch
 }
 
+describe("renderPluginsRedirect", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it("keeps a fork redirect inside its project base path", async () => {
+    vi.stubEnv("VITE_SITE_URL", "https://someone.github.io/paseo-cafe")
+    vi.stubEnv("VITE_BASE_PATH", "/paseo-cafe")
+    vi.resetModules()
+    const scan = await import("./scan")
+
+    const html = scan.renderPluginsRedirect()
+
+    expect(html).toContain('content="0; url=/paseo-cafe/"')
+    expect(html).toContain(
+      'rel="canonical" href="https://someone.github.io/paseo-cafe/"'
+    )
+    expect(html).toContain('<a href="/paseo-cafe/">')
+  })
+
+  it("exports the canonical redirect renderer", () => {
+    expect(renderPluginsRedirect()).toContain('content="0; url=/"')
+  })
+})
+
+describe("renderRobotsTxt", () => {
+  // The deployment identity is read once when the module loads, so each case
+  // sets the environment the build would have and imports a fresh copy.
+  async function robotsFor(siteUrl: string): Promise<string> {
+    vi.stubEnv("VITE_SITE_URL", siteUrl)
+    vi.resetModules()
+    const scan = await import("./scan")
+    return scan.renderRobotsTxt()
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it("invites crawlers to the canonical site and points them at its sitemap", async () => {
+    const robots = await robotsFor("https://paseo.cafe")
+
+    expect(robots).toContain("Allow: /")
+    expect(robots).toContain("Sitemap: https://paseo.cafe/sitemap.xml")
+  })
+
+  it("keeps a copy of the catalog out of search results", async () => {
+    const robots = await robotsFor("https://someone.github.io/paseo-cafe")
+
+    expect(robots).toBe("User-agent: *\nDisallow: /\n")
+    expect(robots).not.toContain("Sitemap")
+  })
+
+  it("exports the same rule the scanner writes", () => {
+    expect(renderRobotsTxt()).toContain("User-agent: *")
+  })
+})
+
 describe("scanOne", () => {
   it("keeps branch metadata without attaching security when commit resolution fails", async () => {
     const registryRoot = exampleRegistry()
-    mockRepository(new Response("temporary outage", { status: 503 }))
+    mockRepository(new Response("temporary outage", { status: 503 }), "1.2.3")
 
     const record = await scanOne(
       "example.json",
@@ -279,6 +344,7 @@ describe("scanOne", () => {
     )
 
     expect(record.description).toBe("Package description")
+    expect(record.version).toBe("1.2.3")
     expect(record.health).toMatchObject({
       manifestValid: true,
       hasReadme: true,
@@ -295,6 +361,34 @@ describe("scanOne", () => {
     expect(record.scanError).toContain("default branch commit unavailable")
     expect(record.scanError).not.toContain("temporary outage")
   })
+
+  it.each([undefined, "not-semver"])(
+    "omits a missing or invalid package version (%s)",
+    async (packageVersion) => {
+      const registryRoot = exampleRegistry()
+      mockRepository(Response.json({ sha: REVISION }), packageVersion)
+
+      const record = await scanOne("example.json", {}, registryRoot)
+
+      expect(record.version).toBeUndefined()
+      expect(record.scanError).toBeUndefined()
+    }
+  )
+
+  it.each(["0.0.0", "v0.0.0", "0.0.0+build.1"])(
+    "flags a normalized placeholder package version (%s)",
+    async (packageVersion) => {
+      const registryRoot = exampleRegistry()
+      mockRepository(Response.json({ sha: REVISION }), packageVersion)
+
+      const record = await scanOne("example.json", {}, registryRoot)
+
+      expect(record.version).toBe("0.0.0")
+      expect(record.scanError).toBe(
+        'package.json version "0.0.0" is a placeholder; publish a real release version'
+      )
+    }
+  )
 
   it("publishes a generic scan error without upstream response details", async () => {
     const registryRoot = exampleRegistry()
@@ -314,7 +408,7 @@ describe("scanOne", () => {
 
   it("uses the default branch for human links and the commit for attestations and raw assets", async () => {
     const registryRoot = exampleRegistry()
-    mockRepository(Response.json({ sha: REVISION }))
+    mockRepository(Response.json({ sha: REVISION }), "1.2.3")
 
     const security: PluginSecurity = {
       status: "passed",
