@@ -1,0 +1,9 @@
+{
+  "repo": "alhassanaraouf/paseo-acp-manager",
+  "categories": ["provider", "productivity"],
+  "caveats": [
+    "Reload Paseo runs the `paseo` CLI on the daemon host, so `paseo` must be on its PATH",
+    "Quick add reads the public ACP agent registry, which requires outbound network access from the daemon host"
+  ],
+  "submittedBy": "alhassanaraouf"
+}

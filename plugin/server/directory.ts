@@ -1,9 +1,15 @@
 import { execFile } from "node:child_process"
 import { createHash } from "node:crypto"
+import { readFile } from "node:fs/promises"
+import { join } from "node:path"
 import { promisify } from "node:util"
 import type { RpcInput, RpcOutput } from "@getpaseo/plugin"
+import * as semver from "semver"
 import { z } from "zod"
-import { getCatalogInstallArgs } from "../shared/catalog"
+import {
+  CATALOG_VERSION_MAX_LENGTH,
+  getCatalogInstallArgs,
+} from "../shared/catalog"
 import type {
   DirectoryEntry,
   directoryInstallRpc,
@@ -154,9 +160,18 @@ async function execGit(
 }
 
 type GitRunner = typeof execGit
+interface CatalogUpdateTarget {
+  ref?: string
+  version?: string
+}
 
+/**
+ * Retains the Git safety checks for tracked sources, but only reports an
+ * available update when the catalog package version is valid and greater.
+ */
 export async function inspectUpdateStatus(
   installation: InstalledPlugin,
+  entry: CatalogUpdateTarget,
   runGit: GitRunner = execGit
 ): Promise<InstalledPlugin> {
   if (
@@ -191,6 +206,10 @@ export async function inspectUpdateStatus(
     }
     if (tracked.exitCode !== 0)
       throw new Error("Could not inspect tracked branch")
+    if (!entry.ref || installation.ref !== entry.ref) {
+      return { ...installation, updateState: "unknown" }
+    }
+
     const fetched = await runGit(
       installation.path,
       ["fetch", "--prune", "--tags", "origin"],
@@ -206,19 +225,39 @@ export async function inspectUpdateStatus(
     if (latest.exitCode !== 0 || !/^[0-9a-f]{40,64}$/i.test(latestCommit)) {
       throw new Error("Could not resolve tracked branch")
     }
+
+    const installedVersion = semver.valid(installation.version ?? "")
+    const latestVersion = semver.valid(entry.version ?? "")
     if (latestCommit === installation.commit) {
-      return { ...installation, latestCommit, updateState: "current" }
+      return {
+        ...installation,
+        version: installedVersion ?? installation.version,
+        latestCommit,
+        updateState: installedVersion && latestVersion ? "current" : "unknown",
+      }
     }
+
     const ancestor = await runGit(installation.path, [
       "merge-base",
       "--is-ancestor",
       installation.commit,
       latestCommit,
     ])
+    if (ancestor.exitCode !== 0) {
+      return { ...installation, latestCommit, updateState: "diverged" }
+    }
+    // Legacy installs and custom catalogs may not carry a valid version. Keep
+    // them usable, but never infer an update from a repository commit alone.
+    if (!installedVersion || !latestVersion) {
+      return { ...installation, latestCommit, updateState: "unknown" }
+    }
     return {
       ...installation,
+      version: installedVersion,
       latestCommit,
-      updateState: ancestor.exitCode === 0 ? "available" : "diverged",
+      updateState: semver.gt(latestVersion, installedVersion)
+        ? "available"
+        : "current",
     }
   } catch (error) {
     return {
@@ -230,22 +269,23 @@ export async function inspectUpdateStatus(
 }
 
 async function cachedUpdateStatus(
-  installation: InstalledPlugin
+  installation: InstalledPlugin,
+  entry: CatalogUpdateTarget
 ): Promise<InstalledPlugin> {
-  const key = `${installation.path}\u0000${installation.ref ?? ""}\u0000${installation.commit ?? ""}`
+  const key = `${installation.path}\u0000${installation.ref ?? ""}\u0000${installation.commit ?? ""}\u0000${installation.version ?? ""}\u0000${entry.ref ?? ""}\u0000${entry.version ?? ""}`
   const now = Date.now()
   const cached = updateStatusCache.get(key)
   if (cached && cached.expiresAt > now) return cached.value
   if (updateStatusCache.size >= 500) {
-    for (const [cachedKey, entry] of updateStatusCache) {
-      if (entry.expiresAt <= now) updateStatusCache.delete(cachedKey)
+    for (const [cachedKey, cachedEntry] of updateStatusCache) {
+      if (cachedEntry.expiresAt <= now) updateStatusCache.delete(cachedKey)
     }
     if (updateStatusCache.size >= 500) {
       const oldestKey = updateStatusCache.keys().next().value
       if (oldestKey !== undefined) updateStatusCache.delete(oldestKey)
     }
   }
-  const value = inspectUpdateStatus(installation)
+  const value = inspectUpdateStatus(installation, entry)
   updateStatusCache.set(key, { expiresAt: now + UPDATE_STATUS_TTL_MS, value })
   return value
 }
@@ -273,17 +313,27 @@ async function addUpdateStatus(
   plugins: readonly DirectoryEntry[],
   installations: readonly InstalledPlugin[]
 ): Promise<InstalledPlugin[]> {
-  const matched = new Map<string, InstalledPlugin>()
+  const matched = new Map<
+    string,
+    { installation: InstalledPlugin; entry: CatalogUpdateTarget }
+  >()
   for (const entry of plugins) {
     for (const installation of findInstallations(entry, installations)) {
-      if (installation.source === "git")
-        matched.set(installation.id, installation)
+      if (installation.source === "git") {
+        matched.set(installation.id, {
+          installation,
+          entry: {
+            ref: entry.repoMeta?.defaultBranch,
+            version: entry.version,
+          },
+        })
+      }
     }
   }
   const checked = await mapWithConcurrency(
     [...matched.values()],
     UPDATE_CHECK_CONCURRENCY,
-    cachedUpdateStatus
+    ({ installation, entry }) => cachedUpdateStatus(installation, entry)
   )
   const byId = new Map(
     checked.map((installation) => [installation.id, installation])
@@ -315,9 +365,35 @@ function commandFailureMessage(error: unknown): string {
     : message
 }
 
+export async function readInstalledPluginVersion(
+  directory: string
+): Promise<string | undefined> {
+  try {
+    const contents = JSON.parse(
+      await readFile(join(directory, "package.json"), "utf8")
+    ) as { version?: unknown }
+    if (typeof contents.version !== "string") return undefined
+    const version = semver.valid(contents.version) ?? undefined
+    return version && version.length <= CATALOG_VERSION_MAX_LENGTH
+      ? version
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
 async function listInstalledPlugins() {
   const { stdout } = await execPaseo(["plugin", "ls", "--json"], 30_000)
-  return z.array(installedPluginSchema).max(500).parse(JSON.parse(stdout))
+  const installations = z
+    .array(installedPluginSchema)
+    .max(500)
+    .parse(JSON.parse(stdout))
+  return Promise.all(
+    installations.map(async (installation) => {
+      const version = await readInstalledPluginVersion(installation.path)
+      return version === undefined ? installation : { ...installation, version }
+    })
+  )
 }
 
 // Keyed by resolved URL so switching the directorySettings override (e.g. to
@@ -829,7 +905,10 @@ export async function updateDirectoryPlugin(
         message: `Installed plugin ${pluginId} does not match ${entry.repo}${entry.path ? `/${entry.path}` : ""}.`,
       }
     }
-    const checked = await inspectUpdateStatus(target)
+    const checked = await inspectUpdateStatus(target, {
+      ref: entry.ref,
+      version: entry.version,
+    })
     if (checked.updateState !== "available") {
       return {
         ok: false,

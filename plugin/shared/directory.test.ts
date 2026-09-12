@@ -34,6 +34,7 @@ const validEntry = {
   url: "https://github.com/owner/repo",
   name: "Plugin",
   description: "",
+  version: "1.2.3",
   categories: [],
   health: {},
   images: [],
@@ -121,6 +122,15 @@ describe("plugin install targets", () => {
       directoryEntrySchema.safeParse({ ...validEntry, repo: "paseo-cafe" })
         .success
     ).toBe(false)
+  })
+})
+
+describe("catalog version metadata", () => {
+  it("preserves versions while accepting legacy entries without one", () => {
+    expect(directoryEntrySchema.parse(validEntry).version).toBe("1.2.3")
+    expect(
+      directoryEntrySchema.parse({ ...validEntry, version: undefined }).version
+    ).toBeUndefined()
   })
 })
 

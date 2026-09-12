@@ -94,6 +94,20 @@ jobs:
       - name: Build
         run: bun run build:generated
 
+      # Everything above builds the canonical site: served from the root, at
+      # its own domain. A fork's Pages site is neither, and the difference is
+      # invisible here unless it is built — every regression in it so far was
+      # found by a fork's deploy failing, not by CI. Building once more under
+      # a base path catches a hardcoded "/" or "https://paseo.cafe" at the
+      # pull request that adds it. build:generated ends in
+      # scripts/verify-pages-entrypoint.ts, so this asserts a rendered
+      # catalog, not just an exit code.
+      - name: Build for a fork's base path
+        run: bun run build:generated
+        env:
+          VITE_SITE_URL: https://example.github.io/paseo-cafe
+          VITE_BASE_PATH: /paseo-cafe
+
   plugin:
     name: Plugin (${{ matrix.os }})
     needs: changes

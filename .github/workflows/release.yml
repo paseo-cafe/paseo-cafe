@@ -10,6 +10,11 @@ jobs:
   release:
     name: Release plugin
     runs-on: ubuntu-latest
+    # Only this repository publishes the plugin. On a fork every push to main
+    # starts a release-please run that fails on permissions — or, worse,
+    # half-succeeds and leaves a release branch behind — for a release nobody
+    # is going to cut.
+    if: github.repository == 'paseo-cafe/paseo-cafe'
     timeout-minutes: 10
     permissions:
       contents: write
