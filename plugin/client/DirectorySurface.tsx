@@ -663,7 +663,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       setUpdateFailure(null)
       return updatePlugin({
         pluginId: installation.id,
-        entry: { id: entry.id, repo: entry.repo, path: entry.path },
+        entry: {
+          id: entry.id,
+          repo: entry.repo,
+          path: entry.path,
+          version: entry.version,
+        },
       }) as Promise<UpdateResult>
     },
     onSuccess: async (

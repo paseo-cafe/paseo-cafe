@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -16,6 +16,7 @@ import {
   installDirectoryPlugin,
   listDirectory,
   mapWithConcurrency,
+  readInstalledPluginVersion,
   remoteBranchMatchesCommit,
   searchDirectory,
   searchDirectoryManifests,
@@ -57,6 +58,7 @@ function gitInstallation(
     remote: "https://github.com/acme/plugins.git",
     ref: "main",
     commit: CURRENT,
+    version: "1.2.3",
     updateState: "unknown",
     ...overrides,
   }
@@ -556,6 +558,41 @@ describe("catalog installation matching", () => {
   })
 })
 
+describe("installed package version", () => {
+  it("reads valid semver from root and monorepo plugin paths", async () => {
+    const root = await mkdtemp(join(tmpdir(), "paseo-cafe-versions-"))
+    const nested = join(root, "plugins", "review")
+    await mkdir(nested, { recursive: true })
+    try {
+      await writeFile(join(root, "package.json"), '{"version":"1.2.3"}')
+      await writeFile(
+        join(nested, "package.json"),
+        '{"version":"2.0.0-beta.1"}'
+      )
+
+      await expect(readInstalledPluginVersion(root)).resolves.toBe("1.2.3")
+      await expect(readInstalledPluginVersion(nested)).resolves.toBe(
+        "2.0.0-beta.1"
+      )
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("omits missing and invalid package versions", async () => {
+    const root = await mkdtemp(join(tmpdir(), "paseo-cafe-versions-"))
+    try {
+      await writeFile(join(root, "package.json"), '{"version":"not-semver"}')
+      await expect(readInstalledPluginVersion(root)).resolves.toBeUndefined()
+      await expect(
+        readInstalledPluginVersion(join(root, "missing"))
+      ).resolves.toBeUndefined()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
 describe("update status classification", () => {
   it("keeps tags and commits pinned when no tracked branch existed at install", async () => {
     const runGit = vi
@@ -565,6 +602,7 @@ describe("update status classification", () => {
 
     const result = await inspectUpdateStatus(
       gitInstallation({ ref: "v1.0.0" }),
+      { version: "1.3.0" },
       runGit
     )
 
@@ -578,26 +616,17 @@ describe("update status classification", () => {
       .mockResolvedValueOnce({ stdout: "", exitCode: 1 })
       .mockResolvedValueOnce({ stdout: "", exitCode: 1 })
 
-    const result = await inspectUpdateStatus(gitInstallation(), runGit)
+    const result = await inspectUpdateStatus(
+      gitInstallation(),
+      { version: "1.3.0" },
+      runGit
+    )
 
     expect(result.updateState).toBe("unknown")
     expect(result.updateError).toContain("Tracked branch is unavailable")
   })
 
-  it("reports current only after fetching and resolving the tracked branch", async () => {
-    const runGit = vi
-      .fn()
-      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
-      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
-      .mockResolvedValueOnce({ stdout: `${CURRENT}\n`, exitCode: 0 })
-
-    const result = await inspectUpdateStatus(gitInstallation(), runGit)
-
-    expect(result.updateState).toBe("current")
-    expect(result.latestCommit).toBe(CURRENT)
-  })
-
-  it("offers an update only when the installed commit is an ancestor", async () => {
+  it("ignores a monorepo HEAD change when the target plugin version is unchanged", async () => {
     const runGit = vi
       .fn()
       .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
@@ -605,13 +634,76 @@ describe("update status classification", () => {
       .mockResolvedValueOnce({ stdout: `${LATEST}\n`, exitCode: 0 })
       .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
 
-    const result = await inspectUpdateStatus(gitInstallation(), runGit)
+    const result = await inspectUpdateStatus(
+      gitInstallation({ version: "1.2.3" }),
+      { version: "1.2.3" },
+      runGit
+    )
 
-    expect(result.updateState).toBe("available")
+    expect(result.updateState).toBe("current")
     expect(result.latestCommit).toBe(LATEST)
+    expect(runGit).toHaveBeenCalledTimes(4)
   })
 
-  it("does not offer an update for a diverged source", async () => {
+  it("offers an update when the target plugin package version advances", async () => {
+    const runGit = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: `${LATEST}\n`, exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+
+    const result = await inspectUpdateStatus(
+      gitInstallation({ version: "1.2.3" }),
+      { version: "1.3.0" },
+      runGit
+    )
+
+    expect(result.updateState).toBe("available")
+  })
+
+  it("uses full semver precedence for prereleases", async () => {
+    const runGit = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: `${LATEST}\n`, exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+
+    const result = await inspectUpdateStatus(
+      gitInstallation({ version: "2.0.0-beta.1" }),
+      { version: "2.0.0" },
+      runGit
+    )
+
+    expect(result.updateState).toBe("available")
+  })
+
+  it("does not offer updates when either package version is missing or invalid", async () => {
+    for (const [installedVersion, catalogVersion] of [
+      [undefined, "1.3.0"],
+      ["not-semver", "1.3.0"],
+      ["1.2.3", undefined],
+      ["1.2.3", "not-semver"],
+    ] as const) {
+      const runGit = vi
+        .fn()
+        .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+        .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+        .mockResolvedValueOnce({ stdout: `${LATEST}\n`, exitCode: 0 })
+        .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+      const result = await inspectUpdateStatus(
+        gitInstallation({ version: installedVersion }),
+        { version: catalogVersion },
+        runGit
+      )
+
+      expect(result.updateState).toBe("unknown")
+      expect(result.updateError).toBeUndefined()
+    }
+  })
+
+  it("preserves divergence even when the package version is unchanged", async () => {
     const runGit = vi
       .fn()
       .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
@@ -619,15 +711,40 @@ describe("update status classification", () => {
       .mockResolvedValueOnce({ stdout: `${LATEST}\n`, exitCode: 0 })
       .mockResolvedValueOnce({ stdout: "", exitCode: 1 })
 
-    const result = await inspectUpdateStatus(gitInstallation(), runGit)
+    const result = await inspectUpdateStatus(
+      gitInstallation(),
+      { version: "1.2.3" },
+      runGit
+    )
 
     expect(result.updateState).toBe("diverged")
   })
 
+  it("does not report an error when a newer catalog version points at the installed commit", async () => {
+    const runGit = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: `${CURRENT}\n`, exitCode: 0 })
+
+    const result = await inspectUpdateStatus(
+      gitInstallation(),
+      { version: "1.3.0" },
+      runGit
+    )
+
+    expect(result.updateState).toBe("current")
+    expect(result.updateError).toBeUndefined()
+  })
+
   it("preserves an explicit unknown state when the remote check fails", async () => {
-    const result = await inspectUpdateStatus(gitInstallation(), async () => {
-      throw new Error("offline")
-    })
+    const result = await inspectUpdateStatus(
+      gitInstallation(),
+      { version: "1.3.0" },
+      async () => {
+        throw new Error("offline")
+      }
+    )
 
     expect(result.updateState).toBe("unknown")
     expect(result.updateError).toContain("offline")

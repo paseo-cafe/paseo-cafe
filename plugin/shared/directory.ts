@@ -11,6 +11,7 @@ import {
   CATALOG_HEALTH_KEYS,
   CATALOG_HEALTH_LABELS,
   CATALOG_PLATFORM_LABELS,
+  CATALOG_VERSION_MAX_LENGTH,
   type CatalogCategory,
   type CatalogHealthCheck,
   getCatalogInstallCommand,
@@ -374,6 +375,9 @@ export const directoryEntrySchema = z.object({
   url: httpUrlSchema,
   name: z.string().max(200),
   description: z.string().max(4_000).default(""),
+  // Normalized package.json semver from the catalog scanner. Optional so an
+  // older catalog or a plugin without a valid version still remains browsable.
+  version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
   author: z.string().max(200).optional(),
   categories: z.array(z.string().max(100)).max(32).default([]),
   platforms: z.array(z.string().max(100)).max(32).default([]),
@@ -468,6 +472,7 @@ export const installedPluginSchema = z.object({
   remote: z.string().optional(),
   ref: z.string().optional(),
   commit: z.string().optional(),
+  version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
   latestCommit: z.string().optional(),
   updateState: z
     .enum(["unknown", "pinned", "current", "available", "diverged"])
@@ -601,6 +606,7 @@ export const directoryUpdateRpc = defineRpc({
       id: z.string(),
       repo: z.string(),
       path: z.string().optional(),
+      version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
     }),
   }),
   output: z.object({

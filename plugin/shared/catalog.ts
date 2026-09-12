@@ -7,6 +7,8 @@
  * of React, the Paseo SDK, Zod, DOM globals, and Node APIs.
  */
 
+export const CATALOG_VERSION_MAX_LENGTH = 100
+
 export const CATALOG_PLATFORMS = ["macos", "linux", "windows"] as const
 
 export type CatalogPlatform = (typeof CATALOG_PLATFORMS)[number]

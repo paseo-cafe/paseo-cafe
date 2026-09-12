@@ -2,5 +2,6 @@
   "id": "paseo-cafe",
   "requirements": {
     "paseo": "^0.8.0"
-  }
+  },
+  "build": [["npm", "ci", "--omit=dev"]]
 }

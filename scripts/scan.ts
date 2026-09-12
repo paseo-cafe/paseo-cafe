@@ -31,6 +31,7 @@ import { renderMarkdownToHtml } from "../src/lib/markdown.ts"
 import type { PluginRecord, PluginSecurity } from "../src/lib/plugin-schema.ts"
 import {
   gitCommitSchema,
+  normalizePluginVersion,
   pluginOwnerLogin,
   pluginRecordSchema,
   pluginSecuritySchema,
@@ -314,6 +315,7 @@ export async function scanOne(
       0,
       MAX_README_IMAGES
     )
+    const version = normalizePluginVersion(pkg?.version)
 
     const record: PluginRecord = {
       id,
@@ -326,7 +328,7 @@ export async function scanOne(
         manifestDescription ??
         firstParagraph(readme ?? "") ??
         "",
-      version: pkg?.version,
+      version,
       author: authorName(pkg?.author),
       license: repoMeta.license?.spdx_id ?? pkg?.license,
       categories: entry.categories,

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { pluginRecordSchema, pluginSecuritySchema } from "./plugin-schema"
+import {
+  normalizePluginVersion,
+  pluginRecordSchema,
+  pluginSecuritySchema,
+} from "./plugin-schema"
 
 const validHealth = {
   manifestValid: true,
@@ -32,6 +36,14 @@ const validRecordBase = {
   images: [],
   scannedAt: new Date().toISOString(),
 }
+
+describe("normalizePluginVersion", () => {
+  it("normalizes valid semver and omits invalid versions", () => {
+    expect(normalizePluginVersion("v1.2.3-beta.1+build.4")).toBe("1.2.3-beta.1")
+    expect(normalizePluginVersion("1.2")).toBeUndefined()
+    expect(normalizePluginVersion(undefined)).toBeUndefined()
+  })
+})
 
 describe("pluginRecordSchema", () => {
   it("accepts a fully-populated scanned record", () => {

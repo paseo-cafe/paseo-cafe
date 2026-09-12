@@ -76,6 +76,10 @@ stars, and the best-effort limitations excerpt are read from the plugin reposito
 A `README.md`, `LICENSE`, and an `images/` folder with screenshots all make a listing better; none
 are required to get in.
 
+Paseo Cafe uses the plugin directory's own `package.json` version as its update signal. Keep that
+field on valid semver and bump it when the plugin changes. Missing or invalid versions remain
+browsable and installable, but the companion plugin will not claim that an update is available.
+
 Open a PR adding your `registry/<id>.json`. Once Registry validation and CI pass, it's ready to merge.
 
 ## Local development

@@ -175,7 +175,10 @@ function exampleRegistry(): string {
   return registryRoot
 }
 
-function mockRepository(commitResponse: Response): void {
+function mockRepository(
+  commitResponse: Response,
+  packageVersion: unknown
+): void {
   globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url === "https://api.github.com/repos/acme/widgets") {
@@ -246,7 +249,7 @@ function mockRepository(commitResponse: Response): void {
     if (url.endsWith("/plugin/package.json")) {
       return Response.json({
         description: "Package description",
-        version: "1.2.3",
+        version: packageVersion,
         scripts: { test: "vitest" },
       })
     }
@@ -262,7 +265,7 @@ function mockRepository(commitResponse: Response): void {
 describe("scanOne", () => {
   it("keeps branch metadata without attaching security when commit resolution fails", async () => {
     const registryRoot = exampleRegistry()
-    mockRepository(new Response("temporary outage", { status: 503 }))
+    mockRepository(new Response("temporary outage", { status: 503 }), "1.2.3")
 
     const record = await scanOne(
       "example.json",
@@ -279,6 +282,7 @@ describe("scanOne", () => {
     )
 
     expect(record.description).toBe("Package description")
+    expect(record.version).toBe("1.2.3")
     expect(record.health).toMatchObject({
       manifestValid: true,
       hasReadme: true,
@@ -295,6 +299,19 @@ describe("scanOne", () => {
     expect(record.scanError).toContain("default branch commit unavailable")
     expect(record.scanError).not.toContain("temporary outage")
   })
+
+  it.each([undefined, "not-semver"])(
+    "omits a missing or invalid package version (%s)",
+    async (packageVersion) => {
+      const registryRoot = exampleRegistry()
+      mockRepository(Response.json({ sha: REVISION }), packageVersion)
+
+      const record = await scanOne("example.json", {}, registryRoot)
+
+      expect(record.version).toBeUndefined()
+      expect(record.scanError).toBeUndefined()
+    }
+  )
 
   it("publishes a generic scan error without upstream response details", async () => {
     const registryRoot = exampleRegistry()
@@ -314,7 +331,7 @@ describe("scanOne", () => {
 
   it("uses the default branch for human links and the commit for attestations and raw assets", async () => {
     const registryRoot = exampleRegistry()
-    mockRepository(Response.json({ sha: REVISION }))
+    mockRepository(Response.json({ sha: REVISION }), "1.2.3")
 
     const security: PluginSecurity = {
       status: "passed",
