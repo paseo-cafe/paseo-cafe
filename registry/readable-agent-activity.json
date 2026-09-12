@@ -1,0 +1,12 @@
+{
+  "repo": "geoqiao/paseo-readable-activity",
+  "categories": ["productivity"],
+  "caveats": [
+    "Experimental beta: verified on Paseo 0.8.0, Full detail only; Summary is unsupported.",
+    "All connected clients must use Full detail; disable before switching to Summary.",
+    "Do not enable alongside another tool/reasoning timeline replacement.",
+    "Show all and full Raw/copy can be expensive for very large payloads.",
+    "macOS host tested; native iOS/Android untested."
+  ],
+  "submittedBy": "geoqiao"
+}
