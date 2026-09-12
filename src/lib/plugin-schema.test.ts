@@ -43,6 +43,11 @@ describe("normalizePluginVersion", () => {
     expect(normalizePluginVersion("1.2")).toBeUndefined()
     expect(normalizePluginVersion(undefined)).toBeUndefined()
   })
+
+  it("omits normalized versions beyond the catalog length limit", () => {
+    expect(normalizePluginVersion(`1.0.0-${"a".repeat(94)}`)).toHaveLength(100)
+    expect(normalizePluginVersion(`1.0.0-${"a".repeat(95)}`)).toBeUndefined()
+  })
 })
 
 describe("pluginRecordSchema", () => {

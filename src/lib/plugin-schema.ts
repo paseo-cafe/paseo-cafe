@@ -38,7 +38,10 @@ export const gitCommitSchema = z
 
 export function normalizePluginVersion(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined
-  return semver.valid(value) ?? undefined
+  const normalized = semver.valid(value) ?? undefined
+  return normalized && normalized.length <= CATALOG_VERSION_MAX_LENGTH
+    ? normalized
+    : undefined
 }
 
 export const pluginSecuritySchema = z
