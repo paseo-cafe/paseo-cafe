@@ -1,0 +1,13 @@
+{
+  "repo": "geoqiao/paseo-deepseek-harness",
+  "categories": ["provider"],
+  "caveats": [
+    "Experimental: requires Paseo 0.8, daemon Node >=22.19, and a separately installed official DSH with credentials.",
+    "Only DSH 0.1.5-rc.1 and 0.1.5-rc.2 are accepted; plugins and DSH tools are trusted, unsandboxed code.",
+    "Resumes native DSH context without transcript replay; Paseo retains displayed history.",
+    "No raw token deltas, slash commands, steering, plans or terminal UI; real vision/MCP services are untested.",
+    "Discovery can leave empty DSH sessions; DSH profiles are authoritative and Paseo's extra system prompt is not injected.",
+    "Real macOS daemon turns, full outputs and restart resume passed; desktop UI and native iOS/Android checks remain unverified."
+  ],
+  "submittedBy": "geoqiao"
+}
