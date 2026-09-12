@@ -598,7 +598,14 @@ export function renderRobotsTxt(): string {
   return `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
 }
 
-/** True once a plugin has a valid, successful cached record and OG image. */
+/**
+ * True once a plugin has a valid cached record and OG image. Deliberately
+ * does not require `scanError` to be unset: a scanError can be a persistent
+ * catalog problem (mismatched manifest ID, placeholder version) rather than
+ * a transient failure, and treating every scanError as "incomplete" would
+ * make `--if-missing --limit N` retry the same broken entry every run,
+ * burning the limit and starving entries that have never been scanned.
+ */
 export function isFullyScanned(
   file: string,
   outputDir = OUTPUT_DIR,
@@ -608,7 +615,7 @@ export function isFullyScanned(
   const record = readCachedRecord(id, outputDir)
   return (
     record !== undefined &&
-    record.scanError === undefined &&
+    record.id === id &&
     existsSync(join(ogDir, `${id}.png`))
   )
 }

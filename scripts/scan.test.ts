@@ -274,7 +274,7 @@ function mockRepository(
 }
 
 describe("isFullyScanned", () => {
-  it("requires a valid successful cached record and its OG image", async () => {
+  it("requires a valid cached record for the right id, plus its OG image", async () => {
     const registryRoot = exampleRegistry()
     const cacheRoot = temporaryDirectory()
     const outputDir = join(cacheRoot, "data")
@@ -291,9 +291,21 @@ describe("isFullyScanned", () => {
 
     expect(isFullyScanned("example.json", outputDir, ogDir)).toBe(true)
 
+    // A scanError is a persistent catalog problem (bad manifest, placeholder
+    // version), not a sign the cache entry is incomplete — --if-missing must
+    // not keep retrying it every run, so it still counts as fully scanned.
     writeFileSync(
       join(outputDir, "example.json"),
-      JSON.stringify({ ...record, scanError: "temporary failure" })
+      JSON.stringify({
+        ...record,
+        scanError: "package.json version is a placeholder",
+      })
+    )
+    expect(isFullyScanned("example.json", outputDir, ogDir)).toBe(true)
+
+    writeFileSync(
+      join(outputDir, "example.json"),
+      JSON.stringify({ ...record, id: "someone-else" })
     )
     expect(isFullyScanned("example.json", outputDir, ogDir)).toBe(false)
 
