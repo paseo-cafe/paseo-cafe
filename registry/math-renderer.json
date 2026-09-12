@@ -1,0 +1,14 @@
+{
+  "repo": "geoqiao/paseo-stuff",
+  "path": "plugins/math-renderer",
+  "categories": ["productivity"],
+  "caveats": [
+    "Experimental beta for Paseo app and daemon 0.8.0 only; block math only, not inline math.",
+    "macOS desktop checked; native iOS/Android and sustained multi-client load are untested.",
+    "Unsupported Markdown source rows stay native; code highlighting and native file interactions are not fully reproduced.",
+    "Missing glyphs, custom macros, unsupported commands and oversized formulas fall back to source.",
+    "Uses local MathJax and embedded resvg WASM; input bounds are not a hard CPU or memory sandbox.",
+    "Avoid enabling another assistant-message replacement plugin for the same content."
+  ],
+  "submittedBy": "geoqiao"
+}
