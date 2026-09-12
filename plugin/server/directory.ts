@@ -6,7 +6,10 @@ import { promisify } from "node:util"
 import type { RpcInput, RpcOutput } from "@getpaseo/plugin"
 import * as semver from "semver"
 import { z } from "zod"
-import { getCatalogInstallArgs } from "../shared/catalog"
+import {
+  CATALOG_VERSION_MAX_LENGTH,
+  getCatalogInstallArgs,
+} from "../shared/catalog"
 import type {
   DirectoryEntry,
   directoryInstallRpc,
@@ -157,6 +160,10 @@ async function execGit(
 }
 
 type GitRunner = typeof execGit
+interface CatalogUpdateTarget {
+  ref?: string
+  version?: string
+}
 
 /**
  * Retains the Git safety checks for tracked sources, but only reports an
@@ -164,7 +171,7 @@ type GitRunner = typeof execGit
  */
 export async function inspectUpdateStatus(
   installation: InstalledPlugin,
-  entry: Pick<DirectoryEntry, "version">,
+  entry: CatalogUpdateTarget,
   runGit: GitRunner = execGit
 ): Promise<InstalledPlugin> {
   if (
@@ -199,6 +206,9 @@ export async function inspectUpdateStatus(
     }
     if (tracked.exitCode !== 0)
       throw new Error("Could not inspect tracked branch")
+    if (!entry.ref || installation.ref !== entry.ref) {
+      return { ...installation, updateState: "unknown" }
+    }
 
     const fetched = await runGit(
       installation.path,
@@ -260,9 +270,9 @@ export async function inspectUpdateStatus(
 
 async function cachedUpdateStatus(
   installation: InstalledPlugin,
-  entry: Pick<DirectoryEntry, "version">
+  entry: CatalogUpdateTarget
 ): Promise<InstalledPlugin> {
-  const key = `${installation.path}\u0000${installation.ref ?? ""}\u0000${installation.commit ?? ""}\u0000${installation.version ?? ""}\u0000${entry.version ?? ""}`
+  const key = `${installation.path}\u0000${installation.ref ?? ""}\u0000${installation.commit ?? ""}\u0000${installation.version ?? ""}\u0000${entry.ref ?? ""}\u0000${entry.version ?? ""}`
   const now = Date.now()
   const cached = updateStatusCache.get(key)
   if (cached && cached.expiresAt > now) return cached.value
@@ -305,12 +315,18 @@ async function addUpdateStatus(
 ): Promise<InstalledPlugin[]> {
   const matched = new Map<
     string,
-    { installation: InstalledPlugin; entry: DirectoryEntry }
+    { installation: InstalledPlugin; entry: CatalogUpdateTarget }
   >()
   for (const entry of plugins) {
     for (const installation of findInstallations(entry, installations)) {
       if (installation.source === "git") {
-        matched.set(installation.id, { installation, entry })
+        matched.set(installation.id, {
+          installation,
+          entry: {
+            ref: entry.repoMeta?.defaultBranch,
+            version: entry.version,
+          },
+        })
       }
     }
   }
@@ -356,8 +372,10 @@ export async function readInstalledPluginVersion(
     const contents = JSON.parse(
       await readFile(join(directory, "package.json"), "utf8")
     ) as { version?: unknown }
-    return typeof contents.version === "string"
-      ? (semver.valid(contents.version) ?? undefined)
+    if (typeof contents.version !== "string") return undefined
+    const version = semver.valid(contents.version) ?? undefined
+    return version && version.length <= CATALOG_VERSION_MAX_LENGTH
+      ? version
       : undefined
   } catch {
     return undefined
@@ -887,7 +905,10 @@ export async function updateDirectoryPlugin(
         message: `Installed plugin ${pluginId} does not match ${entry.repo}${entry.path ? `/${entry.path}` : ""}.`,
       }
     }
-    const checked = await inspectUpdateStatus(target, entry)
+    const checked = await inspectUpdateStatus(target, {
+      ref: entry.ref,
+      version: entry.version,
+    })
     if (checked.updateState !== "available") {
       return {
         ok: false,

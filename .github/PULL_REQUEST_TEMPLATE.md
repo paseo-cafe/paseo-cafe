@@ -8,7 +8,7 @@
 
 - [ ] `paseo-plugin.json.id` matches the registry filename.
 - [ ] `package.json.version` is a released semantic version, not `0.0.0`.
-- [ ] For an existing plugin, `package.json.version` was incremented for this release.
+- [ ] If this accompanies a plugin-code release, `package.json.version` was incremented.
 - [ ] The repository and plugin path are public.
 
 The companion catalog uses `package.json.version` as the plugin's update identity. Missing or invalid

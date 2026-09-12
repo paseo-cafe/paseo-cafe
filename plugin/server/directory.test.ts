@@ -63,6 +63,9 @@ function gitInstallation(
     ...overrides,
   }
 }
+function catalogTarget(version: string | undefined, ref = "main") {
+  return { ref, version }
+}
 
 afterEach(() => {
   globalThis.fetch = originalFetch
@@ -579,10 +582,15 @@ describe("installed package version", () => {
     }
   })
 
-  it("omits missing and invalid package versions", async () => {
+  it("omits missing, invalid, and overlong package versions", async () => {
     const root = await mkdtemp(join(tmpdir(), "paseo-cafe-versions-"))
     try {
       await writeFile(join(root, "package.json"), '{"version":"not-semver"}')
+      await expect(readInstalledPluginVersion(root)).resolves.toBeUndefined()
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({ version: `1.0.0-${"a".repeat(95)}` })
+      )
       await expect(readInstalledPluginVersion(root)).resolves.toBeUndefined()
       await expect(
         readInstalledPluginVersion(join(root, "missing"))
@@ -602,7 +610,7 @@ describe("update status classification", () => {
 
     const result = await inspectUpdateStatus(
       gitInstallation({ ref: "v1.0.0" }),
-      { version: "1.3.0" },
+      catalogTarget("1.3.0"),
       runGit
     )
 
@@ -618,12 +626,26 @@ describe("update status classification", () => {
 
     const result = await inspectUpdateStatus(
       gitInstallation(),
-      { version: "1.3.0" },
+      catalogTarget("1.3.0"),
       runGit
     )
 
     expect(result.updateState).toBe("unknown")
     expect(result.updateError).toContain("Tracked branch is unavailable")
+  })
+
+  it("does not compare the catalog version against a different tracked branch", async () => {
+    const runGit = vi.fn().mockResolvedValueOnce({ stdout: "", exitCode: 0 })
+
+    const result = await inspectUpdateStatus(
+      gitInstallation({ ref: "stable" }),
+      catalogTarget("2.0.0"),
+      runGit
+    )
+
+    expect(result.updateState).toBe("unknown")
+    expect(result.updateError).toBeUndefined()
+    expect(runGit).toHaveBeenCalledTimes(1)
   })
 
   it("ignores a monorepo HEAD change when the target plugin version is unchanged", async () => {
@@ -636,7 +658,7 @@ describe("update status classification", () => {
 
     const result = await inspectUpdateStatus(
       gitInstallation({ version: "1.2.3" }),
-      { version: "1.2.3" },
+      catalogTarget("1.2.3"),
       runGit
     )
 
@@ -655,7 +677,7 @@ describe("update status classification", () => {
 
     const result = await inspectUpdateStatus(
       gitInstallation({ version: "1.2.3" }),
-      { version: "1.3.0" },
+      catalogTarget("1.3.0"),
       runGit
     )
 
@@ -672,7 +694,7 @@ describe("update status classification", () => {
 
     const result = await inspectUpdateStatus(
       gitInstallation({ version: "2.0.0-beta.1" }),
-      { version: "2.0.0" },
+      catalogTarget("2.0.0"),
       runGit
     )
 
@@ -694,7 +716,7 @@ describe("update status classification", () => {
         .mockResolvedValueOnce({ stdout: "", exitCode: 0 })
       const result = await inspectUpdateStatus(
         gitInstallation({ version: installedVersion }),
-        { version: catalogVersion },
+        catalogTarget(catalogVersion),
         runGit
       )
 
@@ -713,7 +735,7 @@ describe("update status classification", () => {
 
     const result = await inspectUpdateStatus(
       gitInstallation(),
-      { version: "1.2.3" },
+      catalogTarget("1.2.3"),
       runGit
     )
 
@@ -729,7 +751,7 @@ describe("update status classification", () => {
 
     const result = await inspectUpdateStatus(
       gitInstallation(),
-      { version: "1.3.0" },
+      catalogTarget("1.3.0"),
       runGit
     )
 
@@ -740,7 +762,7 @@ describe("update status classification", () => {
   it("preserves an explicit unknown state when the remote check fails", async () => {
     const result = await inspectUpdateStatus(
       gitInstallation(),
-      { version: "1.3.0" },
+      catalogTarget("1.3.0"),
       async () => {
         throw new Error("offline")
       }

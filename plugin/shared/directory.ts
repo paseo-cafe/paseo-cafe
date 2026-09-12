@@ -606,6 +606,11 @@ export const directoryUpdateRpc = defineRpc({
       id: z.string(),
       repo: z.string(),
       path: z.string().optional(),
+      ref: z
+        .string()
+        .max(255)
+        .refine(isValidCatalogRef, "Expected a valid Git branch")
+        .optional(),
       version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
     }),
   }),

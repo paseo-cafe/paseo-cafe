@@ -10,9 +10,11 @@ on the daemon host behind a confirmation step. A **Paseo plugin** composer attac
 lets you attach a plugin's full listing to a prompt when you want an agent to review it before
 you trust it.
 
-Update availability is based on each plugin directory's `package.json` semver, not on repository
-HEAD. An unrelated monorepo commit therefore does not mark every plugin as outdated. A missing or
-invalid installed or catalog version leaves update status unavailable rather than guessing.
+Update availability is based on each plugin directory's `package.json` semver. An unrelated
+monorepo commit therefore does not mark every plugin as outdated. A missing or invalid installed
+or catalog version leaves update status unavailable rather than guessing. Until Paseo supports
+explicit-ref updates, applying an update still installs the tracked branch's current HEAD, which
+may be newer than the commit scanned by the catalog.
 
 ## Screenshots
 

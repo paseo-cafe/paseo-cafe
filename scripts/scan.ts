@@ -382,7 +382,7 @@ export async function scanOne(
         `paseo-plugin.json id "${manifestId}" must match registry ID "${id}"`
       )
     }
-    if (pkg?.version === "0.0.0") {
+    if (version === "0.0.0") {
       scanErrors.push(
         'package.json version "0.0.0" is a placeholder; publish a real release version'
       )

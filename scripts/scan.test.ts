@@ -313,17 +313,20 @@ describe("scanOne", () => {
     }
   )
 
-  it("flags a placeholder package version", async () => {
-    const registryRoot = exampleRegistry()
-    mockRepository(Response.json({ sha: REVISION }), "0.0.0")
+  it.each(["0.0.0", "v0.0.0", "0.0.0+build.1"])(
+    "flags a normalized placeholder package version (%s)",
+    async (packageVersion) => {
+      const registryRoot = exampleRegistry()
+      mockRepository(Response.json({ sha: REVISION }), packageVersion)
 
-    const record = await scanOne("example.json", {}, registryRoot)
+      const record = await scanOne("example.json", {}, registryRoot)
 
-    expect(record.version).toBe("0.0.0")
-    expect(record.scanError).toBe(
-      'package.json version "0.0.0" is a placeholder; publish a real release version'
-    )
-  })
+      expect(record.version).toBe("0.0.0")
+      expect(record.scanError).toBe(
+        'package.json version "0.0.0" is a placeholder; publish a real release version'
+      )
+    }
+  )
 
   it("publishes a generic scan error without upstream response details", async () => {
     const registryRoot = exampleRegistry()
