@@ -295,6 +295,12 @@ describe("directory listing dates", () => {
 
   it("does not treat a truthy invalid date as a known listing date", () => {
     expect(isDirectoryAddedAtKnown({ addedAt: "whenever" })).toBe(false)
+    expect(isDirectoryAddedAtKnown({ addedAt: "1969-12-31T23:59:59Z" })).toBe(
+      false
+    )
+    expect(
+      compareDirectoryAddedAt({ addedAt: "1969-12-31T23:59:59Z" }, {})
+    ).toBe(0)
     expect(isDirectoryAddedAtKnown({ addedAt: "2026-01-01T00:00:00Z" })).toBe(
       true
     )

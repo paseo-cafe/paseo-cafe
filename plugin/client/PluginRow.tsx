@@ -255,11 +255,6 @@ export function PluginRow({
             </Text>
           </View>
         ) : null}
-        {entry.version ? (
-          <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText("accent")}>v{entry.version}</Text>
-          </View>
-        ) : null}
         {addedBadge ? (
           <View style={styles.metaBadge}>
             <Text style={styles.metaBadgeText("muted")}>{addedBadge}</Text>

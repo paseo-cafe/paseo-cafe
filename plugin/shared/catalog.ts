@@ -221,7 +221,7 @@ export interface CatalogAddedAt {
 /** Epoch milliseconds for a catalog timestamp; 0 when missing or unparseable. */
 export function getCatalogAddedAtTime(entry: CatalogAddedAt): number {
   const parsed = entry.addedAt ? Date.parse(entry.addedAt) : Number.NaN
-  return Number.isFinite(parsed) ? parsed : 0
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
 }
 
 /** Whether an entry has a usable catalog-listing timestamp. */

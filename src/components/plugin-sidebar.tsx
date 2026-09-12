@@ -70,7 +70,6 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
         ) : null}
         {plugin.license ? <span>License: {plugin.license}</span> : null}
         {plugin.author ? <span>By {plugin.author}</span> : null}
-        {plugin.version ? <span>Version: {plugin.version}</span> : null}
       </div>
 
       {plugin.categories.length > 0 ? (

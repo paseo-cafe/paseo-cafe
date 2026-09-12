@@ -34,16 +34,7 @@ export function FeaturedSection({
             params={{ id: plugin.id }}
             className="flex min-w-0 items-center justify-between gap-3 border border-border bg-card px-3 py-2 transition-colors hover:bg-muted"
           >
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate font-medium text-sm">
-                {plugin.name}
-              </span>
-              {plugin.version ? (
-                <span className="shrink-0 text-foreground/50 text-xs">
-                  v{plugin.version}
-                </span>
-              ) : null}
-            </span>
+            <span className="truncate font-medium text-sm">{plugin.name}</span>
             <span className="shrink-0 text-foreground/50 text-xs">
               {plugin.repo}
             </span>

@@ -90,9 +90,6 @@ export function PluginCard({
                 <ReaderDate iso={plugin.addedAt} />
               </Badge>
             ) : null}
-            {plugin.version ? (
-              <Badge variant="secondary">v{plugin.version}</Badge>
-            ) : null}
             <Badge variant={healthIsComplete ? "secondary" : "outline"}>
               {healthIsComplete ? "Healthy" : "Incomplete health checks"}
             </Badge>
