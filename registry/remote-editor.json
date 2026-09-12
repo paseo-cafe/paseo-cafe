@@ -1,7 +1,6 @@
 {
   "repo": "alhassanaraouf/paseo-remote-editor",
   "categories": ["productivity"],
-  "platforms": ["macos", "linux", "windows"],
   "caveats": [
     "Requires the SSH-based remote-development extension for the chosen editor already set up on your machine",
     "Not shown on iOS or Android"
