@@ -77,6 +77,12 @@ the other by hand**:
    do) is expected and fine — keep any such shared module free of anything
    that would make it fail to typecheck under the website's DOM-ful config.
 
+4. **Plugin release identity.** The catalog and companion plugin use each plugin's
+   `package.json.version` as its update identity. Registry submissions must use a real semantic
+   version rather than `0.0.0`, and every released plugin change must increment it. Keep this
+   contract visible in submitter-facing guidance and templates; the registry scanner must flag
+   placeholder versions.
+
 **Validate both sides before calling catalog/plugin work done:**
 ```bash
 bun run check                                  # website: biome + tsc

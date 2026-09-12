@@ -71,14 +71,17 @@ Requirements, checked automatically by CI:
   validation applied by both the site and companion plugin.
 - Your repo (at `path`, if given) contains a valid `paseo-plugin.json` with the same `id`.
 
-The plugin name comes from the registry filename after it is validated against the manifest ID. Description, version, license, screenshots,
-stars, and the best-effort limitations excerpt are read from the plugin repository automatically.
-A `README.md`, `LICENSE`, and an `images/` folder with screenshots all make a listing better; none
-are required to get in.
+The plugin name comes from the registry filename after it is validated against the manifest ID.
+Description, version, license, screenshots, stars, and the best-effort limitations excerpt are read
+from the plugin repository automatically. A `README.md`, `LICENSE`, and an `images/` folder with
+screenshots all make a listing better; none are required to get in.
 
-Paseo Cafe uses the plugin directory's own `package.json` version as its update signal. Keep that
-field on valid semver and bump it when the plugin changes. Missing or invalid versions remain
-browsable and installable, but the companion plugin will not claim that an update is available.
+Paseo Cafe uses the plugin directory's own `package.json.version` as its update identity. Start at a
+real semantic version such as `0.1.0`, not the `0.0.0` placeholder, and increment it whenever you
+publish a plugin update. Missing or invalid versions remain browsable and installable but report
+their version as unavailable. The scanner flags `0.0.0`, because updates cannot be detected until
+the maintainer starts incrementing it.
+
 
 Open a PR adding your `registry/<id>.json`. Once Registry validation and CI pass, it's ready to merge.
 
