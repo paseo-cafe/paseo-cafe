@@ -1,7 +1,12 @@
 import { z } from "zod"
 import { isTrustedRemoteImageUrl } from "@/lib/images"
-import { type PluginRecord, pluginHealthSchema } from "@/lib/plugin-schema"
+import {
+  normalizePluginVersion,
+  type PluginRecord,
+  pluginHealthSchema,
+} from "@/lib/plugin-schema"
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
+import { CATALOG_VERSION_MAX_LENGTH } from "../../plugin/shared/catalog"
 
 export const MAX_API_RESPONSE_BYTES = 16 * 1_024 * 1_024
 export const MAX_API_README_TEXT_LENGTH = 16_000
@@ -26,6 +31,7 @@ export const directoryPluginSchema = z.object({
   url: httpUrlSchema.max(2_048),
   name: z.string().max(200),
   description: z.string().max(1_000),
+  version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
   author: z.string().max(200).optional(),
   license: z.string().max(100).optional(),
   paseoVersionRequirement: z.string().max(200).optional(),
@@ -104,6 +110,7 @@ export function projectPluginForDirectory(
       `Plugin ${plugin.id.slice(0, 200)} has overlong identity data`
     )
   }
+  const version = normalizePluginVersion(plugin.version)
 
   const security =
     plugin.security?.status === "unknown" || !plugin.security
@@ -133,6 +140,7 @@ export function projectPluginForDirectory(
     health: plugin.health,
     scannedAt: boundedString(plugin.scannedAt, 100),
     ...(plugin.path ? { path: plugin.path } : {}),
+    ...(version !== undefined ? { version } : {}),
     ...(security ? { security } : {}),
     ...(plugin.scanError
       ? { scanError: boundedString(plugin.scanError, 4_000) }

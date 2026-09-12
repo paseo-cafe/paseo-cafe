@@ -48,6 +48,15 @@ Because production is a static GitHub Pages deployment, canonical plugin pages c
 the HTTP `Accept` header. Each HTML plugin page advertises an explicit `text/markdown` alternate at
 `/plugins/<id>.md`; explicit URLs work consistently for agents and ordinary HTTP clients.
 
+## Running your own copy
+
+Fork it, turn on GitHub Pages (Settings → Pages → Source: **GitHub Actions**), then run the
+**Enrich and deploy to GitHub Pages** workflow. Nothing needs editing: the workflow asks
+`actions/configure-pages` where the deployment lives and passes that to the scan and the build, so
+a fork publishes correct links, canonical URLs and a sitemap for its own
+`https://<owner>.github.io/<repo>/` — while the canonical site, which has a custom domain, keeps
+serving from the root. See `VITE_SITE_URL`/`VITE_BASE_PATH` in `src/lib/site.ts`.
+
 ## Submitting a plugin
 
 The full walkthrough (with a prefilled "create this file on GitHub" button) lives on the site
@@ -71,10 +80,17 @@ Requirements, checked automatically by CI:
   validation applied by both the site and companion plugin.
 - Your repo (at `path`, if given) contains a valid `paseo-plugin.json` with the same `id`.
 
-The plugin name comes from the registry filename after it is validated against the manifest ID. Description, version, license, screenshots,
-stars, and the best-effort limitations excerpt are read from the plugin repository automatically.
-A `README.md`, `LICENSE`, and an `images/` folder with screenshots all make a listing better; none
-are required to get in.
+The plugin name comes from the registry filename after it is validated against the manifest ID.
+Description, version, license, screenshots, stars, and the best-effort limitations excerpt are read
+from the plugin repository automatically. A `README.md`, `LICENSE`, and an `images/` folder with
+screenshots all make a listing better; none are required to get in.
+
+Paseo Cafe uses the plugin directory's own `package.json.version` as its update identity. Start at a
+real semantic version such as `0.1.0`, not the `0.0.0` placeholder, and increment it whenever you
+publish a plugin update. Missing or invalid versions remain browsable and installable but report
+their version as unavailable. The scanner flags `0.0.0`, because updates cannot be detected until
+the maintainer starts incrementing it.
+
 
 Open a PR adding your `registry/<id>.json`. Once Registry validation and CI pass, it's ready to merge.
 

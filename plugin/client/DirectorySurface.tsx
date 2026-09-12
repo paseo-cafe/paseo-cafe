@@ -499,14 +499,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     entryId: string
     message: string
   } | null>(null)
-  const [detailEntry, setDetailEntry] = useState<DirectoryEntry | null>(null)
   const [galleryEntry, setGalleryEntry] = useState<DirectoryEntry | null>(null)
   const [lastOpenedPluginId, setLastOpenedPluginId] = useState<string | null>(
     null
   )
   const [settingsHydrated, setSettingsHydrated] = useState(false)
   const hasHydratedSettings = useRef(false)
-  const hasRestoredLastOpened = useRef(false)
 
   const settingsValues = settings.status === "ready" ? settings.values : null
   const settingsRevision =
@@ -663,7 +661,13 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       setUpdateFailure(null)
       return updatePlugin({
         pluginId: installation.id,
-        entry: { id: entry.id, repo: entry.repo, path: entry.path },
+        entry: {
+          id: entry.id,
+          repo: entry.repo,
+          path: entry.path,
+          version: entry.version,
+          ref: entry.repoMeta?.defaultBranch,
+        },
       }) as Promise<UpdateResult>
     },
     onSuccess: async (
@@ -740,20 +744,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       })),
     [catalogPlugins]
   )
-  useEffect(() => {
-    if (
-      !settingsHydrated ||
-      hasRestoredLastOpened.current ||
-      !directoryQuery.isSuccess
-    ) {
-      return
-    }
-
-    hasRestoredLastOpened.current = true
-    if (!lastOpenedPluginId) return
-    const lastOpened = plugins.find((entry) => entry.id === lastOpenedPluginId)
-    if (lastOpened) setDetailEntry(lastOpened)
-  }, [directoryQuery.isSuccess, lastOpenedPluginId, plugins, settingsHydrated])
+  const detailEntry = lastOpenedPluginId
+    ? (plugins.find((entry) => entry.id === lastOpenedPluginId) ?? null)
+    : null
   const installations = inventoryAvailable
     ? (updateStatusQuery.data?.installations ??
       directoryQuery.data?.installations ??
@@ -924,7 +917,6 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   )
 
   function openPlugin(entry: DirectoryEntry) {
-    setDetailEntry(entry)
     setLastOpenedPluginId(entry.id)
   }
 
@@ -1098,7 +1090,6 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         onOpenGallery={() => setGalleryEntry(detailEntry)}
         onBack={() => {
           setLastOpenedPluginId(null)
-          setDetailEntry(null)
         }}
       />
     )

@@ -6,6 +6,10 @@ import {
   renderLlmsTxt,
   renderPluginMarkdown,
 } from "./agent-content"
+// Built from SITE_URL rather than the canonical domain: a fork's deployment
+// serves these documents from its own Pages URL (see src/lib/site.ts), and
+// the assertion is that the links point at *this* site, not at paseo.cafe.
+import { SITE_URL } from "./site"
 
 const plugin: PluginRecord = {
   id: "example-plugin",
@@ -40,10 +44,10 @@ describe("agent-readable catalog content", () => {
   it("indexes explicit Markdown and machine-readable endpoints", () => {
     const text = renderLlmsTxt([plugin])
 
-    expect(text).toContain("https://paseo.cafe/openapi.json")
-    expect(text).toContain("https://paseo.cafe/api/plugins")
+    expect(text).toContain(`${SITE_URL}/openapi.json`)
+    expect(text).toContain(`${SITE_URL}/api/plugins`)
     expect(text).toContain(
-      "[Example \\[Plugin\\]](https://paseo.cafe/plugins/example-plugin.md): An example plugin."
+      `[Example \\[Plugin\\]](${SITE_URL}/plugins/example-plugin.md): An example plugin.`
     )
   })
 
@@ -72,10 +76,10 @@ describe("agent-readable catalog content", () => {
     expect(text).toContain("# paseo.cafe plugin catalog")
     expect(text).toContain("## Example [Plugin]")
     expect(text).toContain(
-      "- Compact index: https://paseo.cafe/llms.txt\n\n## Example [Plugin]"
+      `- Compact index: ${SITE_URL}/llms.txt\n\n## Example [Plugin]`
     )
     expect(text.match(/^# /gm)).toHaveLength(1)
-    expect(text).toContain("https://paseo.cafe/plugins/example-plugin.md")
+    expect(text).toContain(`${SITE_URL}/plugins/example-plugin.md`)
     expect(text).not.toContain("# Upstream README")
   })
 

@@ -18,12 +18,34 @@ jobs:
   build:
     name: Enrich and build static site
     runs-on: ubuntu-latest
+    # Forks inherit the schedule above, where it does something nobody asked
+    # for: it rebuilds main every six hours and republishes it over whatever
+    # the fork owner actually deployed, spending their Actions minutes and
+    # GitHub API quota to do it. Pushes and manual runs still work everywhere;
+    # a fork that does want the periodic refresh can run it from the Actions
+    # tab, or drop this condition.
+    if: github.event_name != 'schedule' || github.repository == 'paseo-cafe/paseo-cafe'
     timeout-minutes: 35
+    permissions:
+      contents: read
+      # configure-pages below reads this repo's Pages settings.
+      pages: read
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+
+      # Where this deployment actually lives. The canonical site has a custom
+      # domain and is served from the root; a fork's project site is served
+      # from https://<owner>.github.io/<repo>/. Everything that bakes a URL or
+      # a path into the output reads these two outputs — see src/lib/site.ts.
+      # Requires Pages to be turned on for the repo with "GitHub Actions" as the
+      # source — a one-time click, since creating a Pages site needs repo admin
+      # and GITHUB_TOKEN does not have it.
+      - name: Resolve this deployment's URL and base path
+        id: pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -61,6 +83,8 @@ jobs:
         run: bun run registry:scan
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Verify generated site
         run: |
@@ -68,6 +92,27 @@ jobs:
           bun run typecheck
           bun run test
           bun run build:generated
+        env:
+          VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+
+      # Nitro prerenders each route to its full path, so under a base path the
+      # HTML lands in .output/public/<base>/ while public assets stay at the
+      # artifact root. Copy the prerendered files into that root because Pages
+      # already mounts the artifact at <base>. Keep the source directory: a
+      # valid repository name such as "assets" can collide with files that
+      # must remain nested in the deployed artifact.
+      - name: Merge prerendered pages into the artifact root
+        if: steps.pages.outputs.base_path != ''
+        run: bun run scripts/merge-pages-artifact.ts
+        env:
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+
+      - name: Verify final GitHub Pages artifact
+        run: bun run scripts/verify-pages-entrypoint.ts --artifact-root
+        env:
+          VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
