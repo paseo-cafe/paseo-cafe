@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { readdirSync, readFileSync, writeFileSync } from "node:fs"
-import { basename, join } from "node:path"
+import { basename, join, resolve } from "node:path"
 import { z } from "zod"
 import {
   registryEntrySchema,
@@ -175,7 +175,7 @@ async function main() {
   const args = process.argv.slice(2)
   const outputPath = valueFor(args, "--output")
   if (!outputPath) throw new Error("missing --output")
-  const registryRoot = join(
+  const registryRoot = resolve(
     process.cwd(),
     valueFor(args, "--registry") ?? "registry"
   )
