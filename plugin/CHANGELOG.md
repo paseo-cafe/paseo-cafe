@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.3.0...v0.4.0) (2026-09-12)
+
+
+### Features
+
+* **catalog:** add semver-based plugin update detection ([#89](https://github.com/paseo-cafe/paseo-cafe/issues/89)) ([c6d967b](https://github.com/paseo-cafe/paseo-cafe/commit/c6d967b7abe3c152a9fcb038dd29d7520e806e71))
+* **catalog:** sort plugins by when they were added ([#85](https://github.com/paseo-cafe/paseo-cafe/issues/85)) ([20fba03](https://github.com/paseo-cafe/paseo-cafe/commit/20fba03b8ea512e36adaec4581e46834d1c01dd0))
+* display plugin versions across catalog ([#94](https://github.com/paseo-cafe/paseo-cafe/issues/94)) ([4fbd16c](https://github.com/paseo-cafe/paseo-cafe/commit/4fbd16c9a7b5453cdad7cb2819dd1a3494733fa5))
+
 ## [0.3.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.2.0...v0.3.0) (2026-09-11)
 
 
