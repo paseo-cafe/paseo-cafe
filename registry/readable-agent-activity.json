@@ -1,5 +1,6 @@
 {
-  "repo": "geoqiao/paseo-readable-activity",
+  "repo": "geoqiao/paseo-stuff",
+  "path": "plugins/agent-activity",
   "categories": ["productivity"],
   "caveats": [
     "Experimental beta: verified on Paseo 0.8.0, Full detail only; Summary is unsupported.",

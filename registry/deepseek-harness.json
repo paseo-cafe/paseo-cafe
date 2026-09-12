@@ -1,5 +1,6 @@
 {
-  "repo": "geoqiao/paseo-deepseek-harness",
+  "repo": "geoqiao/paseo-stuff",
+  "path": "plugins/deepseek-harness",
   "categories": ["provider"],
   "caveats": [
     "Experimental: requires Paseo 0.8, daemon Node >=22.19, and a separately installed official DSH with credentials.",
