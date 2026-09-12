@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import type { PluginRecord } from "@/lib/plugin-schema"
-import { PLATFORM_LABELS } from "@/lib/registry-schema"
+import { formatPluginVersion, PLATFORM_LABELS } from "@/lib/registry-schema"
 
 export function PluginCard({ plugin }: { plugin: PluginRecord }) {
   const healthIsComplete =
@@ -23,6 +23,7 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
     plugin.health.hasLicense &&
     plugin.health.hasTests &&
     plugin.health.hasTypecheckScript
+  const versionLabel = formatPluginVersion(plugin.version)
 
   return (
     <Link to="/plugins/$id" params={{ id: plugin.id }} className="block">
@@ -89,6 +90,9 @@ export function PluginCard({ plugin }: { plugin: PluginRecord }) {
           </div>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-1.5">
+          {versionLabel ? (
+            <Badge variant="outline">{versionLabel}</Badge>
+          ) : null}
           {plugin.paseoVersionRequirement ? (
             <Badge variant="default">
               <IconVersions /> Paseo {plugin.paseoVersionRequirement}

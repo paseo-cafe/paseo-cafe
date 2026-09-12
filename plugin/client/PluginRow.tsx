@@ -6,6 +6,7 @@ import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
+  formatDirectoryVersion,
   HEALTH_KEYS,
   normalizeDirectoryCategory,
 } from "../shared/directory"
@@ -199,6 +200,7 @@ export function PluginRow({
   const starCount = entry.repoMeta?.stars
   const updatedAt = entry.repoMeta?.pushedAt?.slice(0, 10)
   const healthBadge = getHealthBadge(entry)
+  const versionLabel = formatDirectoryVersion(entry.version)
   const compatibilityLabel = entry.paseoVersionRequirement
     ? `Paseo ${entry.paseoVersionRequirement}`
     : "Paseo any"
@@ -234,6 +236,11 @@ export function PluginRow({
         ) : null}
       </View>
       <View style={styles.metaRow}>
+        {versionLabel ? (
+          <View style={styles.metaBadge}>
+            <Text style={styles.metaBadgeText("accent")}>{versionLabel}</Text>
+          </View>
+        ) : null}
         {starCount !== undefined ? (
           <View style={styles.metaBadge}>
             <Icon name="Star" size={11} color={theme.colors.foregroundMuted} />

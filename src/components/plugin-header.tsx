@@ -3,9 +3,11 @@ import { Link } from "@tanstack/react-router"
 import { Badge } from "@/components/ui/badge"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { pluginOwnerLogin } from "@/lib/plugin-schema"
+import { formatPluginVersion } from "@/lib/registry-schema"
 
 export function PluginHeader({ plugin }: { plugin: PluginRecord }) {
   const username = pluginOwnerLogin(plugin)
+  const versionLabel = formatPluginVersion(plugin.version)
 
   return (
     <div className="flex flex-col gap-3">
@@ -34,11 +36,16 @@ export function PluginHeader({ plugin }: { plugin: PluginRecord }) {
       <p className="max-w-2xl text-foreground/70">
         {plugin.description || "No description available."}
       </p>
-      {plugin.paseoVersionRequirement ? (
+      {versionLabel || plugin.paseoVersionRequirement ? (
         <div className="flex flex-wrap gap-1.5">
-          <Badge variant="default">
-            <IconVersions /> Requires Paseo {plugin.paseoVersionRequirement}
-          </Badge>
+          {versionLabel ? (
+            <Badge variant="outline">{versionLabel}</Badge>
+          ) : null}
+          {plugin.paseoVersionRequirement ? (
+            <Badge variant="default">
+              <IconVersions /> Requires Paseo {plugin.paseoVersionRequirement}
+            </Badge>
+          ) : null}
         </div>
       ) : null}
     </div>

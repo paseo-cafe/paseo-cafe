@@ -14,6 +14,7 @@ import {
   CATALOG_VERSION_MAX_LENGTH,
   type CatalogCategory,
   type CatalogHealthCheck,
+  formatCatalogVersion,
   getCatalogInstallCommand,
   getCatalogInstallRef,
   getCatalogRepositoryOwner,
@@ -79,6 +80,7 @@ export function isTrustedCatalogUrl(value: string): boolean {
 }
 
 export const DIRECTORY_PLATFORM_LABELS = CATALOG_PLATFORM_LABELS
+export const formatDirectoryVersion = formatCatalogVersion
 const catalogUrlSchema = httpUrlSchema.refine(
   isTrustedCatalogUrl,
   "Catalog URL must use HTTPS, or HTTP on localhost"

@@ -16,6 +16,7 @@ import type {
 import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
+  formatDirectoryVersion,
   getInstallCommand,
   getInstallRef,
   getReportPluginIssueUrl,
@@ -469,6 +470,7 @@ export function PluginDetailPage({
         ] ?? platform
     ),
   ]
+  const versionLabel = formatDirectoryVersion(entry.version)
   const limitationsText = entry.limitationsNotesHtml
     ? stripHtml(entry.limitationsNotesHtml)
     : undefined
@@ -574,8 +576,13 @@ export function PluginDetailPage({
           <Text style={styles.description}>{entry.description}</Text>
         ) : null}
 
-        {tags.length > 0 || entry.paseoVersionRequirement ? (
+        {versionLabel || tags.length > 0 || entry.paseoVersionRequirement ? (
           <View style={styles.tagsRow}>
+            {versionLabel ? (
+              <View style={styles.tag}>
+                <Text style={styles.tagText}>{versionLabel}</Text>
+              </View>
+            ) : null}
             {entry.paseoVersionRequirement ? (
               <View style={styles.requirementTag}>
                 <Text style={styles.requirementTagText}>

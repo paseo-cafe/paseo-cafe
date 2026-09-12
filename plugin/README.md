@@ -4,11 +4,11 @@ Browse the [paseo.cafe](https://paseo.cafe) plugin catalog from inside Paseo, an
 plugins without leaving the app.
 
 The plugin adds a **Paseo Cafe** sidebar surface listing every plugin in the catalog with its
-description, categories, platforms, Paseo version requirement, caveats, health checks, and
-screenshots. Searching and filtering happen on the client; installing runs `paseo plugin add`
-on the daemon host behind a confirmation step. A **Paseo plugin** composer attachment source
-lets you attach a plugin's full listing to a prompt when you want an agent to review it before
-you trust it.
+package version, description, categories, platforms, Paseo version requirement, caveats, health
+checks, and screenshots. Search and filtering happen on the client. Installs run
+`paseo plugin add` on the daemon host behind a confirmation step. A **Paseo plugin** composer
+attachment source can attach the plugin's full listing to a prompt for agent review before you
+trust it.
 
 Update availability is based on each plugin directory's `package.json` semver. An unrelated
 monorepo commit therefore does not mark every plugin as outdated. A missing or invalid installed

@@ -6,6 +6,7 @@ import {
   CATALOG_PLATFORMS,
   type CatalogCategory,
   type CatalogPlatform,
+  formatCatalogVersion,
   isValidCatalogPath,
   isValidCatalogRepository,
   normalizeCatalogCategory,
@@ -29,6 +30,9 @@ export const CATEGORY_LABELS: Record<Category, string> = CATALOG_CATEGORY_LABELS
 
 /** Maps free-form registry categories to the stable catalog taxonomy. */
 export const normalizeCategory = normalizeCatalogCategory
+
+/** Formats a plugin package version for display. */
+export const formatPluginVersion = formatCatalogVersion
 
 export const registryIdSchema = z
   .string()

@@ -9,6 +9,13 @@
 
 export const CATALOG_VERSION_MAX_LENGTH = 100
 
+/** Presents normalized package versions consistently across catalog surfaces. */
+export function formatCatalogVersion(
+  version: string | undefined
+): string | undefined {
+  return version ? `v${version}` : undefined
+}
+
 export const CATALOG_PLATFORMS = ["macos", "linux", "windows"] as const
 
 export type CatalogPlatform = (typeof CATALOG_PLATFORMS)[number]

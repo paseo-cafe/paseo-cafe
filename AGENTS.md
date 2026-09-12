@@ -83,6 +83,11 @@ the other by hand**:
    contract visible in submitter-facing guidance and templates; the registry scanner must flag
    placeholder versions.
 
+   Release Please owns the companion plugin's version bumps. Feature and fix PRs must not edit
+   `plugin/package.json`, `plugin/package-lock.json`, `.release-please-manifest.json`, or
+   `plugin/CHANGELOG.md` solely to advance the release version; the generated release PR updates
+   those files together.
+
 **Validate both sides before calling catalog/plugin work done:**
 ```bash
 bun run check                                  # website: biome + tsc
