@@ -19,10 +19,8 @@ interface PluginRowProps {
   compact: boolean
   installations: readonly InstalledPlugin[]
   /**
-   * Whether to show when the catalog listed this plugin. The row always shows
-   * when the source repository was last updated, so that date needs no flag;
-   * this one appears when the list is ordered by it, so the order can be read
-   * off the rows.
+   * Whether to show when the catalog listed this plugin. Repository push time
+   * is always visible; this date appears when the list is ordered by it.
    */
   showAddedDate?: boolean
   onPress: () => void
@@ -207,7 +205,7 @@ export function PluginRow({
         : undefined
 
   const starCount = entry.repoMeta?.stars
-  const updatedBadge = getDirectoryDateBadge(entry, "updated")
+  const pushedBadge = getDirectoryDateBadge(entry, "pushed")
   const addedBadge = showAddedDate
     ? getDirectoryDateBadge(entry, "added")
     : undefined
@@ -266,9 +264,9 @@ export function PluginRow({
             <Text style={styles.metaBadgeText("muted")}>{addedBadge}</Text>
           </View>
         ) : null}
-        {updatedBadge ? (
+        {pushedBadge ? (
           <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText("muted")}>{updatedBadge}</Text>
+            <Text style={styles.metaBadgeText("muted")}>{pushedBadge}</Text>
           </View>
         ) : null}
         <View style={styles.metaBadge}>

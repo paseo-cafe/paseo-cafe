@@ -30,6 +30,7 @@ import {
   findInstallations,
   getInstallRef,
   isDefaultDirectoryBrowseView,
+  isDirectoryAddedAtKnown,
   normalizeDirectoryCategories,
 } from "../shared/directory"
 import { filterAccessibilityLabel } from "./accessibility"
@@ -285,7 +286,7 @@ interface SortOption {
 const SORT_OPTIONS: readonly SortOption[] = [
   { value: "updates-first", label: "Updates first" },
   { value: "popular", label: "Popular" },
-  { value: "recent", label: "Recently updated" },
+  { value: "recent", label: "Recent repo activity" },
   { value: "recently-added", label: DIRECTORY_ADDED_AT_LABEL },
   { value: "a-z", label: "A–Z" },
 ]
@@ -903,7 +904,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         : [],
     [defaultBrowseState, filtered, installationByEntryId]
   )
-  const recentHighlights = useMemo(
+  const recentActivityHighlights = useMemo(
     () =>
       defaultBrowseState
         ? sortEntries(filtered, "recent", installationByEntryId).slice(
@@ -913,13 +914,14 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         : [],
     [defaultBrowseState, filtered, installationByEntryId]
   )
-  // Entries with no known listing date are left out entirely: a catalog that
-  // doesn't publish addedAt shows no section rather than an arbitrary five.
+  // Entries with no usable listing date are left out entirely: a catalog that
+  // doesn't publish valid addedAt values shows no section rather than an
+  // arbitrary five.
   const recentlyAddedHighlights = useMemo(
     () =>
       defaultBrowseState
         ? sortEntries(
-            filtered.filter((entry) => entry.addedAt),
+            filtered.filter(isDirectoryAddedAtKnown),
             "recently-added",
             installationByEntryId
           ).slice(0, FEATURED_LIMIT)
@@ -1269,7 +1271,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
             ) : null}
             {defaultBrowseState &&
             (popularHighlights.length > 0 ||
-              recentHighlights.length > 0 ||
+              recentActivityHighlights.length > 0 ||
               recentlyAddedHighlights.length > 0) ? (
               <View style={styles.featuredBlock}>
                 {popularHighlights.length > 0 ? (
@@ -1301,21 +1303,21 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                     </View>
                   </View>
                 ) : null}
-                {recentHighlights.length > 0 ? (
+                {recentActivityHighlights.length > 0 ? (
                   <View style={styles.featuredSection}>
                     <View style={styles.sectionHeading}>
                       <Text
                         accessibilityRole="header"
                         style={styles.featuredHeader}
                       >
-                        Recently updated
+                        Recent repo activity
                       </Text>
                       <Text style={styles.featuredDescription}>
-                        Plugins with recent repository activity.
+                        Plugins whose source repositories were pushed recently.
                       </Text>
                     </View>
                     <View style={styles.featuredItems}>
-                      {recentHighlights.map((item) => (
+                      {recentActivityHighlights.map((item) => (
                         <PluginRow
                           key={`recent-${item.id}`}
                           entry={item}

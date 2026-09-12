@@ -392,6 +392,54 @@ describe("readRegistryAddedAt", () => {
     expect(addedAt.get("second.json")).toBe("2026-06-07T08:09:10Z")
   })
 
+  it("uses the integration date for a preserved contributor commit", () => {
+    const repository = temporaryDirectory()
+    git(repository, ["init", "--initial-branch=main"])
+    writeFileSync(join(repository, "README.md"), "catalog")
+    git(repository, ["add", "README.md"])
+    git(
+      repository,
+      ["commit", "-m", "initialize catalog"],
+      "2026-01-01T00:00:00+00:00"
+    )
+
+    git(repository, ["checkout", "-b", "contributor"])
+    mkdirSync(join(repository, "registry"))
+    commitRegistryEntry(
+      repository,
+      "future-dated.json",
+      { repo: "acme/widgets" },
+      "2099-12-01T00:00:00+00:00"
+    )
+
+    git(repository, ["checkout", "main"])
+    git(
+      repository,
+      ["merge", "--no-ff", "contributor", "-m", "merge plugin"],
+      "2026-09-10T00:00:00+00:00"
+    )
+
+    expect(
+      readRegistryAddedAt(join(repository, "registry")).get("future-dated.json")
+    ).toBe("2026-09-10T00:00:00Z")
+  })
+
+  it("omits a future-dated entry on the integration branch", () => {
+    const repository = temporaryDirectory()
+    mkdirSync(join(repository, "registry"))
+    git(repository, ["init", "--initial-branch=main"])
+    commitRegistryEntry(
+      repository,
+      "future-dated.json",
+      { repo: "acme/widgets" },
+      "2099-12-01T00:00:00+00:00"
+    )
+
+    expect(
+      readRegistryAddedAt(join(repository, "registry")).has("future-dated.json")
+    ).toBe(false)
+  })
+
   it("refuses a shallow clone rather than dating everything to its tip", () => {
     const repository = temporaryDirectory()
     mkdirSync(join(repository, "registry"))

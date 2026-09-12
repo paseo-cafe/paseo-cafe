@@ -618,7 +618,7 @@ export function PluginDetailPage({
           ) : null}
           {formatDate(entry.repoMeta?.pushedAt) ? (
             <Text style={styles.metaText}>
-              Last updated {formatDate(entry.repoMeta?.pushedAt)}
+              Last repository push {formatDate(entry.repoMeta?.pushedAt)}
             </Text>
           ) : null}
           <Pressable

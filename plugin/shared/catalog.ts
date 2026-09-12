@@ -194,7 +194,7 @@ export const CATALOG_HEALTH_LABELS: Record<CatalogHealthCheck, string> = {
   hasLicense: "Has a license",
   hasTests: "Has tests",
   hasTypecheckScript: "Has a typecheck script",
-  updatedRecently: "Updated in the last 6 months",
+  updatedRecently: "Repository active in the last 6 months",
 }
 
 /**
@@ -217,6 +217,11 @@ export function getCatalogAddedAtTime(entry: CatalogAddedAt): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+/** Whether an entry has a usable catalog-listing timestamp. */
+export function isCatalogAddedAtKnown(entry: CatalogAddedAt): boolean {
+  return getCatalogAddedAtTime(entry) > 0
+}
+
 /**
  * Most recently listed first. Entries with no known date sort last rather
  * than first, so a missing date never fakes its way to the top of the list.
@@ -230,15 +235,15 @@ export function compareCatalogAddedAt(
 }
 
 /**
- * Which date a listing is being ordered by. Both surfaces put the matching
- * date on the row while that sort is active, so the ordering is legible
- * instead of implied — "Recently added" without a date is just a list.
+ * Which date a listing is being ordered by. A repository push is deliberately
+ * not called an update: package.json semver is the plugin update identity,
+ * while pushedAt only measures activity anywhere in its source repository.
  */
-export type CatalogDateField = "added" | "updated"
+export type CatalogDateField = "added" | "pushed"
 
 export const CATALOG_DATE_LABELS: Record<CatalogDateField, string> = {
   added: "Added",
-  updated: "Updated",
+  pushed: "Repo push",
 }
 
 const CATALOG_MONTHS = [
@@ -310,7 +315,7 @@ export function getCatalogDateValue(
   return field === "added" ? entry.addedAt : entry.repoMeta?.pushedAt
 }
 
-/** "Added Sep 11, 2026" / "Updated Sep 11, 2026", or undefined when unknown. */
+/** "Added Sep 11, 2026" / "Repo push Sep 11, 2026", or undefined. */
 export function getCatalogDateBadge(
   entry: { addedAt?: string; repoMeta?: { pushedAt?: string } },
   field: CatalogDateField,

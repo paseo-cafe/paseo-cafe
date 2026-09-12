@@ -23,6 +23,7 @@ import {
   getCatalogInstallRef,
   getCatalogRepositoryOwner,
   getCatalogRepositoryUrl,
+  isCatalogAddedAtKnown,
   isOfficialCatalogPlugin,
   isValidCatalogCommit,
   isValidCatalogPath,
@@ -115,6 +116,7 @@ export const DIRECTORY_SORT_MODES = [
 /** Shared with the website's "Recently added" sort — see ./catalog.ts. */
 export const DIRECTORY_ADDED_AT_LABEL = CATALOG_ADDED_AT_LABEL
 export const compareDirectoryAddedAt = compareCatalogAddedAt
+export const isDirectoryAddedAtKnown = isCatalogAddedAtKnown
 
 export const getDirectoryDateBadge = getCatalogDateBadge
 export const formatDirectoryDate = formatCatalogDateForReader

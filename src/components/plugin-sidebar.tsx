@@ -73,7 +73,7 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
         {plugin.author ? <span>By {plugin.author}</span> : null}
         {plugin.repoMeta ? (
           <span>
-            Last updated <ReaderDate iso={plugin.repoMeta.pushedAt} />
+            Last repository push <ReaderDate iso={plugin.repoMeta.pushedAt} />
           </span>
         ) : null}
       </div>

@@ -22,6 +22,7 @@ import {
   getRepositoryUrlAtRef,
   getSiteUrl,
   isDefaultDirectoryBrowseView,
+  isDirectoryAddedAtKnown,
   isOfficialPlugin,
   isTrustedCatalogUrl,
   isValidInstallPath,
@@ -228,8 +229,8 @@ describe("listing date badges", () => {
     expect(getDirectoryDateBadge(entry, "added", "en-GB")).toBe(
       `Added ${localDay} Sept 2026`
     )
-    expect(getDirectoryDateBadge(entry, "updated", "en-US")).toMatch(
-      /^Updated Jan \d{1,2}, 2026$/
+    expect(getDirectoryDateBadge(entry, "pushed", "en-US")).toMatch(
+      /^Repo push Jan \d{1,2}, 2026$/
     )
   })
 
@@ -244,7 +245,7 @@ describe("listing date badges", () => {
     expect(
       getDirectoryDateBadge({ addedAt: "whenever" }, "added")
     ).toBeUndefined()
-    expect(getDirectoryDateBadge({ repoMeta: {} }, "updated")).toBeUndefined()
+    expect(getDirectoryDateBadge({ repoMeta: {} }, "pushed")).toBeUndefined()
   })
 })
 
@@ -299,6 +300,13 @@ describe("directory listing dates", () => {
     expect(
       compareDirectoryAddedAt(entry, { addedAt: "2026-01-01T00:00:00Z" })
     ).toBeGreaterThan(0)
+  })
+
+  it("does not treat a truthy invalid date as a known listing date", () => {
+    expect(isDirectoryAddedAtKnown({ addedAt: "whenever" })).toBe(false)
+    expect(isDirectoryAddedAtKnown({ addedAt: "2026-01-01T00:00:00Z" })).toBe(
+      true
+    )
   })
 
   it("orders newest listings first and unknown dates last", () => {

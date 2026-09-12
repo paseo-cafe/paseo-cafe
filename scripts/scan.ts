@@ -105,9 +105,10 @@ function isShallowRepository(directory: string): boolean {
  * hand-authored so every existing entry has a real date and no submitter can
  * date their own listing to the top of "Recently added".
  *
- * One `git log` pass covers the whole registry. Commits arrive newest-first,
- * so the last date written for a file is its *earliest* add, which is the
- * one that survives a delete-and-re-add.
+ * One first-parent `git log` pass covers the whole registry. Merge commits are
+ * diffed against their first parent, so a preserved contributor commit cannot
+ * supply its own listing date. Commits arrive newest-first, so the last date
+ * written for a file is its earliest add, which survives delete-and-re-add.
  *
  * A shallow clone is refused rather than read. Its grafted root commit
  * appears to add every tracked file at once, so `git log` reports the entire
@@ -128,10 +129,11 @@ export function readRegistryAddedAt(
       "git",
       [
         "log",
+        "--first-parent",
+        "-m",
         "--diff-filter=A",
-        // Committer date: when the entry landed on the branch, which is what
-        // "added to the catalog" means. Author dates survive a squash merge
-        // from whenever the contributor first wrote the file locally.
+        // Committer date on the integration history: when the entry landed on
+        // the catalog branch, not when a contributor authored or committed it.
         "--format=%cI",
         "--name-only",
         "--",
@@ -156,7 +158,9 @@ export function readRegistryAddedAt(
     const value = line.trim()
     if (value === "") continue
     if (ISO_TIMESTAMP_PATTERN.test(value)) {
-      commitDate = value
+      const parsed = Date.parse(value)
+      commitDate =
+        Number.isFinite(parsed) && parsed <= Date.now() ? value : undefined
     } else if (commitDate && value.endsWith(".json")) {
       addedAt.set(basename(value), commitDate)
     }

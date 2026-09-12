@@ -161,7 +161,7 @@ function App() {
     () => sortPlugins(plugins, "popular").slice(0, SECTION_LIMIT),
     [plugins]
   )
-  const recentlyUpdated = useMemo(
+  const recentRepositoryActivity = useMemo(
     () => sortPlugins(plugins, "updated").slice(0, SECTION_LIMIT),
     [plugins]
   )
@@ -237,9 +237,9 @@ function App() {
                 plugins={popular}
               />
               <FeaturedSection
-                title="Recently updated"
-                description="Plugins with recent repository activity."
-                plugins={recentlyUpdated}
+                title="Recent repo activity"
+                description="Plugins whose source repositories were pushed recently."
+                plugins={recentRepositoryActivity}
               />
               <FeaturedSection
                 title="Recently added"

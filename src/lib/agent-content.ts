@@ -144,7 +144,7 @@ export function renderPluginMarkdown(
     `- License: ${plugin.health.hasLicense ? "present" : "not found"}`,
     `- Tests: ${plugin.health.hasTests ? "present" : "not detected"}`,
     `- Typecheck script: ${plugin.health.hasTypecheckScript ? "present" : "not detected"}`,
-    `- Recently updated: ${plugin.health.updatedRecently ? "yes" : "no"}`
+    `- Recent repository activity: ${plugin.health.updatedRecently ? "yes" : "no"}`
   )
 
   if (plugin.security?.status && plugin.security.status !== "unknown") {

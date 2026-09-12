@@ -24,9 +24,8 @@ import {
 
 /**
  * `dateField` is the date the catalog is currently ordered by, if any (see
- * sortDateField in src/lib/catalog-search.ts). The card shows that one date
- * so a "Recently added" or "Recently updated" ordering can be read off the
- * results instead of taken on trust.
+ * sortDateField in src/lib/catalog-search.ts). The card shows that date so a
+ * "Recently added" or repository-activity ordering is explicit.
  */
 export function PluginCard({
   plugin,

@@ -89,7 +89,7 @@ export function clampCatalogPage(page: number, totalPages: number): number {
 
 export const sortLabels: Record<SortValue, string> = {
   popular: "Popular",
-  updated: "Recently updated",
+  updated: "Recent repo activity",
   added: CATALOG_ADDED_AT_LABEL,
   az: "A–Z",
 }
@@ -102,7 +102,7 @@ export const sortOptions: SortValue[] = ["popular", "updated", "added", "az"]
  */
 export function sortDateField(sort: SortValue): CatalogDateField | undefined {
   if (sort === "added") return "added"
-  if (sort === "updated") return "updated"
+  if (sort === "updated") return "pushed"
   return undefined
 }
 
