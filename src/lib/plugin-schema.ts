@@ -1,6 +1,10 @@
+import * as semver from "semver"
 import { z } from "zod"
 import { PLATFORMS } from "@/lib/registry-schema"
-import type { CatalogHealthCheck } from "../../plugin/shared/catalog"
+import {
+  CATALOG_VERSION_MAX_LENGTH,
+  type CatalogHealthCheck,
+} from "../../plugin/shared/catalog"
 
 /**
  * The enriched, generated record for one plugin. Never hand-authored — the
@@ -31,6 +35,14 @@ export const gitCommitSchema = z
   .trim()
   .regex(/^[0-9a-f]{40}$/i, "Must be a full Git commit SHA")
   .transform((commit) => commit.toLowerCase())
+
+export function normalizePluginVersion(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const normalized = semver.valid(value) ?? undefined
+  return normalized && normalized.length <= CATALOG_VERSION_MAX_LENGTH
+    ? normalized
+    : undefined
+}
 
 export const pluginSecuritySchema = z
   .object({
@@ -103,7 +115,7 @@ export const pluginRecordSchema = z.object({
   url: z.string().url(),
   name: z.string(),
   description: z.string().default(""),
-  version: z.string().optional(),
+  version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
   author: z.string().optional(),
   license: z.string().optional(),
   categories: z.array(z.string()).default([]),

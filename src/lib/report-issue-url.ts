@@ -16,10 +16,7 @@ export function buildReportIssueUrl(
     [
       `Plugin ID: ${plugin.id}`,
       `Source repository URL: ${pluginRepositoryUrl(plugin)}`,
-      `Listing URL: ${new URL(
-        `/plugins/${encodeURIComponent(plugin.id)}`,
-        SITE_URL
-      ).toString()}`,
+      `Listing URL: ${SITE_URL}/plugins/${encodeURIComponent(plugin.id)}`,
       "",
       "Please describe the problem here.",
     ].join("\n")
