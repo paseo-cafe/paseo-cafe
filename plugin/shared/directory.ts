@@ -18,7 +18,7 @@ import {
   compareCatalogAddedAt,
   formatCatalogDateForReader,
   formatCatalogVersion,
-  getCatalogDateBadge,
+  getCatalogAddedDateBadge,
   getCatalogInstallCommand,
   getCatalogInstallRef,
   getCatalogRepositoryOwner,
@@ -108,7 +108,6 @@ export const normalizeDirectoryCategories = normalizeCatalogCategories
 export const DIRECTORY_SORT_MODES = [
   "updates-first",
   "popular",
-  "recent",
   "recently-added",
   "a-z",
 ] as const
@@ -118,7 +117,7 @@ export const DIRECTORY_ADDED_AT_LABEL = CATALOG_ADDED_AT_LABEL
 export const compareDirectoryAddedAt = compareCatalogAddedAt
 export const isDirectoryAddedAtKnown = isCatalogAddedAtKnown
 
-export const getDirectoryDateBadge = getCatalogDateBadge
+export const getDirectoryAddedDateBadge = getCatalogAddedDateBadge
 export const formatDirectoryDate = formatCatalogDateForReader
 
 export const DIRECTORY_STATUS_FILTERS = [
@@ -200,7 +199,7 @@ export function migrateDirectorySettings(
   fromVersion: number
 ): unknown {
   if (
-    fromVersion >= 2 ||
+    fromVersion >= 3 ||
     typeof values !== "object" ||
     values === null ||
     Array.isArray(values)
@@ -209,9 +208,18 @@ export function migrateDirectorySettings(
   }
 
   const previous = values as Record<string, unknown>
+  const browse =
+    previous.browse &&
+    typeof previous.browse === "object" &&
+    !Array.isArray(previous.browse)
+      ? (previous.browse as Record<string, unknown>)
+      : DEFAULT_DIRECTORY_BROWSE_SETTINGS
   return {
     ...previous,
-    browse: previous.browse ?? DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+    browse: {
+      ...browse,
+      ...(browse.sort === "recent" ? { sort: "updates-first" } : {}),
+    },
   }
 }
 
@@ -223,7 +231,7 @@ export function migrateDirectorySettings(
 export const directorySettings = defineSettings({
   id: "directory-settings",
   scope: "host",
-  version: 2,
+  version: 3,
   schema: z.object({
     directoryUrl: catalogUrlSchema.default(DEFAULT_DIRECTORY_URL),
     browse: directoryBrowseSettingsSchema.default(

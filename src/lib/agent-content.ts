@@ -143,8 +143,7 @@ export function renderPluginMarkdown(
     `- README: ${plugin.health.hasReadme ? "present" : "not found"}`,
     `- License: ${plugin.health.hasLicense ? "present" : "not found"}`,
     `- Tests: ${plugin.health.hasTests ? "present" : "not detected"}`,
-    `- Typecheck script: ${plugin.health.hasTypecheckScript ? "present" : "not detected"}`,
-    `- Recent repository activity: ${plugin.health.updatedRecently ? "yes" : "no"}`
+    `- Typecheck script: ${plugin.health.hasTypecheckScript ? "present" : "not detected"}`
   )
 
   if (plugin.security?.status && plugin.security.status !== "unknown") {

@@ -286,7 +286,6 @@ interface SortOption {
 const SORT_OPTIONS: readonly SortOption[] = [
   { value: "updates-first", label: "Updates first" },
   { value: "popular", label: "Popular" },
-  { value: "recent", label: "Recent repo activity" },
   { value: "recently-added", label: DIRECTORY_ADDED_AT_LABEL },
   { value: "a-z", label: "A–Z" },
 ]
@@ -303,15 +302,6 @@ function compareText(a: string | undefined, b: string | undefined): number {
   if (left < right) return -1
   if (left > right) return 1
   return 0
-}
-
-function timeValue(value: string | undefined): number {
-  const parsed = value ? Date.parse(value) : 0
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function compareDateDesc(a: string | undefined, b: string | undefined): number {
-  return timeValue(b) - timeValue(a)
 }
 
 function compareStarsDesc(a: DirectoryEntry, b: DirectoryEntry): number {
@@ -341,7 +331,6 @@ function compareEntries(
       Number(entryHasUpdate(b, installationByEntryId)) -
         Number(entryHasUpdate(a, installationByEntryId)) ||
       compareStarsDesc(a, b) ||
-      compareDateDesc(a.repoMeta?.pushedAt, b.repoMeta?.pushedAt) ||
       compareText(a.name, b.name) ||
       compareText(a.repo, b.repo) ||
       compareText(a.id, b.id)
@@ -350,17 +339,6 @@ function compareEntries(
 
   if (sortMode === "popular") {
     return (
-      compareStarsDesc(a, b) ||
-      compareDateDesc(a.repoMeta?.pushedAt, b.repoMeta?.pushedAt) ||
-      compareText(a.name, b.name) ||
-      compareText(a.repo, b.repo) ||
-      compareText(a.id, b.id)
-    )
-  }
-
-  if (sortMode === "recent") {
-    return (
-      compareDateDesc(a.repoMeta?.pushedAt, b.repoMeta?.pushedAt) ||
       compareStarsDesc(a, b) ||
       compareText(a.name, b.name) ||
       compareText(a.repo, b.repo) ||
@@ -904,16 +882,6 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         : [],
     [defaultBrowseState, filtered, installationByEntryId]
   )
-  const recentActivityHighlights = useMemo(
-    () =>
-      defaultBrowseState
-        ? sortEntries(filtered, "recent", installationByEntryId).slice(
-            0,
-            FEATURED_LIMIT
-          )
-        : [],
-    [defaultBrowseState, filtered, installationByEntryId]
-  )
   // Entries with no usable listing date are left out entirely: a catalog that
   // doesn't publish valid addedAt values shows no section rather than an
   // arbitrary five.
@@ -1271,7 +1239,6 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
             ) : null}
             {defaultBrowseState &&
             (popularHighlights.length > 0 ||
-              recentActivityHighlights.length > 0 ||
               recentlyAddedHighlights.length > 0) ? (
               <View style={styles.featuredBlock}>
                 {popularHighlights.length > 0 ? (
@@ -1291,35 +1258,6 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                       {popularHighlights.map((item) => (
                         <PluginRow
                           key={`popular-${item.id}`}
-                          entry={item}
-                          theme={theme}
-                          installations={
-                            installationByEntryId.get(item.id) ?? []
-                          }
-                          compact={layout.compact}
-                          onPress={() => openPlugin(item)}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-                {recentActivityHighlights.length > 0 ? (
-                  <View style={styles.featuredSection}>
-                    <View style={styles.sectionHeading}>
-                      <Text
-                        accessibilityRole="header"
-                        style={styles.featuredHeader}
-                      >
-                        Recent repo activity
-                      </Text>
-                      <Text style={styles.featuredDescription}>
-                        Plugins whose source repositories were pushed recently.
-                      </Text>
-                    </View>
-                    <View style={styles.featuredItems}>
-                      {recentActivityHighlights.map((item) => (
-                        <PluginRow
-                          key={`recent-${item.id}`}
                           entry={item}
                           theme={theme}
                           installations={

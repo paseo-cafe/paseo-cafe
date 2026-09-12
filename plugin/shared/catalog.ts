@@ -177,16 +177,23 @@ export function getCatalogInstallCommand(entry: {
   return args ? ["paseo", "plugin", "add", ...args].join(" ") : undefined
 }
 
+export type CatalogHealthCheck =
+  | "manifestValid"
+  | "hasReadme"
+  | "hasLicense"
+  | "hasTests"
+  | "hasTypecheckScript"
+  | "updatedRecently"
+
+// User-facing health excludes repository activity: plugin updates are defined
+// by package.json semver, not by unrelated pushes to a source repository.
 export const CATALOG_HEALTH_KEYS = [
   "manifestValid",
   "hasReadme",
   "hasLicense",
   "hasTests",
   "hasTypecheckScript",
-  "updatedRecently",
-] as const
-
-export type CatalogHealthCheck = (typeof CATALOG_HEALTH_KEYS)[number]
+] as const satisfies readonly CatalogHealthCheck[]
 
 export const CATALOG_HEALTH_LABELS: Record<CatalogHealthCheck, string> = {
   manifestValid: "Manifest ID matches registry",
@@ -232,18 +239,6 @@ export function compareCatalogAddedAt(
   b: CatalogAddedAt
 ): number {
   return getCatalogAddedAtTime(b) - getCatalogAddedAtTime(a)
-}
-
-/**
- * Which date a listing is being ordered by. A repository push is deliberately
- * not called an update: package.json semver is the plugin update identity,
- * while pushedAt only measures activity anywhere in its source repository.
- */
-export type CatalogDateField = "added" | "pushed"
-
-export const CATALOG_DATE_LABELS: Record<CatalogDateField, string> = {
-  added: "Added",
-  pushed: "Repo push",
 }
 
 const CATALOG_MONTHS = [
@@ -307,21 +302,13 @@ export function formatCatalogDateForReader(
   }
 }
 
-/** The raw timestamp a listing's date badge is built from, if it has one. */
-export function getCatalogDateValue(
-  entry: { addedAt?: string; repoMeta?: { pushedAt?: string } },
-  field: CatalogDateField
-): string | undefined {
-  return field === "added" ? entry.addedAt : entry.repoMeta?.pushedAt
-}
-
-/** "Added Sep 11, 2026" / "Repo push Sep 11, 2026", or undefined. */
-export function getCatalogDateBadge(
-  entry: { addedAt?: string; repoMeta?: { pushedAt?: string } },
-  field: CatalogDateField,
+/** "Added Sep 11, 2026", or undefined when the listing date is unknown. */
+export function getCatalogAddedDateBadge(
+  entry: CatalogAddedAt,
   locale?: string
 ): string | undefined {
-  const iso = getCatalogDateValue(entry, field)
-  const formatted = iso ? formatCatalogDateForReader(iso, locale) : undefined
-  return formatted && `${CATALOG_DATE_LABELS[field]} ${formatted}`
+  const formatted = entry.addedAt
+    ? formatCatalogDateForReader(entry.addedAt, locale)
+    : undefined
+  return formatted && `Added ${formatted}`
 }

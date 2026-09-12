@@ -46,6 +46,27 @@ describe("pluginJsonLd", () => {
     })
   })
 
+  it("publishes the semantic version and catalog date, not repository activity", () => {
+    const ld = pluginJsonLd({
+      ...basePlugin,
+      version: "1.2.3",
+      addedAt: "2026-09-11T12:00:00Z",
+      repoMeta: {
+        stars: 1,
+        openIssues: 0,
+        defaultBranch: "main",
+        pushedAt: "2026-09-12T12:00:00Z",
+        topics: [],
+        archived: false,
+        license: "MIT",
+      },
+    })
+
+    expect(ld.softwareVersion).toBe("1.2.3")
+    expect(ld.datePublished).toBe("2026-09-11T12:00:00Z")
+    expect(ld).not.toHaveProperty("dateModified")
+  })
+
   it("falls back to the generated OG image when there are no screenshots", () => {
     const ld = pluginJsonLd(basePlugin)
     expect(ld.image).toContain("/og/subagent-activity.png")

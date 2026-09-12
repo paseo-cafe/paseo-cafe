@@ -8,7 +8,6 @@ import {
 } from "@/lib/registry-schema"
 import {
   CATALOG_ADDED_AT_LABEL,
-  type CatalogDateField,
   compareCatalogAddedAt,
 } from "../../plugin/shared/catalog"
 
@@ -27,7 +26,7 @@ export const HOME_SEARCH_DEFAULT = {
   page: 1,
 } as const
 
-const sortValues = ["popular", "updated", "added", "az"] as const
+const sortValues = ["popular", "added", "az"] as const
 export type SortValue = (typeof sortValues)[number]
 
 function normalizeCategoryFilter(category: string): Category | "" {
@@ -89,22 +88,11 @@ export function clampCatalogPage(page: number, totalPages: number): number {
 
 export const sortLabels: Record<SortValue, string> = {
   popular: "Popular",
-  updated: "Recent repo activity",
   added: CATALOG_ADDED_AT_LABEL,
   az: "A–Z",
 }
 
-export const sortOptions: SortValue[] = ["popular", "updated", "added", "az"]
-
-/**
- * The date a listing should show while this sort is active — the value the
- * ordering is actually based on. Sorts that don't order by a date show none.
- */
-export function sortDateField(sort: SortValue): CatalogDateField | undefined {
-  if (sort === "added") return "added"
-  if (sort === "updated") return "pushed"
-  return undefined
-}
+export const sortOptions: SortValue[] = ["popular", "added", "az"]
 
 const collator = new Intl.Collator(undefined, {
   numeric: true,
@@ -124,12 +112,6 @@ export function sortPlugins(
       case "popular":
         return (
           (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0) ||
-          comparePluginsByName(a, b)
-        )
-      case "updated":
-        return (
-          (Date.parse(b.repoMeta?.pushedAt ?? "") || 0) -
-            (Date.parse(a.repoMeta?.pushedAt ?? "") || 0) ||
           comparePluginsByName(a, b)
         )
       case "added":

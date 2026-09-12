@@ -161,10 +161,6 @@ function App() {
     () => sortPlugins(plugins, "popular").slice(0, SECTION_LIMIT),
     [plugins]
   )
-  const recentRepositoryActivity = useMemo(
-    () => sortPlugins(plugins, "updated").slice(0, SECTION_LIMIT),
-    [plugins]
-  )
   // Only plugins with a known listing date: without git history to derive it
   // from (see readRegistryAddedAt in scripts/scan.ts) this section stays
   // empty rather than presenting an arbitrary order as "newest".
@@ -235,11 +231,6 @@ function App() {
                 title="Popular"
                 description="Most starred plugins right now."
                 plugins={popular}
-              />
-              <FeaturedSection
-                title="Recent repo activity"
-                description="Plugins whose source repositories were pushed recently."
-                plugins={recentRepositoryActivity}
               />
               <FeaturedSection
                 title="Recently added"

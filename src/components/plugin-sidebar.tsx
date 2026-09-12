@@ -8,7 +8,6 @@ import { Link } from "@tanstack/react-router"
 import { PluginHealthChecks } from "@/components/plugin-health-checks"
 import { PluginManifest } from "@/components/plugin-manifest"
 import { PluginSecurityScanSection } from "@/components/plugin-security-scan"
-import { ReaderDate } from "@/components/reader-date"
 import { Badge } from "@/components/ui/badge"
 import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
 import type { PluginRecord } from "@/lib/plugin-schema"
@@ -71,11 +70,7 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
         ) : null}
         {plugin.license ? <span>License: {plugin.license}</span> : null}
         {plugin.author ? <span>By {plugin.author}</span> : null}
-        {plugin.repoMeta ? (
-          <span>
-            Last repository push <ReaderDate iso={plugin.repoMeta.pushedAt} />
-          </span>
-        ) : null}
+        {plugin.version ? <span>Version: {plugin.version}</span> : null}
       </div>
 
       {plugin.categories.length > 0 ? (

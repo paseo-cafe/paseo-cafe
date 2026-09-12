@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
   parseCatalogSearch,
-  sortDateField,
   sortLabels,
   sortOptions,
   sortPlugins,
@@ -83,19 +82,10 @@ describe("sortPlugins by listing date", () => {
     expect(sorted.map((entry) => entry.id)).toEqual(["listed", "broken"])
   })
 
-  it("offers the sort in the catalog UI and accepts it as a search param", () => {
-    expect(sortOptions).toContain("added")
+  it("offers listing-date sorting and retires repository-activity sorting", () => {
+    expect(sortOptions).toEqual(["popular", "added", "az"])
     expect(sortLabels.added).toBe("Recently added")
-    expect(sortLabels.updated).toBe("Recent repo activity")
     expect(parseCatalogSearch({ sort: "added" }).sort).toBe("added")
-  })
-})
-
-describe("sortDateField", () => {
-  it("labels the date each sort orders by, and no other", () => {
-    expect(sortDateField("added")).toBe("added")
-    expect(sortDateField("updated")).toBe("pushed")
-    expect(sortDateField("popular")).toBeUndefined()
-    expect(sortDateField("az")).toBeUndefined()
+    expect(parseCatalogSearch({ sort: "updated" }).sort).toBe("popular")
   })
 })

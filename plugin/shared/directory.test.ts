@@ -15,7 +15,7 @@ import {
   directorySecurityAttachments,
   directorySettings,
   directoryUpdateStatusRpc,
-  getDirectoryDateBadge,
+  getDirectoryAddedDateBadge,
   getInstallCommand,
   getInstallRef,
   getRepositoryUrl,
@@ -216,36 +216,27 @@ describe("catalog URL transport policy", () => {
 
 describe("listing date badges", () => {
   // Mid-month and mid-day, so no time zone can shift it into another month.
-  const entry = {
-    addedAt: "2026-09-15T12:00:00Z",
-    repoMeta: { pushedAt: "2026-01-15T12:00:00Z" },
-  }
+  const entry = { addedAt: "2026-09-15T12:00:00Z" }
   const localDay = new Date(entry.addedAt).getDate()
 
-  it("labels each date and renders it the reader's way", () => {
-    expect(getDirectoryDateBadge(entry, "added", "en-US")).toBe(
+  it("labels listing dates and renders them the reader's way", () => {
+    expect(getDirectoryAddedDateBadge(entry, "en-US")).toBe(
       `Added Sep ${localDay}, 2026`
     )
-    expect(getDirectoryDateBadge(entry, "added", "en-GB")).toBe(
+    expect(getDirectoryAddedDateBadge(entry, "en-GB")).toBe(
       `Added ${localDay} Sept 2026`
-    )
-    expect(getDirectoryDateBadge(entry, "pushed", "en-US")).toMatch(
-      /^Repo push Jan \d{1,2}, 2026$/
     )
   })
 
   it("falls back to a fixed UTC rendering when the locale is unusable", () => {
-    expect(getDirectoryDateBadge(entry, "added", "not a locale")).toBe(
+    expect(getDirectoryAddedDateBadge(entry, "not a locale")).toBe(
       "Added 15 Sep 2026"
     )
   })
 
   it("shows nothing for a missing or unusable date", () => {
-    expect(getDirectoryDateBadge({}, "added")).toBeUndefined()
-    expect(
-      getDirectoryDateBadge({ addedAt: "whenever" }, "added")
-    ).toBeUndefined()
-    expect(getDirectoryDateBadge({ repoMeta: {} }, "pushed")).toBeUndefined()
+    expect(getDirectoryAddedDateBadge({})).toBeUndefined()
+    expect(getDirectoryAddedDateBadge({ addedAt: "whenever" })).toBeUndefined()
   })
 })
 
@@ -326,6 +317,9 @@ describe("directory listing dates", () => {
       directoryBrowseSettingsSchema.parse({ sort: "recently-added" }).sort
     ).toBe("recently-added")
     expect(DIRECTORY_ADDED_AT_LABEL).toBe("Recently added")
+    expect(
+      directoryBrowseSettingsSchema.safeParse({ sort: "recent" }).success
+    ).toBe(false)
   })
 })
 
@@ -399,6 +393,23 @@ describe("directory taxonomy and browse settings", () => {
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
     })
+  })
+
+  it("migrates the removed repository-activity sort to version updates", () => {
+    const migrated = migrateDirectorySettings(
+      {
+        directoryUrl: "https://catalog.internal/api/plugins",
+        browse: {
+          ...DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+          sort: "recent",
+        },
+      },
+      2
+    )
+
+    expect(directorySettings.schema.parse(migrated).browse.sort).toBe(
+      "updates-first"
+    )
   })
 })
 

@@ -16,25 +16,15 @@ import {
 } from "@/components/ui/card"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { formatPluginVersion, PLATFORM_LABELS } from "@/lib/registry-schema"
-import {
-  CATALOG_DATE_LABELS,
-  type CatalogDateField,
-  getCatalogDateValue,
-} from "../../plugin/shared/catalog"
 
-/**
- * `dateField` is the date the catalog is currently ordered by, if any (see
- * sortDateField in src/lib/catalog-search.ts). The card shows that date so a
- * "Recently added" or repository-activity ordering is explicit.
- */
+/** Shows the catalog listing date only when the results are ordered by it. */
 export function PluginCard({
   plugin,
-  dateField,
+  showAddedDate,
 }: {
   plugin: PluginRecord
-  dateField?: CatalogDateField
+  showAddedDate?: boolean
 }) {
-  const dateValue = dateField && getCatalogDateValue(plugin, dateField)
   const healthIsComplete =
     plugin.health.manifestValid &&
     plugin.health.hasReadme &&
@@ -83,7 +73,7 @@ export function PluginCard({
             {plugin.description || "No description available."}
           </CardDescription>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="sr-only">Freshness and health</span>
+            <span className="sr-only">Version and health</span>
             {plugin.owner ? (
               <span className="flex items-center gap-1.5 text-foreground/50 text-xs">
                 <img
@@ -94,17 +84,15 @@ export function PluginCard({
                 {plugin.owner.login}
               </span>
             ) : null}
-            {dateField && dateValue ? (
+            {showAddedDate && plugin.addedAt ? (
               <Badge variant="secondary">
-                {CATALOG_DATE_LABELS[dateField]}&nbsp;
-                <ReaderDate iso={dateValue} />
+                Added&nbsp;
+                <ReaderDate iso={plugin.addedAt} />
               </Badge>
             ) : null}
-            <Badge
-              variant={plugin.health.updatedRecently ? "secondary" : "outline"}
-            >
-              {plugin.health.updatedRecently ? "Fresh" : "Stale"}
-            </Badge>
+            {plugin.version ? (
+              <Badge variant="secondary">v{plugin.version}</Badge>
+            ) : null}
             <Badge variant={healthIsComplete ? "secondary" : "outline"}>
               {healthIsComplete ? "Healthy" : "Incomplete health checks"}
             </Badge>

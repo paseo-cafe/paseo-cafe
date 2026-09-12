@@ -567,8 +567,7 @@ export function writeSitemap(records: PluginRecord[]) {
         `  <url><loc>${SITE_URL}${path}</loc><changefreq>${changefreq}</changefreq></url>`
     ),
     ...records.map(
-      (r) =>
-        `  <url><loc>${SITE_URL}/plugins/${r.id}</loc><lastmod>${(r.repoMeta?.pushedAt ?? r.scannedAt).slice(0, 10)}</lastmod></url>`
+      (record) => `  <url><loc>${SITE_URL}/plugins/${record.id}</loc></url>`
     ),
     ...ownerLogins.map(
       (login) =>

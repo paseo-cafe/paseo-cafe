@@ -7,7 +7,7 @@ import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
   formatDirectoryVersion,
-  getDirectoryDateBadge,
+  getDirectoryAddedDateBadge,
   HEALTH_KEYS,
   normalizeDirectoryCategory,
 } from "../shared/directory"
@@ -18,10 +18,7 @@ interface PluginRowProps {
   theme: PluginTheme
   compact: boolean
   installations: readonly InstalledPlugin[]
-  /**
-   * Whether to show when the catalog listed this plugin. Repository push time
-   * is always visible; this date appears when the list is ordered by it.
-   */
+  /** Show when the catalog listed this plugin while ordered by that date. */
   showAddedDate?: boolean
   onPress: () => void
 }
@@ -205,9 +202,8 @@ export function PluginRow({
         : undefined
 
   const starCount = entry.repoMeta?.stars
-  const pushedBadge = getDirectoryDateBadge(entry, "pushed")
   const addedBadge = showAddedDate
-    ? getDirectoryDateBadge(entry, "added")
+    ? getDirectoryAddedDateBadge(entry)
     : undefined
   const healthBadge = getHealthBadge(entry)
   const versionLabel = formatDirectoryVersion(entry.version)
@@ -259,14 +255,14 @@ export function PluginRow({
             </Text>
           </View>
         ) : null}
+        {entry.version ? (
+          <View style={styles.metaBadge}>
+            <Text style={styles.metaBadgeText("accent")}>v{entry.version}</Text>
+          </View>
+        ) : null}
         {addedBadge ? (
           <View style={styles.metaBadge}>
             <Text style={styles.metaBadgeText("muted")}>{addedBadge}</Text>
-          </View>
-        ) : null}
-        {pushedBadge ? (
-          <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText("muted")}>{pushedBadge}</Text>
           </View>
         ) : null}
         <View style={styles.metaBadge}>
