@@ -598,12 +598,18 @@ export function renderRobotsTxt(): string {
   return `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
 }
 
-/** True once both a plugin's data record and OG image are on disk from a previous scan. */
-function isFullyScanned(file: string): boolean {
+/** True once a plugin has a valid, successful cached record and OG image. */
+export function isFullyScanned(
+  file: string,
+  outputDir = OUTPUT_DIR,
+  ogDir = OG_DIR
+): boolean {
   const id = file.slice(0, -".json".length)
+  const record = readCachedRecord(id, outputDir)
   return (
-    existsSync(join(OUTPUT_DIR, `${id}.json`)) &&
-    existsSync(join(OG_DIR, `${id}.png`))
+    record !== undefined &&
+    record.scanError === undefined &&
+    existsSync(join(ogDir, `${id}.png`))
   )
 }
 
@@ -612,8 +618,11 @@ function isFullyScanned(file: string): boolean {
  * folded into the aggregate index without rescanning it — used when a run
  * only covers part of the registry (see --limit).
  */
-function readCachedRecord(id: string): PluginRecord | undefined {
-  const path = join(OUTPUT_DIR, `${id}.json`)
+function readCachedRecord(
+  id: string,
+  outputDir = OUTPUT_DIR
+): PluginRecord | undefined {
+  const path = join(outputDir, `${id}.json`)
   if (!existsSync(path)) return undefined
   try {
     return pluginRecordSchema.parse(JSON.parse(readFileSync(path, "utf8")))
