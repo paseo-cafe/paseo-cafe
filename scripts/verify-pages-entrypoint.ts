@@ -1,12 +1,17 @@
 import { readFile } from "node:fs/promises"
 import plugins from "../data/plugins.json" with { type: "json" }
-import { BASE_PATH, SITE_NAME, SITE_URL } from "../src/lib/site.ts"
+import {
+  BASE_PATH,
+  IS_CANONICAL_DEPLOYMENT,
+  SITE_NAME,
+  SITE_URL,
+} from "../src/lib/site.ts"
 
-// Nitro prerenders each route to its full path, so a deployment served under
-// a base path writes its pages to .output/public/<base>/ while public assets
-// stay at the root — the deploy workflow merges the two afterwards. Check
-// where this build actually put them, not where the canonical site puts them.
-const publicDirectory = `.output/public${BASE_PATH}`.replace(/\/$/, "")
+const artifactRoot = ".output/public"
+const verifyArtifactRoot = process.argv.includes("--artifact-root")
+const publicDirectory = verifyArtifactRoot
+  ? artifactRoot
+  : `${artifactRoot}${BASE_PATH}`.replace(/\/$/, "")
 const entrypoint = await readFile(
   `${publicDirectory}/index.html`,
   "utf8"
@@ -19,6 +24,35 @@ if (
   throw new Error(
     `GitHub Pages build must emit a rendered ${publicDirectory}/index.html catalog entrypoint`
   )
+}
+const [robots, sitemap, pluginsRedirect] = await Promise.all([
+  readFile(`${artifactRoot}/robots.txt`, "utf8"),
+  readFile(`${artifactRoot}/sitemap.xml`, "utf8"),
+  readFile(`${artifactRoot}/plugins/index.html`, "utf8"),
+])
+const expectedHome = `${SITE_URL}/`
+const deploymentFilesValid = IS_CANONICAL_DEPLOYMENT
+  ? robots.includes(`Sitemap: ${SITE_URL}/sitemap.xml`)
+  : robots === "User-agent: *\nDisallow: /\n" &&
+    entrypoint.includes('name="robots" content="noindex, nofollow"')
+
+if (
+  !deploymentFilesValid ||
+  !sitemap.includes(`<loc>${expectedHome}</loc>`) ||
+  !pluginsRedirect.includes(`content="0; url=${BASE_PATH}"`) ||
+  !pluginsRedirect.includes(`rel="canonical" href="${expectedHome}"`)
+) {
+  throw new Error("GitHub Pages build has stale deployment-specific files")
+}
+
+if (!verifyArtifactRoot && BASE_PATH !== "/") {
+  const hasUnprefixedIndex = await readFile(`${artifactRoot}/index`).then(
+    () => true,
+    () => false
+  )
+  if (hasUnprefixedIndex) {
+    throw new Error("GitHub Pages build emitted an unprefixed root route")
+  }
 }
 
 const llms = await readFile(`${publicDirectory}/llms.txt`, "utf8")

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { PluginSecurity } from "../src/lib/plugin-schema"
 import {
   loadPublishedSecurityCatalog,
+  renderPluginsRedirect,
   renderRobotsTxt,
   scanOne,
   securityForRevision,
@@ -262,6 +263,32 @@ function mockRepository(
     throw new Error(`unexpected request: ${url}`)
   }) as typeof fetch
 }
+
+describe("renderPluginsRedirect", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it("keeps a fork redirect inside its project base path", async () => {
+    vi.stubEnv("VITE_SITE_URL", "https://someone.github.io/paseo-cafe")
+    vi.stubEnv("VITE_BASE_PATH", "/paseo-cafe")
+    vi.resetModules()
+    const scan = await import("./scan")
+
+    const html = scan.renderPluginsRedirect()
+
+    expect(html).toContain('content="0; url=/paseo-cafe/"')
+    expect(html).toContain(
+      'rel="canonical" href="https://someone.github.io/paseo-cafe/"'
+    )
+    expect(html).toContain('<a href="/paseo-cafe/">')
+  })
+
+  it("exports the canonical redirect renderer", () => {
+    expect(renderPluginsRedirect()).toContain('content="0; url=/"')
+  })
+})
 
 describe("renderRobotsTxt", () => {
   // The deployment identity is read once when the module loads, so each case

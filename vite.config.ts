@@ -34,7 +34,10 @@ const config = defineConfig({
       prerender: {
         crawlLinks: true,
         failOnError: true,
-        ignore: ["/404.html"],
+        ignore: [
+          "/404.html",
+          ...(BASE === "/" ? [] : [(path: string) => path === "/"]),
+        ],
         routes: [
           BASE,
           `${BASE}submit`,

@@ -432,11 +432,9 @@ async function writeOgImage(
  * paseo.cafe's. The app has a matching client-side redirect route
  * (src/routes/plugins.index.tsx); this covers the first, static hit.
  */
-function writePluginsRedirect() {
-  // SITE_URL already carries the base path when there is one, so the
-  // canonical home URL is just SITE_URL plus a trailing slash.
+export function renderPluginsRedirect(): string {
   const target = `${SITE_URL}/`
-  const html = `<!doctype html>
+  return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -450,8 +448,14 @@ function writePluginsRedirect() {
   </body>
 </html>
 `
+}
+
+function writePluginsRedirect() {
   mkdirSync(join(PUBLIC_DIR, "plugins"), { recursive: true })
-  writeFileSync(join(PUBLIC_DIR, "plugins", "index.html"), html)
+  writeFileSync(
+    join(PUBLIC_DIR, "plugins", "index.html"),
+    renderPluginsRedirect()
+  )
 }
 
 export function writeSitemap(records: PluginRecord[]) {
@@ -485,10 +489,10 @@ export function writeSitemap(records: PluginRecord[]) {
 }
 
 /**
- * Crawlers get the catalog and its sitemap from the canonical site, and
- * nothing from a copy of it — see IS_CANONICAL_DEPLOYMENT in src/lib/site.ts.
- * A fork's sitemap is still written, since it is useful for checking a
- * deployment by hand.
+ * Crawlers get the catalog and its sitemap from the canonical site. A fork's
+ * project-path robots.txt is advisory because robots rules are read only from
+ * the origin root; rendered HTML also carries a noindex meta tag. The fork's
+ * sitemap is still useful for checking a deployment by hand.
  */
 export function renderRobotsTxt(): string {
   if (!IS_CANONICAL_DEPLOYMENT) {
@@ -498,6 +502,15 @@ export function renderRobotsTxt(): string {
 }
 
 async function main() {
+  if (process.argv.includes("--deployment-files-only")) {
+    const records = pluginRecordSchema
+      .array()
+      .parse(JSON.parse(readFileSync(INDEX_PATH, "utf8")))
+    writeSitemap(records)
+    writePluginsRedirect()
+    return
+  }
+
   const files = readdirSync(REGISTRY_DIR).filter((file) =>
     file.endsWith(".json")
   )

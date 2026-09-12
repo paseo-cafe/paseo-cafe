@@ -97,16 +97,22 @@ jobs:
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       # Nitro prerenders each route to its full path, so under a base path the
-      # HTML lands in .output/public/<base>/ while the public assets stay at
-      # .output/public/. Pages serves the artifact root *as* the base path, so
-      # the two have to be merged back together. No-op at the root.
+      # HTML lands in .output/public/<base>/ while public assets stay at the
+      # artifact root. Copy the prerendered files into that root because Pages
+      # already mounts the artifact at <base>. Keep the source directory: a
+      # valid repository name such as "assets" can collide with files that
+      # must remain nested in the deployed artifact.
       - name: Merge prerendered pages into the artifact root
-        if: steps.pages.outputs.base_path != '/'
-        run: |
-          set -euo pipefail
-          base="${{ steps.pages.outputs.base_path }}"
-          cp -R ".output/public${base}/." .output/public/
-          rm -rf ".output/public${base}"
+        if: steps.pages.outputs.base_path != ''
+        run: bun run scripts/merge-pages-artifact.ts
+        env:
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+
+      - name: Verify final GitHub Pages artifact
+        run: bun run scripts/verify-pages-entrypoint.ts --artifact-root
+        env:
+          VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
