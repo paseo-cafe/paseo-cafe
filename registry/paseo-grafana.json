@@ -1,0 +1,13 @@
+{
+  "repo": "jegork/paseo-grafana",
+  "categories": [
+    "monitoring",
+    "grafana",
+    "productivity"
+  ],
+  "caveats": [
+    "Requires the gcx CLI, logged in on the daemon host",
+    "Investigate spawns an agent in a workspace you pick"
+  ],
+  "submittedBy": "jegork"
+}
