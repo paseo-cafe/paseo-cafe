@@ -1,0 +1,13 @@
+{
+  "repo": "jegork/paseo-runtime-radar",
+  "categories": [
+    "monitoring",
+    "docker",
+    "productivity"
+  ],
+  "caveats": [
+    "Read-only; runs lsof and docker ps on the daemon host every five seconds while open",
+    "Requires lsof; docker is optional"
+  ],
+  "submittedBy": "jegork"
+}
