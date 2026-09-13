@@ -1,10 +1,6 @@
 {
   "repo": "jegork/paseo-ado",
-  "categories": [
-    "azure-devops",
-    "pull-requests",
-    "productivity"
-  ],
+  "categories": ["azure-devops", "pull-requests", "productivity"],
   "caveats": [
     "Requires the az CLI with the azure-devops extension, logged in on the daemon host",
     "Runs az commands with the daemon user's Azure DevOps access"
