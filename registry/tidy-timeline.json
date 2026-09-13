@@ -1,0 +1,13 @@
+{
+  "repo": "jegork/paseo-tidy-timeline",
+  "categories": [
+    "timeline",
+    "omp",
+    "productivity"
+  ],
+  "caveats": [
+    "Client-only; cards for omp's injected rows, long pastes fold for every provider",
+    "Paseo 0.8.0 streams assistant rows as blocks, so a card can be header-only until the agent is reloaded"
+  ],
+  "submittedBy": "jegork"
+}
