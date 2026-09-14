@@ -90,6 +90,13 @@ jobs:
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
           echo "directory=$registry_dir" >> "$GITHUB_OUTPUT"
 
+      - name: Check changed registry entries with Biome
+        if: steps.registry.outputs.changed == 'true'
+        run: >-
+          bun run biome check --error-on-warnings
+          --config-path biome.json
+          "${{ steps.registry.outputs.directory }}"
+
       - name: Validate changed registry entries
         id: validate
         if: steps.registry.outputs.changed == 'true'

@@ -13,7 +13,8 @@
       "!!data",
       "!!**/package-lock.json",
       "!!**/pnpm-lock.yaml",
-      "!!**/yarn.lock"
+      "!!**/yarn.lock",
+      "!!.release-please-manifest.json"
     ]
   },
   "formatter": {
