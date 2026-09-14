@@ -1,0 +1,13 @@
+{
+  "repo": "alysnnix/paseo-github-integration",
+  "categories": ["github", "productivity", "monitoring"],
+  "caveats": [
+    "Requires gh installed and authenticated on the daemon machine, not the device running the app",
+    "Sweeps review requests, mentions, assignments and authorship, plus any owner you add to the watched list",
+    "Approving, merging and editing labels need a gh login with the matching access to the repository",
+    "GitHub Projects needs the read:project scope, which gh auth login does not grant by default",
+    "Shows open work only: the board is a state:open search, so closed and merged items leave it",
+    "Images hosted outside GitHub are shown as links rather than loaded, so a comment cannot report your IP address"
+  ],
+  "submittedBy": "alysnnix"
+}
