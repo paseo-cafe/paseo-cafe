@@ -1,0 +1,10 @@
+{
+  "repo": "maxwell-01/paseo-beam",
+  "categories": ["git", "productivity", "automation"],
+  "caveats": [
+    "Only one beam can be active at a time; beam out before beaming another workspace.",
+    "Overwrites your main checkout's working tree while active, then restores it on beam out.",
+    "The workspace and its main checkout must be worktrees of the same git repo."
+  ],
+  "submittedBy": "maxwell-01"
+}
