@@ -1,0 +1,9 @@
+{
+  "repo": "cnaron/compact-agent-activity",
+  "categories": ["developer-tools", "productivity"],
+  "caveats": [
+    "Requires Paseo Tool call detail to be set to Detailed",
+    "Disable reasoning-display while this plugin is enabled"
+  ],
+  "submittedBy": "cnaron"
+}
