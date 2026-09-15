@@ -26,6 +26,7 @@ type PublishOptions = {
   report: string
   event: PullRequestEvent
   eventName?: string
+  pullRequestNumber?: number
   repository?: string
   token?: string
   summaryPath?: string
@@ -36,8 +37,11 @@ export async function publishReport(options: PublishOptions): Promise<void> {
   const body = `${REPORT_MARKER}\n${boundedReport(options.report)}`
   if (options.summaryPath) appendFileSync(options.summaryPath, `${body}\n`)
 
-  const number = options.event.pull_request?.number
-  if (options.eventName !== "pull_request_target" || !number) return
+  const number = options.pullRequestNumber ?? options.event.pull_request?.number
+  const publishEvent =
+    options.eventName === "pull_request_target" ||
+    options.eventName === "workflow_dispatch"
+  if (!publishEvent || !number) return
   if (!options.token)
     throw new Error("GITHUB_TOKEN is required for PR publishing")
   if (!options.repository || !/^[\w.-]+\/[\w.-]+$/.test(options.repository)) {
@@ -114,6 +118,9 @@ async function main() {
     eventName: process.env.GITHUB_EVENT_NAME,
     repository: process.env.GITHUB_REPOSITORY,
     token: process.env.GITHUB_TOKEN,
+    pullRequestNumber: process.env.PULL_REQUEST_NUMBER
+      ? Number(process.env.PULL_REQUEST_NUMBER)
+      : undefined,
     summaryPath: process.env.GITHUB_STEP_SUMMARY,
   })
 }

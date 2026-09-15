@@ -5,6 +5,7 @@ on:
     types: [opened, edited]
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
   issues: write
@@ -24,6 +25,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: true
+          fetch-depth: 0
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -33,14 +35,60 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Resolve submission state
+        id: submission
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          branch="plugin-submission/issue-${ISSUE_NUMBER}"
+          pull_requests="$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state all \
+              --head "$branch" \
+              --limit 100 \
+              --json number,state,mergedAt
+          )"
+          PULL_REQUESTS_JSON="$pull_requests" \
+            bun run scripts/plugin-submission.ts resolve >> "$GITHUB_OUTPUT"
+
+      - name: Comment closed submission
+        if: steps.submission.outputs.mode == 'closed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ steps.submission.outputs.pr_number }}
+        run: >-
+          gh issue comment "$ISSUE_NUMBER"
+          --body "PR #${PR_NUMBER} was closed without merging. Reopen that PR before editing this submission again."
+
+      - name: Stop closed submission
+        if: steps.submission.outputs.mode == 'closed'
+        run: exit 1
+
+      - name: Inspect existing submission
+        id: existing
+        if: steps.submission.outputs.mode == 'update'
+        env:
+          BRANCH: ${{ steps.submission.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BRANCH:refs/remotes/origin/$BRANCH"
+          changed_paths="$(git diff --name-only "origin/main...origin/$BRANCH" -- registry)"
+          CHANGED_PATHS="$changed_paths" \
+            bun run scripts/plugin-submission.ts existing-id >> "$GITHUB_OUTPUT"
+
       - name: Generate registry entry from issue
         id: generate
+        if: steps.submission.outputs.mode == 'create' || steps.submission.outputs.mode == 'update'
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
         run: |
           set -eo pipefail
-          if ! output="$(bun run scripts/create-registry-entry-from-issue.ts)"; then
+          if ! output="$(bun run scripts/plugin-submission.ts generate 2>&1)"; then
             printf '%s\n' "$output" > "$RUNNER_TEMP/error.txt"
             echo "ok=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -70,31 +118,69 @@ jobs:
 
       - name: Format generated entry
         if: steps.generate.outputs.ok == 'true'
-        run: bun run biome format --write "registry/${{ steps.generate.outputs.REGISTRY_ID }}.json"
+        env:
+          REGISTRY_ID: ${{ steps.generate.outputs.REGISTRY_ID }}
+        run: bun run biome format --write "registry/${REGISTRY_ID}.json"
 
-      - name: Open pull request
+      - name: Create or update pull request
         if: steps.generate.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.submission.outputs.mode }}
+          BRANCH: ${{ steps.submission.outputs.branch }}
+          PR_NUMBER: ${{ steps.submission.outputs.pr_number }}
+          EXISTING_REGISTRY_ID: ${{ steps.existing.outputs.existing_registry_id }}
           REGISTRY_ID: ${{ steps.generate.outputs.REGISTRY_ID }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
         run: |
-          set -eo pipefail
-          branch="plugin-submission/${REGISTRY_ID}-${ISSUE_NUMBER}"
+          set -euo pipefail
+          generated="$RUNNER_TEMP/${REGISTRY_ID}.json"
+          cp "registry/${REGISTRY_ID}.json" "$generated"
+          rm -f "registry/${REGISTRY_ID}.json"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
+          if [[ "$MODE" == update ]]; then
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+            git rm -f --ignore-unmatch "registry/${EXISTING_REGISTRY_ID}.json"
+          else
+            git checkout -b "$BRANCH"
+          fi
+          cp "$generated" "registry/${REGISTRY_ID}.json"
           git add "registry/${REGISTRY_ID}.json"
-          git commit -m "Add ${REGISTRY_ID} plugin submission" -m "Closes #${ISSUE_NUMBER}"
-          git push -u origin "$branch"
+
+          if ! git diff --cached --quiet; then
+            git commit \
+              -m "Add ${REGISTRY_ID} plugin submission" \
+              -m "Closes #${ISSUE_NUMBER}"
+            if [[ "$MODE" == update ]]; then
+              git push origin "$BRANCH"
+            else
+              git push -u origin "$BRANCH"
+            fi
+          fi
+
           {
             echo "Closes #${ISSUE_NUMBER}"
             echo
-            echo "Automated from #${ISSUE_NUMBER} by @${ISSUE_AUTHOR}. Review normally: the registry admission workflow still runs on this PR."
+            echo "Automated from #${ISSUE_NUMBER} by @${ISSUE_AUTHOR}. Registry admission is dispatched after every update."
           } > "$RUNNER_TEMP/pr-body.md"
-          gh pr create \
-            --title "Add ${REGISTRY_ID} plugin" \
-            --body-file "$RUNNER_TEMP/pr-body.md" \
-            --head "$branch" \
-            --base main
+
+          if [[ "$MODE" == create ]]; then
+            gh pr create \
+              --title "Add ${REGISTRY_ID} plugin" \
+              --body-file "$RUNNER_TEMP/pr-body.md" \
+              --head "$BRANCH" \
+              --base main
+            PR_NUMBER="$(gh pr view "$BRANCH" --json number --jq .number)"
+          else
+            gh pr edit "$PR_NUMBER" \
+              --title "Add ${REGISTRY_ID} plugin" \
+              --body-file "$RUNNER_TEMP/pr-body.md"
+          fi
+
+          gh workflow run plugin-security.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f "pr_number=${PR_NUMBER}"

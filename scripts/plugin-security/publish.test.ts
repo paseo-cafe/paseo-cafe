@@ -79,6 +79,31 @@ describe("publishReport", () => {
     expect(called).toBe(false)
   })
 
+  it("publishes a dispatched admission report to the requested PR", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    const fetcher = (async (url: string, init?: RequestInit) => {
+      calls.push({ url, init })
+      return url.includes("?per_page=")
+        ? Response.json([])
+        : Response.json({ id: 1 })
+    }) as typeof fetch
+
+    await publishReport({
+      report: "dispatched report",
+      event: {},
+      eventName: "workflow_dispatch",
+      pullRequestNumber: 42,
+      repository: "owner/repo",
+      token: "token",
+      fetcher,
+    })
+
+    expect(calls.at(-1)?.url).toBe(
+      "https://api.github.com/repos/owner/repo/issues/42/comments"
+    )
+    expect(calls.at(-1)?.init?.method).toBe("POST")
+  })
+
   it("restores only trusted collapsible markup tokens", () => {
     const bounded = boundedReport(
       [

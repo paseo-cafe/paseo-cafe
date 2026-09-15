@@ -3,13 +3,19 @@ name: Registry admission
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to scan
+        required: true
+        type: number
 
 permissions:
   contents: read
   pull-requests: write
 
 concurrency:
-  group: registry-admission-${{ github.event.pull_request.number }}
+  group: registry-admission-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:
@@ -20,10 +26,31 @@ jobs:
     steps:
       # pull_request_target is privileged. Every executable file and dependency
       # must come from the trusted base commit; fork content is fetched as data.
+      - name: Resolve pull request context
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          DISPATCH_PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          pr_number="${EVENT_PR_NUMBER:-$DISPATCH_PR_NUMBER}"
+          if [[ ! "$pr_number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::A valid pull request number is required"
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" > "$RUNNER_TEMP/pr.json"
+          {
+            echo "number=$pr_number"
+            echo "base_sha=$(jq -r '.base.sha' "$RUNNER_TEMP/pr.json")"
+            echo "head_repo=$(jq -r '.head.repo.full_name' "$RUNNER_TEMP/pr.json")"
+            echo "head_sha=$(jq -r '.head.sha' "$RUNNER_TEMP/pr.json")"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Check out trusted admission code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ steps.pr.outputs.base_sha }}
           persist-credentials: false
 
       - name: Set up Bun
@@ -39,9 +66,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_REPO: ${{ github.repository }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
           set -euo pipefail
           registry_dir="$RUNNER_TEMP/registry"
@@ -138,6 +165,7 @@ jobs:
           "$GITHUB_EVENT_PATH"
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          PULL_REQUEST_NUMBER: ${{ steps.pr.outputs.number }}
 
       - name: Enforce admission result
         if: always()
