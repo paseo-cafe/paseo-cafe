@@ -1,0 +1,10 @@
+{
+  "repo": "ABorakati/beautiful-chat",
+  "categories": ["productivity"],
+  "caveats": [
+    "Requires Paseo 0.8 or newer",
+    "Syntax highlighting runs on the daemon over a plugin RPC",
+    "Selection actions and the pointer glow are desktop and web only"
+  ],
+  "submittedBy": "ABorakati"
+}
