@@ -1,0 +1,10 @@
+{
+  "repo": "opsb/paseo-markdown-viewer",
+  "categories": ["productivity", "developer-tools"],
+  "caveats": [
+    "Follow mode opens tabs when the editing agent's conversation is on screen; hidden conversations catch up when viewed.",
+    "Files written through shell heredocs are not detected by follow mode; use bin/open-markdown for those.",
+    "Show in Finder reveals the file on macOS; other platforms open the containing folder."
+  ],
+  "submittedBy": "opsb"
+}
