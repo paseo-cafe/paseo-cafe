@@ -94,6 +94,20 @@ bun run check                                  # website: biome + tsc
 (cd plugin && npm run typecheck && npm test)   # plugin: tsc + vitest
 ```
 
+## Prefer a plugin-submission issue over a hand-written registry PR
+
+When asked to add a plugin to the registry, open a GitHub issue from the
+**Add a plugin** template (`.github/ISSUE_TEMPLATE/plugin-submission.yml`)
+instead of hand-writing `registry/<id>.json` and opening a PR directly. The
+`plugin-submission.yml` workflow parses that issue, generates and validates
+the registry entry with the same `registryEntrySchema` the manual path uses,
+and opens a PR that closes the issue — the existing registry admission
+workflow (`plugin-security.yml`) still reviews that PR like any other.
+
+Only hand-edit `registry/*.json` directly for changes the issue template
+doesn't cover (e.g. editing curator fields on an existing entry, or deleting
+one). New submissions should go through the issue.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:970c3bf2 -->
 ## Beads Issue Tracker
 

@@ -1,0 +1,100 @@
+name: Plugin submission
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: plugin-submission-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  open-pr:
+    name: Open registry PR from issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: contains(github.event.issue.labels.*.name, 'plugin-submission')
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: true
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate registry entry from issue
+        id: generate
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          set -eo pipefail
+          if ! output="$(bun run scripts/create-registry-entry-from-issue.ts)"; then
+            printf '%s\n' "$output" > "$RUNNER_TEMP/error.txt"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+          echo "$output" | grep '^REGISTRY_ID=' >> "$GITHUB_OUTPUT"
+
+      - name: Comment validation failure
+        if: steps.generate.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          {
+            echo "Could not generate a registry entry from this issue:"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/error.txt"
+            echo '```'
+            echo "Edit the issue fields above and I'll retry automatically, or open a PR by hand against \`registry/*.json\`."
+          } > "$RUNNER_TEMP/comment.md"
+          gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/comment.md"
+
+      - name: Fail on invalid submission
+        if: steps.generate.outputs.ok == 'false'
+        run: exit 1
+
+      - name: Format generated entry
+        if: steps.generate.outputs.ok == 'true'
+        run: bun run biome format --write "registry/${{ steps.generate.outputs.REGISTRY_ID }}.json"
+
+      - name: Open pull request
+        if: steps.generate.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_ID: ${{ steps.generate.outputs.REGISTRY_ID }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          set -eo pipefail
+          branch="plugin-submission/${REGISTRY_ID}-${ISSUE_NUMBER}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "registry/${REGISTRY_ID}.json"
+          git commit -m "Add ${REGISTRY_ID} plugin submission" -m "Closes #${ISSUE_NUMBER}"
+          git push -u origin "$branch"
+          {
+            echo "Closes #${ISSUE_NUMBER}"
+            echo
+            echo "Automated from #${ISSUE_NUMBER} by @${ISSUE_AUTHOR}. Review normally: the registry admission workflow still runs on this PR."
+          } > "$RUNNER_TEMP/pr-body.md"
+          gh pr create \
+            --title "Add ${REGISTRY_ID} plugin" \
+            --body-file "$RUNNER_TEMP/pr-body.md" \
+            --head "$branch" \
+            --base main

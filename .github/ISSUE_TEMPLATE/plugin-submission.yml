@@ -1,0 +1,86 @@
+name: Add a plugin
+description: Submit a plugin to the Paseo Cafe registry without writing any code.
+title: "Add plugin: "
+labels: ["plugin-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill this in and a GitHub Action opens a pull request for you that
+        creates `registry/<id>.json` and references this issue. You do not
+        need to write JSON or open a PR yourself.
+
+        Prefer this over hand-editing `registry/*.json` in a PR: it is the
+        supported path for new submissions and catches basic mistakes (bad
+        id, bad repo format) before anything is written.
+  - type: input
+    id: registry-id
+    attributes:
+      label: Registry filename (id)
+      description: Lowercase kebab-case. Becomes `registry/<id>.json`.
+      placeholder: my-plugin
+    validations:
+      required: true
+  - type: input
+    id: repo
+    attributes:
+      label: GitHub repository
+      description: >-
+        `owner/repo` hosting `paseo-plugin.json` — just the repo, not a full
+        URL. The repository and plugin path must be public.
+      placeholder: yourname/your-repo
+    validations:
+      required: true
+  - type: input
+    id: path
+    attributes:
+      label: Subpath (optional)
+      description: >-
+        Subdirectory containing `paseo-plugin.json`, only if this repo hosts
+        more than one plugin.
+      placeholder: packages/my-plugin
+    validations:
+      required: false
+  - type: input
+    id: categories
+    attributes:
+      label: Categories
+      description: >-
+        Comma-separated, from: automation, browser, code-review, git, github,
+        monitoring, orchestration, productivity, provider, theme, other.
+      placeholder: browser, github
+    validations:
+      required: false
+  - type: input
+    id: platforms
+    attributes:
+      label: Platforms (only if platform-restricted)
+      description: >-
+        Comma-separated, from: macos, linux, windows. Leave blank unless this
+        plugin only works on specific platforms.
+      placeholder: macos, linux
+    validations:
+      required: false
+  - type: textarea
+    id: caveats
+    attributes:
+      label: Caveats
+      description: One per line. Single sentence each.
+      placeholder: |
+        Requires an OpenAI API key
+        Experimental - breaking changes expected
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: >-
+            `paseo-plugin.json.id` in my repo matches the registry filename
+            above.
+          required: true
+        - label: >-
+            `package.json.version` is a released semantic version, not
+            `0.0.0`.
+          required: true
