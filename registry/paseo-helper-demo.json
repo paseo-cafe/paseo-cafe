@@ -1,0 +1,8 @@
+{
+  "repo": "xpufx/paseo",
+  "path": "plugins/demo",
+  "categories": ["other"],
+  "platforms": ["linux"],
+  "caveats": ["Tested on Linux only."],
+  "submittedBy": "xpufx"
+}
