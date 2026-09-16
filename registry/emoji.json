@@ -1,0 +1,11 @@
+{
+  "repo": "YoseptF/paseo-emoji",
+  "categories": ["productivity"],
+  "platforms": ["windows", "linux", "macos"],
+  "caveats": [
+    "Desktop and web only; does nothing in the mobile app.",
+    "Reads the composer from the page because the plugin API has no composer-text hook.",
+    "Requires Paseo 0.8 or newer."
+  ],
+  "submittedBy": "YoseptF"
+}
