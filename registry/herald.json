@@ -1,0 +1,8 @@
+{
+  "repo": "gpambrozio/paseo-plugins",
+  "path": "herald",
+  "categories": ["productivity", "monitoring"],
+  "platforms": ["macos"],
+  "caveats": ["Doesn't play on mobile, only tested on MacOS"],
+  "submittedBy": "gpambrozio"
+}
