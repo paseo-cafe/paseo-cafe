@@ -1,0 +1,10 @@
+{
+  "repo": "xpufx/paseo",
+  "path": "plugins/forges",
+  "categories": ["productivity", "git", "orchestration"],
+  "platforms": [],
+  "caveats": [
+    "Implement included workflow/labels/skills for EXTRA functionality."
+  ],
+  "submittedBy": "xpufx"
+}
