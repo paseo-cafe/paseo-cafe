@@ -1,0 +1,10 @@
+{
+  "repo": "EPISTEX0/paseo-parent-wake",
+  "categories": ["orchestration"],
+  "platforms": [],
+  "caveats": [
+    "Does nothing until an agent carries the parent-wake label; pass notifyOnFinish: false on spawns to avoid a duplicate first wake.",
+    "Held messages live in memory; a daemon or plugin restart drops them."
+  ],
+  "submittedBy": "EPISTEX0"
+}
