@@ -262,7 +262,7 @@ export const CATALOG_HEALTH_LABELS: Record<CatalogHealthCheck, string> = {
  * the same thing on both surfaces. It is absent when the history isn't
  * available (a shallow clone, or an entry that isn't committed yet).
  */
-export const CATALOG_ADDED_AT_LABEL = "Recently added"
+export const CATALOG_ADDED_AT_LABEL = "Recent"
 
 export interface CatalogAddedAt {
   addedAt?: string
@@ -289,6 +289,87 @@ export function compareCatalogAddedAt(
   b: CatalogAddedAt
 ): number {
   return getCatalogAddedAtTime(b) - getCatalogAddedAtTime(a)
+}
+export interface CatalogNpmMetrics {
+  npm?: {
+    downloadsLast30Days?: number
+    publishedAt?: string
+  }
+  repoMeta?: { stars?: number }
+  addedAt?: string
+}
+
+/** npm-backed entries always precede Git-only entries. */
+export function compareCatalogSource(
+  a: CatalogNpmMetrics,
+  b: CatalogNpmMetrics
+): number {
+  return Number(Boolean(b.npm)) - Number(Boolean(a.npm))
+}
+
+function getCatalogNpmPublishedAtTime(entry: CatalogNpmMetrics): number {
+  const parsed = entry.npm?.publishedAt
+    ? Date.parse(entry.npm.publishedAt)
+    : Number.NaN
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+/** npm downloads/date first; Git-only entries retain their star ordering. */
+export function compareCatalogPopularity(
+  a: CatalogNpmMetrics,
+  b: CatalogNpmMetrics
+): number {
+  const source = compareCatalogSource(a, b)
+  if (source !== 0) return source
+  if (a.npm && b.npm) {
+    return (
+      (b.npm.downloadsLast30Days ?? 0) - (a.npm.downloadsLast30Days ?? 0) ||
+      getCatalogNpmPublishedAtTime(b) - getCatalogNpmPublishedAtTime(a)
+    )
+  }
+  return (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)
+}
+
+/** Latest npm releases first, then Git-only entries by catalog listing date. */
+export function compareCatalogRecency(
+  a: CatalogNpmMetrics,
+  b: CatalogNpmMetrics
+): number {
+  const source = compareCatalogSource(a, b)
+  if (source !== 0) return source
+  if (a.npm && b.npm) {
+    return getCatalogNpmPublishedAtTime(b) - getCatalogNpmPublishedAtTime(a)
+  }
+  return compareCatalogAddedAt(a, b)
+}
+
+export function isCatalogRecencyKnown(entry: CatalogNpmMetrics): boolean {
+  return entry.npm
+    ? getCatalogNpmPublishedAtTime(entry) > 0
+    : isCatalogAddedAtKnown(entry)
+}
+
+export function formatCatalogCompactCount(value: number): string {
+  if (value >= 1_000_000) {
+    const scaled = value / 1_000_000
+    return `${scaled >= 10 ? scaled.toFixed(0) : scaled.toFixed(1)}M`.replace(
+      ".0M",
+      "M"
+    )
+  }
+  if (value >= 1_000) {
+    const scaled = value / 1_000
+    return `${scaled >= 10 ? scaled.toFixed(0) : scaled.toFixed(1)}k`.replace(
+      ".0k",
+      "k"
+    )
+  }
+  return `${value}`
+}
+
+export function formatCatalogDownloads(downloads: number): string {
+  const count = `${downloads}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+  return `${count} ${downloads === 1 ? "download" : "downloads"} / 30 days`
 }
 
 const CATALOG_MONTHS = [
@@ -361,4 +442,15 @@ export function getCatalogAddedDateBadge(
     ? formatCatalogDateForReader(entry.addedAt, locale)
     : undefined
   return formatted && `Added ${formatted}`
+}
+
+/** "Published Sep 11, 2026", or undefined when npm metadata is unavailable. */
+export function getCatalogPublishedDateBadge(
+  entry: CatalogNpmMetrics,
+  locale?: string
+): string | undefined {
+  const formatted = entry.npm?.publishedAt
+    ? formatCatalogDateForReader(entry.npm.publishedAt, locale)
+    : undefined
+  return formatted && `Published ${formatted}`
 }

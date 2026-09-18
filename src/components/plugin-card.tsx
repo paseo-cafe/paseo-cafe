@@ -1,4 +1,5 @@
 import {
+  IconDownload,
   IconPhotoOff,
   IconPlayerPlayFilled,
   IconStar,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/card"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { formatPluginVersion, PLATFORM_LABELS } from "@/lib/registry-schema"
+import { formatCatalogCompactCount } from "../../plugin/shared/catalog"
 
 /** Shows the catalog listing date only when the results are ordered by it. */
 export function PluginCard({
@@ -62,7 +64,18 @@ export function PluginCard({
         <CardHeader className="gap-2">
           <div className="flex items-center justify-between gap-2">
             <CardTitle>{plugin.name}</CardTitle>
-            {plugin.repoMeta ? (
+            {plugin.npm?.downloadsLast30Days !== undefined ? (
+              <span
+                className="flex shrink-0 items-center gap-1 text-foreground/50 text-xs"
+                title={`${plugin.npm.downloadsLast30Days} npm downloads in the last 30 days`}
+              >
+                <IconDownload className="size-3.5" />
+                <span className="sr-only">
+                  npm downloads in the last 30 days:{" "}
+                </span>
+                {formatCatalogCompactCount(plugin.npm.downloadsLast30Days)}
+              </span>
+            ) : !plugin.npm && plugin.repoMeta ? (
               <span className="flex shrink-0 items-center gap-1 text-foreground/50 text-xs">
                 <IconStar className="size-3.5" />
                 {plugin.repoMeta.stars}
@@ -84,7 +97,12 @@ export function PluginCard({
                 {plugin.owner.login}
               </span>
             ) : null}
-            {showAddedDate && plugin.addedAt ? (
+            {showAddedDate && plugin.npm?.publishedAt ? (
+              <Badge variant="secondary">
+                Published&nbsp;
+                <ReaderDate iso={plugin.npm.publishedAt} />
+              </Badge>
+            ) : showAddedDate && !plugin.npm && plugin.addedAt ? (
               <Badge variant="secondary">
                 Added&nbsp;
                 <ReaderDate iso={plugin.addedAt} />
@@ -93,7 +111,7 @@ export function PluginCard({
             <Badge variant={healthIsComplete ? "secondary" : "outline"}>
               {healthIsComplete ? "Healthy" : "Incomplete health checks"}
             </Badge>
-            {plugin.repoMeta?.archived ? (
+            {!plugin.npm && plugin.repoMeta?.archived ? (
               <Badge variant="destructive">Archived</Badge>
             ) : null}
           </div>

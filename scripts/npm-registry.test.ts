@@ -3,11 +3,17 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { AbbreviatedManifest, ManifestResult } from "pacote"
 import * as pacote from "pacote"
-import { afterEach, describe, expect, it, vi } from "vitest"
-import { extractNpmPackage, resolveNpmPackage } from "./npm-registry"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  extractNpmPackage,
+  resolveNpmDownloadsLast30Days,
+  resolveNpmPackage,
+  resolveNpmPublishedAt,
+} from "./npm-registry"
 
 vi.mock("pacote", () => ({
   manifest: vi.fn(),
+  packument: vi.fn(),
   extract: vi.fn(),
 }))
 
@@ -18,8 +24,34 @@ const release = {
   resolved:
     "https://registry.npmjs.org/@acme/paseo-plugin/-/paseo-plugin-1.2.3.tgz",
 }
+const PUBLISHED_AT = "2026-09-17T12:34:56.000Z"
+const DOWNLOADS_LAST_30_DAYS = 1_234
 
 const temporaryDirectories: string[] = []
+
+beforeEach(() => {
+  vi.mocked(pacote.packument).mockResolvedValue({
+    name: release.package,
+    "dist-tags": { latest: release.version },
+    versions: {},
+    time: {
+      created: "2026-09-01T00:00:00.000Z",
+      modified: PUBLISHED_AT,
+      [release.version]: PUBLISHED_AT,
+    },
+  } as never)
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        downloads: DOWNLOADS_LAST_30_DAYS,
+        start: "2026-08-19",
+        end: "2026-09-17",
+        package: release.package,
+      })
+    )
+  )
+})
 
 afterEach(async () => {
   vi.resetAllMocks()
@@ -28,6 +60,7 @@ afterEach(async () => {
       .splice(0)
       .map((directory) => rm(directory, { recursive: true, force: true }))
   )
+  vi.unstubAllGlobals()
 })
 
 describe("npm registry resolution", () => {
@@ -46,6 +79,19 @@ describe("npm registry resolution", () => {
     await expect(resolveNpmPackage(release.package)).resolves.toMatchObject(
       release
     )
+    expect(pacote.packument).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+
+    await expect(
+      resolveNpmPublishedAt(release.package, release.version)
+    ).resolves.toBe(PUBLISHED_AT)
+    await expect(resolveNpmDownloadsLast30Days(release.package)).resolves.toBe(
+      DOWNLOADS_LAST_30_DAYS
+    )
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.npmjs.org/downloads/point/last-month/%40acme%2Fpaseo-plugin",
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
   })
 
   it("rejects selectors and tarballs before contacting npm", async () => {
@@ -56,6 +102,17 @@ describe("npm registry resolution", () => {
       resolveNpmPackage("https://registry.npmjs.org/plugin.tgz")
     ).rejects.toThrow("Invalid npm package name")
     expect(pacote.manifest).not.toHaveBeenCalled()
+  })
+
+  it("treats a new package with no download history as zero", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 404 }))
+    )
+
+    await expect(resolveNpmDownloadsLast30Days(release.package)).resolves.toBe(
+      0
+    )
   })
 
   it("rejects package metadata that resolves outside npmjs", async () => {
@@ -73,6 +130,19 @@ describe("npm registry resolution", () => {
     await expect(resolveNpmPackage(release.package)).rejects.toThrow(
       "resolved outside npmjs.org"
     )
+  })
+
+  it("rejects malformed download counts", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ downloads: -1, package: release.package })
+      )
+    )
+
+    await expect(
+      resolveNpmDownloadsLast30Days(release.package)
+    ).rejects.toThrow("invalid download count")
   })
 
   it("verifies extracted package identity", async () => {

@@ -58,6 +58,8 @@ describe("GET /api/plugins", () => {
         package: "@example/adversarial",
         version: "1.2.3",
         integrity: `sha512-${"b".repeat(86)}`,
+        publishedAt: "2026-09-09T12:00:00.000Z",
+        downloadsLast30Days: 1_234,
       },
       npmSecurity: {
         status: "passed",
@@ -109,7 +111,11 @@ describe("GET /api/plugins", () => {
     expect(directoryPluginSchema.safeParse(projected).success).toBe(true)
     expect(projected.version).toBe("1.2.3")
     expect(projected.package).toBe("@example/adversarial")
-    expect(projected.npm).toMatchObject({ version: "1.2.3" })
+    expect(projected.npm).toMatchObject({
+      version: "1.2.3",
+      publishedAt: "2026-09-09T12:00:00.000Z",
+      downloadsLast30Days: 1_234,
+    })
     expect(projected.npmSecurity).toMatchObject({ status: "passed" })
     expect(projected.readmeText).toBe(
       readmeText.slice(0, MAX_API_README_TEXT_LENGTH)
@@ -126,6 +132,45 @@ describe("GET /api/plugins", () => {
     expect(new TextEncoder().encode(maximumCatalog).byteLength).toBeLessThan(
       MAX_API_RESPONSE_BYTES
     )
+  })
+
+  it("preserves Git popularity metadata for plugins without npm", () => {
+    const projected = projectPluginForDirectory({
+      id: "git-only",
+      repo: "example/git-only",
+      url: "https://github.com/example/git-only",
+      name: "Git only",
+      description: "",
+      categories: [],
+      platforms: [],
+      caveats: [],
+      repoMeta: {
+        stars: 42,
+        openIssues: 0,
+        defaultBranch: "main",
+        pushedAt: "2026-09-10T00:00:00.000Z",
+        topics: [],
+        archived: false,
+        license: null,
+      },
+      health: {
+        manifestValid: true,
+        hasReadme: true,
+        hasLicense: true,
+        hasTests: true,
+        hasTypecheckScript: true,
+        updatedRecently: true,
+      },
+      images: [],
+      videos: [],
+      scannedAt: "2026-09-10T00:00:00.000Z",
+    })
+
+    expect(projected.repoMeta).toEqual({
+      stars: 42,
+      defaultBranch: "main",
+      pushedAt: "2026-09-10T00:00:00.000Z",
+    })
   })
 
   it("preserves failed security metadata before budgeting bulky fields", () => {

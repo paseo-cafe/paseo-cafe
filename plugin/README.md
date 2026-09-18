@@ -5,7 +5,9 @@ plugins without leaving the app.
 
 The plugin adds a **Paseo Cafe** sidebar surface listing every plugin in the catalog with its
 package version, description, categories, platforms, Paseo version requirement, caveats, health
-checks, and screenshots. Search and filtering happen on the client. Installs run
+checks, and screenshots. npm-backed plugins appear before Git-only plugins and rank by 30-day
+downloads then exact-version publish date; Git-only plugins retain their star-based ordering.
+Search and filtering happen on the client. Installs run
 `paseo plugin add` on the daemon host behind a confirmation step. A **Paseo plugin** composer
 attachment source can attach the plugin's full listing to a prompt for agent review before you
 trust it.

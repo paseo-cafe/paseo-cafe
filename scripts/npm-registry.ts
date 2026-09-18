@@ -2,9 +2,13 @@ import { lstat, readdir, readFile } from "node:fs/promises"
 import { join, relative, resolve, sep } from "node:path"
 import * as pacote from "pacote"
 import * as semver from "semver"
-import { isValidCatalogPackage } from "../plugin/shared/catalog"
+import {
+  isValidCatalogPackage,
+  isValidCatalogVersion,
+} from "../plugin/shared/catalog"
 
 const NPM_REGISTRY = "https://registry.npmjs.org/"
+const NPM_DOWNLOADS_API = "https://api.npmjs.org/downloads/point/last-month/"
 const MAX_PACKAGE_FILES = 5_000
 const MAX_PACKAGE_BYTES = 64 * 1_024 * 1_024
 const MAX_SINGLE_FILE_BYTES = 4 * 1_024 * 1_024
@@ -42,6 +46,63 @@ function trustedTarballUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+interface NpmDownloadCount {
+  downloads: number
+  package: string
+}
+
+export async function resolveNpmDownloadsLast30Days(
+  packageName: string
+): Promise<number> {
+  if (!isValidCatalogPackage(packageName)) {
+    throw new Error(`Invalid npm package name: ${packageName}`)
+  }
+  const response = await fetch(
+    `${NPM_DOWNLOADS_API}${encodeURIComponent(packageName)}`,
+    { signal: AbortSignal.timeout(15_000) }
+  )
+  if (response.status === 404) return 0
+  if (!response.ok) {
+    throw new Error(
+      `${packageName} download count failed with HTTP ${response.status}`
+    )
+  }
+  const result = (await response.json()) as Partial<NpmDownloadCount>
+  if (
+    result.package !== packageName ||
+    !Number.isSafeInteger(result.downloads) ||
+    (result.downloads ?? -1) < 0
+  ) {
+    throw new Error(`${packageName} returned an invalid download count`)
+  }
+  return result.downloads as number
+}
+
+export async function resolveNpmPublishedAt(
+  packageName: string,
+  version: string,
+  cache?: string
+): Promise<string> {
+  if (!isValidCatalogPackage(packageName) || !isValidCatalogVersion(version)) {
+    throw new Error(`Invalid npm package release: ${packageName}@${version}`)
+  }
+  const packument = await pacote.packument(
+    packageName,
+    pacoteOptions(cache) as pacote.Options & { fullMetadata: true }
+  )
+  if (
+    packument.name !== packageName ||
+    packument["dist-tags"].latest !== version
+  ) {
+    throw new Error(`${packageName}@${version} changed during metadata lookup`)
+  }
+  const publishedAt = packument.time[version]
+  if (!publishedAt || !Number.isFinite(Date.parse(publishedAt))) {
+    throw new Error(`${packageName}@${version} has no valid publication date`)
+  }
+  return publishedAt
 }
 
 export async function resolveNpmPackage(

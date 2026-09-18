@@ -543,8 +543,9 @@ function SubmitPage() {
           </li>
           <li>
             <strong className="text-foreground">On merge:</strong> your full
-            listing is generated from the repository. Nightly scans keep stars,
-            releases, and repository health current without another PR.
+            listing is generated from its published sources. Six-hour scans
+            refresh npm downloads and publish dates or GitHub stars without
+            another PR.
           </li>
         </ol>
       </section>

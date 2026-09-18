@@ -21,6 +21,7 @@ import {
 } from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
+import { isCatalogRecencyKnown } from "../../plugin/shared/catalog"
 
 const SECTION_LIMIT = 6
 const PAGE_SIZE = 12
@@ -161,15 +162,14 @@ function App() {
     () => sortPlugins(plugins, "popular").slice(0, SECTION_LIMIT),
     [plugins]
   )
-  // Only plugins with a known listing date: without git history to derive it
-  // from (see readRegistryAddedAt in scripts/scan.ts) this section stays
-  // empty rather than presenting an arbitrary order as "newest".
+  // npm entries use their exact version publication date; Git-only entries
+  // retain their catalog-listing date. Unknown dates never enter this section.
   const recentlyAdded = useMemo(
     () =>
-      sortPlugins(
-        plugins.filter((plugin) => plugin.addedAt),
-        "added"
-      ).slice(0, SECTION_LIMIT),
+      sortPlugins(plugins.filter(isCatalogRecencyKnown), "added").slice(
+        0,
+        SECTION_LIMIT
+      ),
     [plugins]
   )
   const showFeatured = !hasFilters && search.sort === "popular" && page === 1
@@ -229,12 +229,12 @@ function App() {
             <div className="flex flex-col gap-8">
               <FeaturedSection
                 title="Popular"
-                description="Most starred plugins right now."
+                description="Most downloaded npm plugins, followed by starred Git plugins."
                 plugins={popular}
               />
               <FeaturedSection
-                title="Recently added"
-                description="The newest listings in the directory."
+                title="Recent"
+                description="Latest npm releases, followed by newest Git listings."
                 plugins={recentlyAdded}
               />
             </div>

@@ -6,8 +6,11 @@ import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
+  formatDirectoryCompactCount,
+  formatDirectoryDownloads,
   formatDirectoryVersion,
   getDirectoryAddedDateBadge,
+  getDirectoryPublishedDateBadge,
   HEALTH_KEYS,
   normalizeDirectoryCategory,
 } from "../shared/directory"
@@ -29,23 +32,22 @@ interface BadgeTone {
   text: string
   color: BadgeColor
 }
-
-function formatCompactNumber(value: number): string {
-  if (value >= 1_000_000) {
-    const scaled = value / 1_000_000
-    return `${scaled >= 10 ? scaled.toFixed(0) : scaled.toFixed(1)}M`.replace(
-      ".0M",
-      "M"
-    )
+export function getPluginRowPopularity(
+  entry: DirectoryEntry
+): { source: "npm" | "git"; text: string } | undefined {
+  if (entry.npm?.downloadsLast30Days !== undefined) {
+    return {
+      source: "npm",
+      text: formatDirectoryDownloads(entry.npm.downloadsLast30Days),
+    }
   }
-  if (value >= 1_000) {
-    const scaled = value / 1_000
-    return `${scaled >= 10 ? scaled.toFixed(0) : scaled.toFixed(1)}k`.replace(
-      ".0k",
-      "k"
-    )
+  if (!entry.npm && entry.repoMeta?.stars !== undefined) {
+    return {
+      source: "git",
+      text: formatDirectoryCompactCount(entry.repoMeta.stars),
+    }
   }
-  return `${value}`
+  return undefined
 }
 
 export function getHealthBadge(entry: DirectoryEntry): BadgeTone | null {
@@ -201,9 +203,11 @@ export function PluginRow({
           : `${installations.length} installations`
         : undefined
 
-  const starCount = entry.repoMeta?.stars
+  const popularity = getPluginRowPopularity(entry)
   const addedBadge = showAddedDate
-    ? getDirectoryAddedDateBadge(entry)
+    ? entry.npm
+      ? getDirectoryPublishedDateBadge(entry)
+      : getDirectoryAddedDateBadge(entry)
     : undefined
   const healthBadge = getHealthBadge(entry)
   const versionLabel = formatDirectoryVersion(entry.version)
@@ -247,12 +251,14 @@ export function PluginRow({
             <Text style={styles.metaBadgeText("accent")}>{versionLabel}</Text>
           </View>
         ) : null}
-        {starCount !== undefined ? (
+        {popularity ? (
           <View style={styles.metaBadge}>
-            <Icon name="Star" size={11} color={theme.colors.foregroundMuted} />
-            <Text style={styles.metaBadgeText("muted")}>
-              {formatCompactNumber(starCount)}
-            </Text>
+            <Icon
+              name={popularity.source === "npm" ? "Download" : "Star"}
+              size={11}
+              color={theme.colors.foregroundMuted}
+            />
+            <Text style={styles.metaBadgeText("muted")}>{popularity.text}</Text>
           </View>
         ) : null}
         {addedBadge ? (

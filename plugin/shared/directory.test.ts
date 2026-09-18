@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest"
 import { isValidCatalogVersion } from "./catalog"
 import {
   compareDirectoryAddedAt,
+  compareDirectoryPopularity,
+  compareDirectoryRecency,
+  compareDirectorySource,
   DEFAULT_DIRECTORY_BROWSE_SETTINGS,
   DIRECTORY_ADDED_AT_LABEL,
   DIRECTORY_CATEGORY_LABELS,
@@ -16,6 +19,7 @@ import {
   directorySecurityAttachments,
   directorySettings,
   directoryUpdateStatusRpc,
+  formatDirectoryCompactCount,
   getDirectoryAddedDateBadge,
   getInstallationStateLabel,
   getInstallCommand,
@@ -162,7 +166,13 @@ describe("plugin install targets", () => {
     const npmEntry = {
       ...validEntry,
       package: "@owner/plugin",
-      npm: { package: "@owner/plugin", version: "1.2.3", integrity },
+      npm: {
+        package: "@owner/plugin",
+        version: "1.2.3",
+        integrity,
+        publishedAt: "2026-09-17T12:34:56.000Z",
+        downloadsLast30Days: 1_234,
+      },
       npmSecurity: {
         status: "passed" as const,
         blockingFindings: 0,
@@ -172,7 +182,41 @@ describe("plugin install targets", () => {
       },
     }
 
-    expect(directoryEntrySchema.safeParse(npmEntry).success).toBe(true)
+    const parsedNpmEntry = directoryEntrySchema.parse(npmEntry)
+    expect(parsedNpmEntry.npm).toMatchObject({
+      publishedAt: "2026-09-17T12:34:56.000Z",
+      downloadsLast30Days: 1_234,
+    })
+    const gitEntry = directoryEntrySchema.parse(validEntry)
+    expect(
+      directoryEntrySchema.safeParse({ ...validEntry, npm: npmEntry.npm })
+        .success
+    ).toBe(false)
+    expect(compareDirectorySource(parsedNpmEntry, gitEntry)).toBeLessThan(0)
+    expect(formatDirectoryCompactCount(1_234)).toBe("1.2k")
+    expect(
+      compareDirectoryPopularity(
+        parsedNpmEntry,
+        directoryEntrySchema.parse({
+          ...npmEntry,
+          id: "less-popular",
+          npm: { ...npmEntry.npm, downloadsLast30Days: 1 },
+        })
+      )
+    ).toBeLessThan(0)
+    expect(
+      compareDirectoryRecency(
+        parsedNpmEntry,
+        directoryEntrySchema.parse({
+          ...npmEntry,
+          id: "older",
+          npm: {
+            ...npmEntry.npm,
+            publishedAt: "2026-01-01T00:00:00.000Z",
+          },
+        })
+      )
+    ).toBeLessThan(0)
     expect(
       directoryEntrySchema.safeParse({
         ...npmEntry,
@@ -439,7 +483,7 @@ describe("directory listing dates", () => {
     expect(
       directoryBrowseSettingsSchema.parse({ sort: "recently-added" }).sort
     ).toBe("recently-added")
-    expect(DIRECTORY_ADDED_AT_LABEL).toBe("Recently added")
+    expect(DIRECTORY_ADDED_AT_LABEL).toBe("Recent")
     expect(
       directoryBrowseSettingsSchema.safeParse({ sort: "recent" }).success
     ).toBe(false)

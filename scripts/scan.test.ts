@@ -124,23 +124,41 @@ describe("npm release promotion", () => {
     version: release.version,
     integrity: release.integrity,
   }
+  const metrics = {
+    publishedAt: "2026-09-17T12:34:56.000Z",
+    downloadsLast30Days: 1_234,
+  }
 
-  it("requires Git, npm, integrity, and security to agree", () => {
-    expect(npmReleaseIsReady(release, "1.2.3", security)).toBe(true)
-    expect(npmReleaseIsReady(release, "1.2.2", security)).toBe(false)
+  it("requires Git, npm, security, and complete ranking metadata", () => {
+    expect(npmReleaseIsReady(release, "1.2.3", security, metrics)).toBe(true)
+    expect(npmReleaseIsReady(release, "1.2.2", security, metrics)).toBe(false)
     expect(
-      npmReleaseIsReady(release, "1.2.3", {
-        ...security,
-        integrity: `sha512-${"c".repeat(86)}`,
+      npmReleaseIsReady(
+        release,
+        "1.2.3",
+        { ...security, integrity: `sha512-${"c".repeat(86)}` },
+        metrics
+      )
+    ).toBe(false)
+    expect(
+      npmReleaseIsReady(
+        release,
+        "1.2.3",
+        { ...security, status: "failed" },
+        metrics
+      )
+    ).toBe(false)
+    expect(npmReleaseIsReady(release, "1.2.3", undefined, metrics)).toBe(false)
+    expect(
+      npmReleaseIsReady(release, "1.2.3", security, {
+        publishedAt: metrics.publishedAt,
       })
     ).toBe(false)
     expect(
-      npmReleaseIsReady(release, "1.2.3", {
-        ...security,
-        status: "failed",
+      npmReleaseIsReady(release, "1.2.3", security, {
+        downloadsLast30Days: metrics.downloadsLast30Days,
       })
     ).toBe(false)
-    expect(npmReleaseIsReady(release, "1.2.3", undefined)).toBe(false)
   })
 })
 

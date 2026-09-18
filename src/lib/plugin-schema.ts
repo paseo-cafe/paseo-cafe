@@ -130,6 +130,8 @@ export const pluginNpmMetadataSchema = z.object({
   package: z.string().refine(isValidCatalogPackage),
   version: z.string().max(CATALOG_VERSION_MAX_LENGTH),
   integrity: z.string().startsWith("sha512-"),
+  publishedAt: z.iso.datetime({ offset: true }).optional(),
+  downloadsLast30Days: z.number().int().nonnegative().optional(),
 })
 
 export const pluginRecordSchema = z

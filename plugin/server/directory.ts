@@ -8,6 +8,7 @@ import * as semver from "semver"
 import { z } from "zod"
 import {
   CATALOG_VERSION_MAX_LENGTH,
+  compareCatalogPopularity,
   getCatalogInstallArgs,
   getCatalogNpmInstallArgs,
   isValidCatalogPackage,
@@ -879,7 +880,7 @@ function attachmentMatches(plugins: readonly DirectoryEntry[], query: string) {
         .toLowerCase()
         .includes(normalizedQuery)
     })
-    .sort((a, b) => (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0))
+    .sort((a, b) => compareCatalogPopularity(a, b))
     .slice(0, 20)
 }
 

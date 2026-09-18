@@ -22,11 +22,11 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
    production build; plugin checks cover formatting, lint, types, and tests. See
    `.github/workflows/ci.yml` and `.github/workflows/validate.yml`.
 3. **`scripts/scan.ts`** ("plumb for paseo") generates data on demand before local development
-   and production builds, then refreshes it during deployment on merges to `main` and nightly. It
-   reads `paseo-plugin.json`, `package.json`, `README.md`, `LICENSE`, and `images/` straight from
-   each plugin's repo, plus GitHub API metadata (stars, last commit, topics, license), and writes
-   ignored, never-hand-edited records and public assets. See
-   `.github/workflows/deploy-pages.yml`.
+   and production builds, then refreshes it during deployment on merges to `main` and every six
+   hours. It reads plugin documentation and source metadata from GitHub. For npm-backed plugins it
+   also resolves the exact npmjs version, publication date, integrity, and last-30-day downloads;
+   GitHub stars and activity remain discovery signals only for Git-only plugins. Generated records
+   and public assets are ignored and never hand-edited. See `.github/workflows/deploy-pages.yml`.
 4. The build imports the generated `data/plugins.json` via `src/lib/plugins-data.ts`, prerenders
    every public page, and emits the catalog's machine interfaces: `/llms.txt`, `/llms-full.txt`,
    per-plugin Markdown at `/plugins/<id>.md`, OpenAPI at `/openapi.json`, the full JSON catalog at
@@ -87,10 +87,12 @@ Requirements, checked automatically by CI:
   branches are never handed to an install or update action.
 
 The plugin name comes from the registry filename after it is validated against the manifest ID.
-Description, version, license, screenshots, stars, and the best-effort limitations excerpt are read
-automatically. When `package` is present, its current published version is the catalog version and
-must match the Git source. A `README.md`, `LICENSE`, and an `images/` folder in the repository all
-make a listing better; none are required to get in.
+Description, version, license, screenshots, and the best-effort limitations excerpt are read
+automatically. npm-backed plugins show and rank by last-30-day downloads and exact-version publish
+date; Git-only plugins retain their existing star and catalog-listing ordering. When `package` is
+present, its current published version is the catalog version and must match the Git source. A
+`README.md`, `LICENSE`, and an `images/` folder in the repository all make a listing better; none
+are required to get in.
 
 Paseo Cafe uses the published npm version when `package` is declared and otherwise uses the Git
 plugin directory's `package.json.version`. Start at a real semantic version such as `0.1.0`, not

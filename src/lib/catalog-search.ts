@@ -8,7 +8,9 @@ import {
 } from "@/lib/registry-schema"
 import {
   CATALOG_ADDED_AT_LABEL,
-  compareCatalogAddedAt,
+  compareCatalogPopularity,
+  compareCatalogRecency,
+  compareCatalogSource,
 } from "../../plugin/shared/catalog"
 
 /**
@@ -110,14 +112,11 @@ export function sortPlugins(
   return [...plugins].sort((a, b) => {
     switch (sort) {
       case "popular":
-        return (
-          (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0) ||
-          comparePluginsByName(a, b)
-        )
+        return compareCatalogPopularity(a, b) || comparePluginsByName(a, b)
       case "added":
-        return compareCatalogAddedAt(a, b) || comparePluginsByName(a, b)
+        return compareCatalogRecency(a, b) || comparePluginsByName(a, b)
       case "az":
-        return comparePluginsByName(a, b)
+        return compareCatalogSource(a, b) || comparePluginsByName(a, b)
       default:
         return 0
     }

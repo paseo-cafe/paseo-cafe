@@ -17,6 +17,7 @@ import {
   DIRECTORY_CATEGORY_LABELS,
   DIRECTORY_PLATFORM_LABELS,
   formatDirectoryDate,
+  formatDirectoryDownloads,
   formatDirectoryVersion,
   getInstallationStateLabel,
   getInstallCommand,
@@ -597,7 +598,18 @@ export function PluginDetailPage({
         ) : null}
 
         <View style={styles.metaRow}>
-          {entry.repoMeta?.stars !== undefined ? (
+          {entry.npm?.downloadsLast30Days !== undefined ? (
+            <View style={styles.metaItem}>
+              <Icon
+                name="Download"
+                size={13}
+                color={theme.colors.foregroundMuted}
+              />
+              <Text style={styles.metaText}>
+                {formatDirectoryDownloads(entry.npm.downloadsLast30Days)}
+              </Text>
+            </View>
+          ) : !entry.npm && entry.repoMeta?.stars !== undefined ? (
             <View style={styles.metaItem}>
               <Icon
                 name="Star"
@@ -606,6 +618,11 @@ export function PluginDetailPage({
               />
               <Text style={styles.metaText}>{entry.repoMeta.stars} stars</Text>
             </View>
+          ) : null}
+          {entry.npm?.publishedAt ? (
+            <Text style={styles.metaText}>
+              Published {formatDirectoryDate(entry.npm.publishedAt)}
+            </Text>
           ) : null}
           {entry.license ? (
             <Text style={styles.metaText}>License: {entry.license}</Text>

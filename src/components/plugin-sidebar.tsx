@@ -1,6 +1,7 @@
 import {
   IconAlertTriangle,
   IconBrandGithub,
+  IconDownload,
   IconExternalLink,
   IconStar,
 } from "@tabler/icons-react"
@@ -8,6 +9,7 @@ import { Link } from "@tanstack/react-router"
 import { PluginHealthChecks } from "@/components/plugin-health-checks"
 import { PluginManifest } from "@/components/plugin-manifest"
 import { PluginSecurityScanSection } from "@/components/plugin-security-scan"
+import { ReaderDate } from "@/components/reader-date"
 import { Badge } from "@/components/ui/badge"
 import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
 import type { PluginRecord } from "@/lib/plugin-schema"
@@ -15,6 +17,7 @@ import { pluginOwnerLogin } from "@/lib/plugin-schema"
 import { pluginRepositoryUrl } from "@/lib/plugin-source"
 import { normalizeCategory, PLATFORM_LABELS } from "@/lib/registry-schema"
 import { buildReportIssueUrl } from "@/lib/report-issue-url"
+import { formatCatalogDownloads } from "../../plugin/shared/catalog"
 
 export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
   const username = pluginOwnerLogin(plugin)
@@ -62,10 +65,20 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
         </a>
       </div>
       <div className="flex flex-col gap-1.5 text-foreground/70 text-sm">
-        {plugin.repoMeta ? (
+        {plugin.npm?.downloadsLast30Days !== undefined ? (
+          <span className="flex items-center gap-1.5">
+            <IconDownload className="size-4 shrink-0" />
+            {formatCatalogDownloads(plugin.npm.downloadsLast30Days)}
+          </span>
+        ) : !plugin.npm && plugin.repoMeta ? (
           <span className="flex items-center gap-1.5">
             <IconStar className="size-4 shrink-0" /> {plugin.repoMeta.stars}{" "}
             stars
+          </span>
+        ) : null}
+        {plugin.npm?.publishedAt ? (
+          <span>
+            Published <ReaderDate iso={plugin.npm.publishedAt} />
           </span>
         ) : null}
         {plugin.license ? <span>License: {plugin.license}</span> : null}

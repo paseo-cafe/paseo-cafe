@@ -84,8 +84,69 @@ describe("sortPlugins by listing date", () => {
 
   it("offers listing-date sorting and retires repository-activity sorting", () => {
     expect(sortOptions).toEqual(["popular", "added", "az"])
-    expect(sortLabels.added).toBe("Recently added")
+    expect(sortLabels.added).toBe("Recent")
     expect(parseCatalogSearch({ sort: "added" }).sort).toBe("added")
     expect(parseCatalogSearch({ sort: "updated" }).sort).toBe("popular")
+  })
+})
+
+describe("npm-first catalog sorting", () => {
+  const npm = (id: string, downloadsLast30Days: number, publishedAt: string) =>
+    plugin(id, {
+      npm: {
+        package: id,
+        version: "1.0.0",
+        integrity: `sha512-${"a".repeat(86)}`,
+        downloadsLast30Days,
+        publishedAt,
+      },
+    })
+
+  it("ranks npm downloads then publication date before Git stars", () => {
+    const sorted = sortPlugins(
+      [
+        plugin("git", {
+          repoMeta: {
+            stars: 10_000,
+            openIssues: 0,
+            defaultBranch: "main",
+            pushedAt: "2026-09-01T00:00:00.000Z",
+            topics: [],
+            archived: false,
+            license: null,
+          },
+        }),
+        npm("older", 20, "2026-01-01T00:00:00.000Z"),
+        npm("newer", 20, "2026-09-01T00:00:00.000Z"),
+        npm("popular", 30, "2026-01-01T00:00:00.000Z"),
+      ],
+      "popular"
+    )
+
+    expect(sorted.map((entry) => entry.id)).toEqual([
+      "popular",
+      "newer",
+      "older",
+      "git",
+    ])
+  })
+
+  it("groups npm before Git for recency and alphabetical sorting", () => {
+    const entries = [
+      plugin("a-git", { addedAt: "2026-09-10T00:00:00.000Z" }),
+      npm("z-npm", 1, "2026-09-01T00:00:00.000Z"),
+      npm("a-npm", 1, "2026-09-11T00:00:00.000Z"),
+    ]
+
+    expect(sortPlugins(entries, "added").map((entry) => entry.id)).toEqual([
+      "a-npm",
+      "z-npm",
+      "a-git",
+    ])
+    expect(sortPlugins(entries, "az").map((entry) => entry.id)).toEqual([
+      "a-npm",
+      "z-npm",
+      "a-git",
+    ])
   })
 })

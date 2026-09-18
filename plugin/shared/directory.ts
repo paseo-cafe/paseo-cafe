@@ -16,15 +16,22 @@ import {
   type CatalogCategory,
   type CatalogHealthCheck,
   compareCatalogAddedAt,
+  compareCatalogPopularity,
+  compareCatalogRecency,
+  compareCatalogSource,
+  formatCatalogCompactCount,
   formatCatalogDateForReader,
+  formatCatalogDownloads,
   formatCatalogVersion,
   getCatalogAddedDateBadge,
   getCatalogInstallCommand,
   getCatalogInstallRef,
   getCatalogNpmInstallCommand,
+  getCatalogPublishedDateBadge,
   getCatalogRepositoryOwner,
   getCatalogRepositoryUrl,
   isCatalogAddedAtKnown,
+  isCatalogRecencyKnown,
   isOfficialCatalogPlugin,
   isValidCatalogCommit,
   isValidCatalogPackage,
@@ -115,13 +122,19 @@ export const DIRECTORY_SORT_MODES = [
   "a-z",
 ] as const
 
-/** Shared with the website's "Recently added" sort — see ./catalog.ts. */
+/** Shared source-aware recency sorting with the website — see ./catalog.ts. */
 export const DIRECTORY_ADDED_AT_LABEL = CATALOG_ADDED_AT_LABEL
 export const compareDirectoryAddedAt = compareCatalogAddedAt
+export const compareDirectoryPopularity = compareCatalogPopularity
+export const compareDirectoryRecency = compareCatalogRecency
+export const compareDirectorySource = compareCatalogSource
 export const isDirectoryAddedAtKnown = isCatalogAddedAtKnown
-
+export const isDirectoryRecencyKnown = isCatalogRecencyKnown
 export const getDirectoryAddedDateBadge = getCatalogAddedDateBadge
+export const getDirectoryPublishedDateBadge = getCatalogPublishedDateBadge
 export const formatDirectoryDate = formatCatalogDateForReader
+export const formatDirectoryCompactCount = formatCatalogCompactCount
+export const formatDirectoryDownloads = formatCatalogDownloads
 
 export const DIRECTORY_STATUS_FILTERS = [
   "all",
@@ -436,6 +449,8 @@ export const directoryEntrySchema = z
           .max(CATALOG_VERSION_MAX_LENGTH)
           .refine(isValidCatalogVersion, "Expected a semantic version"),
         integrity: z.string().startsWith("sha512-"),
+        publishedAt: z.iso.datetime({ offset: true }).optional(),
+        downloadsLast30Days: z.number().int().nonnegative().optional(),
       })
       .optional(),
     url: httpUrlSchema,
@@ -471,10 +486,10 @@ export const directoryEntrySchema = z
     installNotesHtml: z.string().max(100_000).optional(),
     limitationsNotesHtml: z.string().max(100_000).optional(),
     scanError: z.string().max(4_000).optional(),
-    // When the catalog listed this plugin (see PluginRecord.addedAt on the
-    // site). Kept as a plain bounded string like scannedAt below: a catalog
-    // that sends a malformed date should cost that plugin its place in the
-    // "Recently added" order, not drop the whole entry from the list.
+    // When the catalog listed this Git-only plugin (see PluginRecord.addedAt).
+    // npm-backed entries use npm.publishedAt instead. Kept as a plain bounded
+    // string so malformed dates lose ranking priority rather than dropping the
+    // whole entry.
     addedAt: z.string().max(100).optional(),
     scannedAt: z.string().max(100).optional(),
     health: z.object(directoryHealthShape).optional(),
@@ -555,6 +570,13 @@ export const directoryEntrySchema = z
       .optional(),
   })
   .superRefine((entry, ctx) => {
+    if (entry.npm && !entry.package) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["npm"],
+        message: "npm metadata requires a matching package source",
+      })
+    }
     if (!entry.package) return
     if (
       !entry.version ||

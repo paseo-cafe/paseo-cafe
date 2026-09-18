@@ -73,7 +73,12 @@ import {
   rawUrl,
   resolveGitHubAssetContentType,
 } from "./github.ts"
-import { type NpmPackageRelease, resolveNpmPackage } from "./npm-registry.ts"
+import {
+  type NpmPackageRelease,
+  resolveNpmDownloadsLast30Days,
+  resolveNpmPackage,
+  resolveNpmPublishedAt,
+} from "./npm-registry.ts"
 import { renderOgImage } from "./og-image.tsx"
 import { securityResultsSchema } from "./plugin-security/shared.ts"
 
@@ -291,12 +296,20 @@ function isRecent(iso: string): boolean {
   const cutoff = Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000
   return pushed >= cutoff
 }
+interface NpmCatalogMetrics {
+  publishedAt?: string
+  downloadsLast30Days?: number
+}
+
 export function npmReleaseIsReady(
   release: NpmPackageRelease,
   gitVersion: string | undefined,
-  security: (PluginNpmSecurity & { package: string }) | undefined
+  security: (PluginNpmSecurity & { package: string }) | undefined,
+  metrics: NpmCatalogMetrics
 ): boolean {
   return (
+    metrics.publishedAt !== undefined &&
+    metrics.downloadsLast30Days !== undefined &&
     gitVersion === release.version &&
     security?.package === release.package &&
     security.version === release.version &&
@@ -351,12 +364,35 @@ export async function scanOne(
   try {
     let npmRelease: NpmPackageRelease | undefined
     let npmResolutionError: string | undefined
+    let npmPublishedAt: string | undefined
+    let npmDownloadsLast30Days: number | undefined
+    const npmMetricsErrors: string[] = []
     if (entry.package) {
       try {
         npmRelease = await resolveNpmPackage(entry.package)
       } catch (error) {
         npmResolutionError =
           error instanceof Error ? error.message : String(error)
+      }
+      if (npmRelease) {
+        const [publishedAt, downloads] = await Promise.allSettled([
+          resolveNpmPublishedAt(entry.package, npmRelease.version),
+          resolveNpmDownloadsLast30Days(entry.package),
+        ])
+        if (publishedAt.status === "fulfilled") {
+          npmPublishedAt = publishedAt.value
+        } else {
+          console.warn(
+            `  ! npm publication date unavailable for ${entry.package}`
+          )
+          npmMetricsErrors.push("publication date")
+        }
+        if (downloads.status === "fulfilled") {
+          npmDownloadsLast30Days = downloads.value
+        } else {
+          console.warn(`  ! npm downloads unavailable for ${entry.package}`)
+          npmMetricsErrors.push("download count")
+        }
       }
     }
     const repoMeta = await fetchRepoMeta(owner, repo)
@@ -499,7 +535,10 @@ export async function scanOne(
     )
     const npmReady = Boolean(
       npmRelease &&
-        npmReleaseIsReady(npmRelease, gitVersion, candidateNpmSecurity)
+        npmReleaseIsReady(npmRelease, gitVersion, candidateNpmSecurity, {
+          publishedAt: npmPublishedAt,
+          downloadsLast30Days: npmDownloadsLast30Days,
+        })
     )
     const version = npmReady ? npmRelease?.version : gitVersion
     const record: PluginRecord = {
@@ -513,6 +552,8 @@ export async function scanOne(
               package: npmRelease.package,
               version: npmRelease.version,
               integrity: npmRelease.integrity,
+              publishedAt: npmPublishedAt,
+              downloadsLast30Days: npmDownloadsLast30Days,
             }
           : undefined,
       npmSecurity: npmReady ? candidateNpmSecurity : undefined,
@@ -541,7 +582,10 @@ export async function scanOne(
           Boolean(pkg?.scripts?.test) ||
           dirEntries.some((entry) => /test/i.test(entry.name)),
         hasTypecheckScript: Boolean(pkg?.scripts?.typecheck),
-        updatedRecently: isRecent(repoMeta.pushed_at),
+        updatedRecently:
+          npmReady && npmRelease
+            ? npmPublishedAt !== undefined && isRecent(npmPublishedAt)
+            : isRecent(repoMeta.pushed_at),
       },
       security: revision
         ? securityForRevision(securityCatalog[id], revision)
@@ -573,6 +617,11 @@ export async function scanOne(
     const scanErrors = revisionError ? [revisionError] : []
     if (npmResolutionError) {
       scanErrors.push(`npm package unavailable: ${npmResolutionError}`)
+    }
+    if (npmMetricsErrors.length > 0) {
+      scanErrors.push(
+        `npm ranking metadata unavailable: ${npmMetricsErrors.join(", ")}`
+      )
     }
     if (!manifestId) {
       scanErrors.push("paseo-plugin.json missing or missing an 'id' field")

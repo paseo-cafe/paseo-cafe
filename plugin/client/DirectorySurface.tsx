@@ -16,7 +16,9 @@ import type {
   InstalledPlugin,
 } from "../shared/directory"
 import {
-  compareDirectoryAddedAt,
+  compareDirectoryPopularity,
+  compareDirectoryRecency,
+  compareDirectorySource,
   DIRECTORY_ADDED_AT_LABEL,
   DIRECTORY_CATEGORIES,
   DIRECTORY_CATEGORY_LABELS,
@@ -29,7 +31,7 @@ import {
   directoryUpdateStatusRpc,
   findInstallations,
   isDefaultDirectoryBrowseView,
-  isDirectoryAddedAtKnown,
+  isDirectoryRecencyKnown,
   normalizeDirectoryCategories,
 } from "../shared/directory"
 import { filterAccessibilityLabel } from "./accessibility"
@@ -304,10 +306,6 @@ function compareText(a: string | undefined, b: string | undefined): number {
   return 0
 }
 
-function compareStarsDesc(a: DirectoryEntry, b: DirectoryEntry): number {
-  return (b.repoMeta?.stars ?? 0) - (a.repoMeta?.stars ?? 0)
-}
-
 function entryHasUpdate(
   entry: DirectoryEntry,
   installationByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>
@@ -326,11 +324,14 @@ function compareEntries(
   sortMode: SortMode,
   installationByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>
 ): number {
+  const source = compareDirectorySource(a, b)
+  if (source !== 0) return source
+
   if (sortMode === "updates-first") {
     return (
       Number(entryHasUpdate(b, installationByEntryId)) -
         Number(entryHasUpdate(a, installationByEntryId)) ||
-      compareStarsDesc(a, b) ||
+      compareDirectoryPopularity(a, b) ||
       compareText(a.name, b.name) ||
       compareText(a.repo, b.repo) ||
       compareText(a.id, b.id)
@@ -339,19 +340,17 @@ function compareEntries(
 
   if (sortMode === "popular") {
     return (
-      compareStarsDesc(a, b) ||
+      compareDirectoryPopularity(a, b) ||
       compareText(a.name, b.name) ||
       compareText(a.repo, b.repo) ||
       compareText(a.id, b.id)
     )
   }
 
-  // Newest catalog listings first, using the same rule as the website's
-  // "Recently added" sort (see compareCatalogAddedAt in ../shared/catalog).
   if (sortMode === "recently-added") {
     return (
-      compareDirectoryAddedAt(a, b) ||
-      compareStarsDesc(a, b) ||
+      compareDirectoryRecency(a, b) ||
+      compareDirectoryPopularity(a, b) ||
       compareText(a.name, b.name) ||
       compareText(a.repo, b.repo) ||
       compareText(a.id, b.id)
@@ -892,7 +891,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     () =>
       defaultBrowseState
         ? sortEntries(
-            filtered.filter(isDirectoryAddedAtKnown),
+            filtered.filter(isDirectoryRecencyKnown),
             "recently-added",
             installationByEntryId
           ).slice(0, FEATURED_LIMIT)
@@ -1255,7 +1254,8 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                         Popular
                       </Text>
                       <Text style={styles.featuredDescription}>
-                        Most starred plugins right now.
+                        Most downloaded npm plugins, followed by starred Git
+                        plugins.
                       </Text>
                     </View>
                     <View style={styles.featuredItems}>
@@ -1281,10 +1281,10 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                         accessibilityRole="header"
                         style={styles.featuredHeader}
                       >
-                        {DIRECTORY_ADDED_AT_LABEL}
+                        Recent
                       </Text>
                       <Text style={styles.featuredDescription}>
-                        The newest listings in the directory.
+                        Latest npm releases, followed by newest Git listings.
                       </Text>
                     </View>
                     <View style={styles.featuredItems}>
