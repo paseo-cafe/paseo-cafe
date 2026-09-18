@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.4.0...v0.5.0) (2026-09-18)
+
+
+### Features
+
+* **registry:** add npm-first plugin sources ([#155](https://github.com/paseo-cafe/paseo-cafe/issues/155)) ([85d1a3b](https://github.com/paseo-cafe/paseo-cafe/commit/85d1a3bba468ed3329a97ea4c27244a4a04d7cbc))
+
 ## [0.4.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.3.0...v0.4.0) (2026-09-12)
 
 
