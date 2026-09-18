@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
-import { basename, join, resolve } from "node:path"
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 const PACKAGE_FILES = [
   "client",
@@ -19,7 +19,13 @@ export async function preparePluginPackage(
 ): Promise<void> {
   const source = resolve(sourceDirectory)
   const destination = resolve(destinationDirectory)
-  if (source === destination || destination.startsWith(`${source}/`)) {
+  const destinationFromSource = relative(source, destination)
+  const destinationIsInsideSource =
+    destinationFromSource === "" ||
+    (!isAbsolute(destinationFromSource) &&
+      destinationFromSource !== ".." &&
+      !destinationFromSource.startsWith(`..${sep}`))
+  if (destinationIsInsideSource) {
     throw new Error(
       "Published package staging must be outside the plugin source"
     )

@@ -19,6 +19,7 @@ import {
   mapWithConcurrency,
   normalizeInstalledPlugin,
   parsePluginUpdateResult,
+  probeReviewedPluginManagement,
   readInstalledPluginVersion,
   searchDirectory,
   searchDirectoryManifests,
@@ -558,10 +559,15 @@ describe("installDirectoryPlugin", () => {
     ).toThrow("exact version")
   })
 
-  it("recognizes the reviewed management CLI generation", () => {
+  it("recognizes the reviewed management CLI generation", async () => {
     expect(supportsReviewedPluginManagement("0.8.0\n")).toBe(false)
     expect(supportsReviewedPluginManagement("0.9.0-beta.1\n")).toBe(true)
     expect(supportsReviewedPluginManagement("0.9.0\n")).toBe(true)
+    await expect(
+      probeReviewedPluginManagement(async () => {
+        throw new Error("version unavailable")
+      })
+    ).resolves.toBe(false)
   })
 })
 

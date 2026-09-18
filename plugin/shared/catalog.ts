@@ -35,7 +35,7 @@ const GIT_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/
 const GIT_COMMIT_PATTERN = /^[0-9a-f]{40}$/i
 const NPM_PACKAGE_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
 const SEMVER_PATTERN =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 
 export function isValidCatalogRepository(repo: string): boolean {
   return REPOSITORY_PATTERN.test(repo)
@@ -55,9 +55,17 @@ export function isValidCatalogPackage(packageName: string): boolean {
   return packageName.length <= 214 && NPM_PACKAGE_PATTERN.test(packageName)
 }
 export function isValidCatalogVersion(version: string): boolean {
-  return (
-    version.length <= CATALOG_VERSION_MAX_LENGTH && SEMVER_PATTERN.test(version)
-  )
+  if (version.length > CATALOG_VERSION_MAX_LENGTH) return false
+  const match = SEMVER_PATTERN.exec(version)
+  if (!match) return false
+  return !(match[4] ?? "")
+    .split(".")
+    .some(
+      (identifier) =>
+        /^\d+$/.test(identifier) &&
+        identifier.length > 1 &&
+        identifier.startsWith("0")
+    )
 }
 
 export function isValidCatalogRef(ref: string): boolean {

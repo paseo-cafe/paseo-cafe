@@ -36,6 +36,8 @@ jobs:
       - name: Check out released source
         if: steps.release.outputs['plugin--release_created'] == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.release.outputs['plugin--tag_name'] }}
 
       - name: Set up Bun
         if: steps.release.outputs['plugin--release_created'] == 'true'

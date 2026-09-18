@@ -47,4 +47,10 @@ describe("preparePluginPackage", () => {
       "Apache License"
     )
   })
+
+  it("rejects staging inside the plugin source", async () => {
+    await expect(
+      preparePluginPackage("plugin", "plugin/.npm-stage", "LICENSE")
+    ).rejects.toThrow("outside the plugin source")
+  })
 })

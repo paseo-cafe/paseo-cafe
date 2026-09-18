@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import { isValidCatalogVersion } from "./catalog"
 import {
   compareDirectoryAddedAt,
   DEFAULT_DIRECTORY_BROWSE_SETTINGS,
@@ -16,6 +17,7 @@ import {
   directorySettings,
   directoryUpdateStatusRpc,
   getDirectoryAddedDateBadge,
+  getInstallationStateLabel,
   getInstallCommand,
   getInstallRef,
   getRepositoryUrl,
@@ -183,6 +185,12 @@ describe("plugin install targets", () => {
         npmSecurity: { ...npmEntry.npmSecurity, status: "failed" },
       }).success
     ).toBe(false)
+    expect(
+      directoryEntrySchema.safeParse({
+        ...npmEntry,
+        npmSecurity: { ...npmEntry.npmSecurity, blockingFindings: 1 },
+      }).success
+    ).toBe(false)
   })
   it("shows the exact npm package and version in update review", () => {
     const installation = installedPluginSchema.parse({
@@ -201,6 +209,30 @@ describe("plugin install targets", () => {
       revision: "1.2.3 → 1.3.0",
       review: "Review npm package @owner/plugin@1.3.0 before updating.",
     })
+  })
+  it("labels available npm updates explicitly", () => {
+    const installation = installedPluginSchema.parse({
+      id: "plugin",
+      path: "/plugins/plugin",
+      enabled: true,
+      status: "running",
+      source: "npm",
+      packageName: "@owner/plugin",
+      version: "1.2.3",
+      management: "reviewed",
+      updateState: "available",
+    })
+
+    expect(getInstallationStateLabel(installation)).toBe(
+      "Update available from npm"
+    )
+  })
+
+  it("rejects non-canonical npm versions", () => {
+    expect(isValidCatalogVersion("1.2.3")).toBe(true)
+    expect(isValidCatalogVersion("1.2.3-beta.1+build.7")).toBe(true)
+    expect(isValidCatalogVersion("1.2.3-01")).toBe(false)
+    expect(isValidCatalogVersion("01.2.3")).toBe(false)
   })
 
   it("rejects unsafe targets while parsing an untrusted catalog", () => {

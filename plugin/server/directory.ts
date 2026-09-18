@@ -186,9 +186,15 @@ export function supportsReviewedPluginManagement(versionText: string): boolean {
   return version !== null && semver.gte(version, "0.9.0-0")
 }
 
-async function usesReviewedPluginManagement(): Promise<boolean> {
-  const { stdout } = await execPaseo(["--version"], 10_000)
-  return supportsReviewedPluginManagement(stdout)
+export async function probeReviewedPluginManagement(
+  runPaseo: typeof execPaseo = execPaseo
+): Promise<boolean> {
+  try {
+    const { stdout } = await runPaseo(["--version"], 10_000)
+    return supportsReviewedPluginManagement(stdout)
+  } catch {
+    return false
+  }
 }
 
 async function execGit(
@@ -664,16 +670,18 @@ async function fetchDirectory(baseUrl: string | undefined, force = false) {
 export async function listDirectory(
   input: RpcInput<typeof directoryListRpc>
 ): Promise<RpcOutput<typeof directoryListRpc>> {
-  const [directory, installed] = await Promise.all([
+  const [directory, installed, npmSupported] = await Promise.all([
     fetchDirectory(input.baseUrl, input.force),
     listInstalledPlugins().then(
       (installations) => ({ installations }),
       (error) => ({ installationError: commandFailureMessage(error) })
     ),
+    probeReviewedPluginManagement(),
   ])
   return {
     plugins: directory.plugins,
     fetchedAt: directory.fetchedAt,
+    npmSupported,
     ...installed,
   }
 }
@@ -1079,7 +1087,7 @@ export async function installDirectoryPlugin(
   }
 
   try {
-    const reviewed = await usesReviewedPluginManagement()
+    const reviewed = await probeReviewedPluginManagement()
     const npmInstall = reviewed && packageName !== undefined
     const args = buildInstallArgs({
       repo,

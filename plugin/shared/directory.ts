@@ -525,7 +525,16 @@ export const directoryEntrySchema = z
         version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
         integrity: z.string().startsWith("sha512-").optional(),
       })
-      .optional(),
+      .optional()
+      .superRefine((security, ctx) => {
+        if (security?.status === "passed" && security.blockingFindings > 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["blockingFindings"],
+            message: 'status "passed" cannot have blocking findings',
+          })
+        }
+      }),
     owner: z
       .object({
         login: z.string().max(100).optional(),
@@ -589,6 +598,22 @@ export const installedPluginSchema = z.object({
 })
 
 export type InstalledPlugin = z.infer<typeof installedPluginSchema>
+export function getInstallationStateLabel(
+  installation: InstalledPlugin
+): string {
+  if (installation.source === "directory") return "Installed locally"
+  if (installation.updateState === "available") {
+    return installation.source === "npm"
+      ? "Update available from npm"
+      : "Update available"
+  }
+  if (installation.source === "npm") return "Installed from npm"
+  if (installation.updateState === "current") return "Up to date"
+  if (installation.updateState === "pinned") return "Pinned"
+  if (installation.updateState === "diverged") return "Source diverged"
+  return "Update status unavailable"
+}
+
 export function getUpdateReviewDetails(
   installation: InstalledPlugin,
   entry: Pick<DirectoryEntry, "version">
@@ -623,6 +648,7 @@ export const directoryListRpc = defineRpc({
   output: z.object({
     plugins: z.array(directoryEntrySchema).max(500),
     fetchedAt: z.iso.datetime({ offset: true, local: true }),
+    npmSupported: z.boolean().default(false),
     installations: z.array(installedPluginSchema).max(500).optional(),
     installationError: z.string().optional(),
   }),

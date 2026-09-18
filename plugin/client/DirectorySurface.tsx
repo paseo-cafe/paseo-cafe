@@ -256,6 +256,7 @@ function StatusFilterRow({
 type DirectoryListResult = {
   plugins: readonly DirectoryEntry[]
   fetchedAt: string
+  npmSupported: boolean
   installations?: readonly InstalledPlugin[]
   installationError?: string
 }
@@ -734,9 +735,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       directoryQuery.data?.installations ??
       [])
     : []
-  const npmSupported = installations.some(
-    (installation) => installation.management === "reviewed"
-  )
+  const npmSupported = directoryQuery.data?.npmSupported ?? false
   const installationByEntryId = useMemo(
     (): Map<string, InstalledPlugin[]> =>
       new Map<string, InstalledPlugin[]>(

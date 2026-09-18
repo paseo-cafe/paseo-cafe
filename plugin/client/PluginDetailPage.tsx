@@ -18,6 +18,7 @@ import {
   DIRECTORY_PLATFORM_LABELS,
   formatDirectoryDate,
   formatDirectoryVersion,
+  getInstallationStateLabel,
   getInstallCommand,
   getReportPluginIssueUrl,
   getRepositoryOwner,
@@ -54,16 +55,6 @@ interface PluginDetailPageProps {
 /** "2026-09-08T01:09:51Z" -> "08 Sep 2026", the same rendering the website uses. */
 function formatDate(iso: string | undefined): string | undefined {
   return iso ? formatDirectoryDate(iso) : undefined
-}
-
-function installationStateLabel(installation: InstalledPlugin): string {
-  if (installation.source === "directory") return "Installed locally"
-  if (installation.source === "npm") return "Installed from npm"
-  if (installation.updateState === "available") return "Update available"
-  if (installation.updateState === "current") return "Up to date"
-  if (installation.updateState === "pinned") return "Pinned"
-  if (installation.updateState === "diverged") return "Source diverged"
-  return "Update status unavailable"
 }
 
 export function PluginDetailPage({
@@ -861,7 +852,8 @@ export function PluginDetailPage({
               return (
                 <View key={installation.id} style={styles.installationCard}>
                   <Text style={styles.installationTitle}>
-                    {installationStateLabel(installation)} · {installation.id}
+                    {getInstallationStateLabel(installation)} ·{" "}
+                    {installation.id}
                   </Text>
                   <Text selectable style={styles.metaText}>
                     {installation.remote ??
