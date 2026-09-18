@@ -209,6 +209,20 @@ export const pluginRecordSchema = z
         message: "catalog version must match npm metadata",
       })
     }
+    if (
+      plugin.package &&
+      (!plugin.npm ||
+        !plugin.npmSecurity ||
+        plugin.npmSecurity.status !== "passed" ||
+        plugin.npmSecurity.version !== plugin.npm.version ||
+        plugin.npmSecurity.integrity !== plugin.npm.integrity)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["package"],
+        message: "npm source requires matching passed security metadata",
+      })
+    }
   })
 
 export type PluginHealth = z.infer<typeof pluginHealthSchema>

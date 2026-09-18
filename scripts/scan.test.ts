@@ -14,6 +14,7 @@ import {
   isFullyScanned,
   loadPublishedNpmSecurityCatalog,
   loadPublishedSecurityCatalog,
+  npmReleaseIsReady,
   readRegistryAddedAt,
   renderPluginsRedirect,
   renderRobotsTxt,
@@ -106,6 +107,40 @@ describe("securityForRevision", () => {
       blockingFindings: 0,
       advisoryFindings: 0,
     })
+  })
+})
+describe("npm release promotion", () => {
+  const release = {
+    package: "@acme/example",
+    version: "1.2.3",
+    integrity: `sha512-${"b".repeat(86)}`,
+    resolved: "https://registry.npmjs.org/@acme/example/-/example-1.2.3.tgz",
+  }
+  const security = {
+    package: release.package,
+    status: "passed" as const,
+    blockingFindings: 0,
+    advisoryFindings: 0,
+    version: release.version,
+    integrity: release.integrity,
+  }
+
+  it("requires Git, npm, integrity, and security to agree", () => {
+    expect(npmReleaseIsReady(release, "1.2.3", security)).toBe(true)
+    expect(npmReleaseIsReady(release, "1.2.2", security)).toBe(false)
+    expect(
+      npmReleaseIsReady(release, "1.2.3", {
+        ...security,
+        integrity: `sha512-${"c".repeat(86)}`,
+      })
+    ).toBe(false)
+    expect(
+      npmReleaseIsReady(release, "1.2.3", {
+        ...security,
+        status: "failed",
+      })
+    ).toBe(false)
+    expect(npmReleaseIsReady(release, "1.2.3", undefined)).toBe(false)
   })
 })
 

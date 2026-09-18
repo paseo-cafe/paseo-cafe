@@ -73,7 +73,7 @@ import {
   rawUrl,
   resolveGitHubAssetContentType,
 } from "./github.ts"
-import { resolveNpmPackage } from "./npm-registry.ts"
+import { type NpmPackageRelease, resolveNpmPackage } from "./npm-registry.ts"
 import { renderOgImage } from "./og-image.tsx"
 import { securityResultsSchema } from "./plugin-security/shared.ts"
 
@@ -291,6 +291,20 @@ function isRecent(iso: string): boolean {
   const cutoff = Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000
   return pushed >= cutoff
 }
+export function npmReleaseIsReady(
+  release: NpmPackageRelease,
+  gitVersion: string | undefined,
+  security: (PluginNpmSecurity & { package: string }) | undefined
+): boolean {
+  return (
+    gitVersion === release.version &&
+    security?.package === release.package &&
+    security.version === release.version &&
+    security.integrity === release.integrity &&
+    security.status === "passed"
+  )
+}
+
 export async function scanOne(
   entryFile: string,
   securityCatalog: Record<string, PluginSecurity>,
@@ -313,7 +327,6 @@ export async function scanOne(
     id,
     repo: entry.repo,
     path: entry.path,
-    package: entry.package,
     url: `https://github.com/${entry.repo}`,
     name: id,
     description: "",
@@ -336,9 +349,16 @@ export async function scanOne(
   if (offline) return pluginRecordSchema.parse(base)
 
   try {
-    const npmRelease = entry.package
-      ? await resolveNpmPackage(entry.package)
-      : undefined
+    let npmRelease: NpmPackageRelease | undefined
+    let npmResolutionError: string | undefined
+    if (entry.package) {
+      try {
+        npmRelease = await resolveNpmPackage(entry.package)
+      } catch (error) {
+        npmResolutionError =
+          error instanceof Error ? error.message : String(error)
+      }
+    }
     const repoMeta = await fetchRepoMeta(owner, repo)
     const branch = repoMeta.default_branch
     const repositoryUrl = entry.path
@@ -469,26 +489,33 @@ export async function scanOne(
       MAX_README_IMAGES
     )
     const gitVersion = normalizePluginVersion(pkg?.version)
-    const version = npmRelease?.version ?? gitVersion
+    const candidateNpmSecurity = npmRelease ? npmSecurityCatalog[id] : undefined
+    const npmSecurityMatches = Boolean(
+      npmRelease &&
+        candidateNpmSecurity?.package === npmRelease.package &&
+        candidateNpmSecurity.version === npmRelease.version &&
+        candidateNpmSecurity.integrity === npmRelease.integrity &&
+        candidateNpmSecurity.status === "passed"
+    )
+    const npmReady = Boolean(
+      npmRelease &&
+        npmReleaseIsReady(npmRelease, gitVersion, candidateNpmSecurity)
+    )
+    const version = npmReady ? npmRelease?.version : gitVersion
     const record: PluginRecord = {
       id,
       repo: entry.repo,
       path: entry.path,
-      package: entry.package,
-      npm: npmRelease
-        ? {
-            package: npmRelease.package,
-            version: npmRelease.version,
-            integrity: npmRelease.integrity,
-          }
-        : undefined,
-      npmSecurity:
-        npmRelease &&
-        npmSecurityCatalog[id]?.package === npmRelease.package &&
-        npmSecurityCatalog[id]?.version === npmRelease.version &&
-        npmSecurityCatalog[id]?.integrity === npmRelease.integrity
-          ? npmSecurityCatalog[id]
+      package: npmReady ? entry.package : undefined,
+      npm:
+        npmReady && npmRelease
+          ? {
+              package: npmRelease.package,
+              version: npmRelease.version,
+              integrity: npmRelease.integrity,
+            }
           : undefined,
+      npmSecurity: npmReady ? candidateNpmSecurity : undefined,
       url: repositoryUrl,
       name: id,
       description:
@@ -544,6 +571,9 @@ export async function scanOne(
     }
 
     const scanErrors = revisionError ? [revisionError] : []
+    if (npmResolutionError) {
+      scanErrors.push(`npm package unavailable: ${npmResolutionError}`)
+    }
     if (!manifestId) {
       scanErrors.push("paseo-plugin.json missing or missing an 'id' field")
     } else if (manifestId !== id) {
@@ -559,6 +589,10 @@ export async function scanOne(
     if (npmRelease && gitVersion !== npmRelease.version) {
       scanErrors.push(
         `Git package version ${gitVersion ?? "missing"} does not match npm ${npmRelease.version}`
+      )
+    } else if (npmRelease && !npmSecurityMatches) {
+      scanErrors.push(
+        "npm package is waiting for a matching successful security scan"
       )
     }
 

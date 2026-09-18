@@ -158,10 +158,27 @@ export function renderPluginMarkdown(
     `- Typecheck script: ${plugin.health.hasTypecheckScript ? "present" : "not detected"}`
   )
 
+  if (plugin.package) {
+    lines.push(
+      "",
+      heading(sectionLevel, "npm artifact security scan"),
+      "",
+      `- Status: ${plugin.npmSecurity?.status ?? "unknown"}`,
+      `- Package: ${plugin.package}`,
+      `- Version: ${plugin.npm?.version ?? "unavailable"}`,
+      `- Integrity: ${plugin.npm?.integrity ?? "unavailable"}`,
+      `- Blocking findings: ${plugin.npmSecurity?.blockingFindings ?? "unknown"}`,
+      `- Advisory findings: ${plugin.npmSecurity?.advisoryFindings ?? "unknown"}`
+    )
+  }
+
   if (plugin.security?.status && plugin.security.status !== "unknown") {
     lines.push(
       "",
-      heading(sectionLevel, "Security scan"),
+      heading(
+        sectionLevel,
+        plugin.package ? "Git fallback security scan" : "Security scan"
+      ),
       "",
       `- Status: ${plugin.security.status}`,
       `- Blocking findings: ${plugin.security.blockingFindings}`,

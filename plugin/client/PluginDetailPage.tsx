@@ -1138,8 +1138,8 @@ export function PluginDetailPage({
             <Text style={styles.label}>Catalog status</Text>
             {installingFromNpm ? (
               <Text style={styles.modalText}>
-                Paseo 0.9 installs {entry.package} from the public npmjs
-                registry.
+                Catalog package: {entry.package}@{entry.version}. Paseo resolves
+                it through this host&apos;s npm configuration.
               </Text>
             ) : null}
             {!installingFromNpm && securityCommit ? (

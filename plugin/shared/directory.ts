@@ -411,139 +411,160 @@ const directoryHealthShape = {
  * data so the client can render it without re-fetching or re-parsing the
  * catalog payload.
  */
-export const directoryEntrySchema = z.object({
-  id: z.string().max(200),
-  repo: z
-    .string()
-    .max(200)
-    .refine(isValidCatalogRepository, "Expected a GitHub owner/repository"),
-  path: z
-    .string()
-    .max(500)
-    .refine(isValidCatalogPath, "Expected a safe repository subpath")
-    .optional(),
-  package: z
-    .string()
-    .max(214)
-    .refine(isValidCatalogPackage, "Expected a valid npm package name")
-    .optional(),
-  npm: z
-    .object({
-      package: z.string().max(214),
-      version: z
-        .string()
-        .max(CATALOG_VERSION_MAX_LENGTH)
-        .refine(isValidCatalogVersion, "Expected a semantic version"),
-      integrity: z.string().startsWith("sha512-"),
-    })
-    .optional(),
-  url: httpUrlSchema,
-  name: z.string().max(200),
-  description: z.string().max(4_000).default(""),
-  // Normalized package.json semver from the catalog scanner. Optional so an
-  // older catalog or a plugin without a valid version still remains browsable.
-  version: z
-    .string()
-    .max(CATALOG_VERSION_MAX_LENGTH)
-    .refine(isValidCatalogVersion, "Expected a semantic version")
-    .optional(),
-  author: z.string().max(200).optional(),
-  categories: z.array(z.string().max(100)).max(32).default([]),
-  platforms: z.array(z.string().max(100)).max(32).default([]),
-  caveats: z.array(z.string().max(1_000)).max(64).default([]),
-  license: z.string().max(100).optional(),
-  // e.g. ">=0.8.0" — the plugin's own `requirements.paseo` from its
-  // paseo-plugin.json (see scripts/scan.ts on the site). Highlighted the
-  // same way as a platform restriction, not left for someone to dig out of
-  // the README or the manifest themselves.
-  paseoVersionRequirement: z.string().max(200).optional(),
-  manifest: directoryManifestSchema.optional(),
-  images: z.array(httpUrlSchema).max(32).default([]),
-  // Raw README markdown from the scanner. Keep it optional so older catalog
-  // payloads still parse, and bound it so the companion plugin never retains
-  // or renders an unbounded blob.
-  readmeText: z.string().max(200_000).optional(),
-  // Pre-sanitized HTML rendered at scan time from the plugin's own README
-  // (see src/lib/markdown.ts on the site) — this plugin has no HTML renderer,
-  // so it's shown as stripped plain text (see stripHtml below) rather than
-  // with the site's original formatting.
-  installNotesHtml: z.string().max(100_000).optional(),
-  limitationsNotesHtml: z.string().max(100_000).optional(),
-  scanError: z.string().max(4_000).optional(),
-  // When the catalog listed this plugin (see PluginRecord.addedAt on the
-  // site). Kept as a plain bounded string like scannedAt below: a catalog
-  // that sends a malformed date should cost that plugin its place in the
-  // "Recently added" order, not drop the whole entry from the list.
-  addedAt: z.string().max(100).optional(),
-  scannedAt: z.string().max(100).optional(),
-  health: z.object(directoryHealthShape).optional(),
-  // Mirrors src/lib/plugin-schema.ts's pluginSecuritySchema invariants — a
-  // remote catalog is untrusted input, so the consumer must enforce at
-  // least as much as the producer: a non-"unknown" verdict must carry a
-  // real commit SHA, and "passed" cannot coexist with blocking findings.
-  // Without this, a hostile/compromised catalog could fabricate a green
-  // "Passed" badge directly above the install action.
-  security: z
-    .object({
-      status: z.enum(["passed", "failed", "unknown"]),
-      blockingFindings: z.number().int().nonnegative().max(1_000_000),
-      advisoryFindings: z.number().int().nonnegative().max(1_000_000),
-      scannedAt: z.string().max(100).optional(),
-      commit: z
-        .string()
-        .trim()
-        .regex(/^[0-9a-f]{40}$/i, "Must be a full Git commit SHA")
-        .transform((commit) => commit.toLowerCase())
-        .optional(),
-      reportUrl: httpUrlSchema.optional(),
-    })
-    .optional()
-    .superRefine((security, ctx) => {
-      if (!security) return
-      if (security.status !== "unknown" && security.commit === undefined) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["commit"],
-          message: `status "${security.status}" requires a commit`,
-        })
-      }
-      if (security.status === "passed" && security.blockingFindings > 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["blockingFindings"],
-          message: 'status "passed" cannot have blocking findings',
-        })
-      }
-    }),
-  npmSecurity: z
-    .object({
-      status: z.enum(["passed", "failed", "unknown"]),
-      blockingFindings: z.number().int().nonnegative().max(1_000_000),
-      advisoryFindings: z.number().int().nonnegative().max(1_000_000),
-      scannedAt: z.string().max(100).optional(),
-      version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
-      integrity: z.string().startsWith("sha512-").optional(),
-    })
-    .optional(),
-  owner: z
-    .object({
-      login: z.string().max(100).optional(),
-      avatarUrl: httpUrlSchema.optional(),
-    })
-    .optional(),
-  repoMeta: z
-    .object({
-      stars: z
-        .number()
-        .int()
-        .nonnegative()
-        .max(Number.MAX_SAFE_INTEGER)
-        .optional(),
-      defaultBranch: z.string().max(255).optional(),
-      pushedAt: z.string().max(100).optional(),
-    })
-    .optional(),
-})
+export const directoryEntrySchema = z
+  .object({
+    id: z.string().max(200),
+    repo: z
+      .string()
+      .max(200)
+      .refine(isValidCatalogRepository, "Expected a GitHub owner/repository"),
+    path: z
+      .string()
+      .max(500)
+      .refine(isValidCatalogPath, "Expected a safe repository subpath")
+      .optional(),
+    package: z
+      .string()
+      .max(214)
+      .refine(isValidCatalogPackage, "Expected a valid npm package name")
+      .optional(),
+    npm: z
+      .object({
+        package: z.string().max(214),
+        version: z
+          .string()
+          .max(CATALOG_VERSION_MAX_LENGTH)
+          .refine(isValidCatalogVersion, "Expected a semantic version"),
+        integrity: z.string().startsWith("sha512-"),
+      })
+      .optional(),
+    url: httpUrlSchema,
+    name: z.string().max(200),
+    description: z.string().max(4_000).default(""),
+    // Normalized package.json semver from the catalog scanner. Optional so an
+    // older catalog or a plugin without a valid version still remains browsable.
+    version: z
+      .string()
+      .max(CATALOG_VERSION_MAX_LENGTH)
+      .refine(isValidCatalogVersion, "Expected a semantic version")
+      .optional(),
+    author: z.string().max(200).optional(),
+    categories: z.array(z.string().max(100)).max(32).default([]),
+    platforms: z.array(z.string().max(100)).max(32).default([]),
+    caveats: z.array(z.string().max(1_000)).max(64).default([]),
+    license: z.string().max(100).optional(),
+    // e.g. ">=0.8.0" — the plugin's own `requirements.paseo` from its
+    // paseo-plugin.json (see scripts/scan.ts on the site). Highlighted the
+    // same way as a platform restriction, not left for someone to dig out of
+    // the README or the manifest themselves.
+    paseoVersionRequirement: z.string().max(200).optional(),
+    manifest: directoryManifestSchema.optional(),
+    images: z.array(httpUrlSchema).max(32).default([]),
+    // Raw README markdown from the scanner. Keep it optional so older catalog
+    // payloads still parse, and bound it so the companion plugin never retains
+    // or renders an unbounded blob.
+    readmeText: z.string().max(200_000).optional(),
+    // Pre-sanitized HTML rendered at scan time from the plugin's own README
+    // (see src/lib/markdown.ts on the site) — this plugin has no HTML renderer,
+    // so it's shown as stripped plain text (see stripHtml below) rather than
+    // with the site's original formatting.
+    installNotesHtml: z.string().max(100_000).optional(),
+    limitationsNotesHtml: z.string().max(100_000).optional(),
+    scanError: z.string().max(4_000).optional(),
+    // When the catalog listed this plugin (see PluginRecord.addedAt on the
+    // site). Kept as a plain bounded string like scannedAt below: a catalog
+    // that sends a malformed date should cost that plugin its place in the
+    // "Recently added" order, not drop the whole entry from the list.
+    addedAt: z.string().max(100).optional(),
+    scannedAt: z.string().max(100).optional(),
+    health: z.object(directoryHealthShape).optional(),
+    // Mirrors src/lib/plugin-schema.ts's pluginSecuritySchema invariants — a
+    // remote catalog is untrusted input, so the consumer must enforce at
+    // least as much as the producer: a non-"unknown" verdict must carry a
+    // real commit SHA, and "passed" cannot coexist with blocking findings.
+    // Without this, a hostile/compromised catalog could fabricate a green
+    // "Passed" badge directly above the install action.
+    security: z
+      .object({
+        status: z.enum(["passed", "failed", "unknown"]),
+        blockingFindings: z.number().int().nonnegative().max(1_000_000),
+        advisoryFindings: z.number().int().nonnegative().max(1_000_000),
+        scannedAt: z.string().max(100).optional(),
+        commit: z
+          .string()
+          .trim()
+          .regex(/^[0-9a-f]{40}$/i, "Must be a full Git commit SHA")
+          .transform((commit) => commit.toLowerCase())
+          .optional(),
+        reportUrl: httpUrlSchema.optional(),
+      })
+      .optional()
+      .superRefine((security, ctx) => {
+        if (!security) return
+        if (security.status !== "unknown" && security.commit === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["commit"],
+            message: `status "${security.status}" requires a commit`,
+          })
+        }
+        if (security.status === "passed" && security.blockingFindings > 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["blockingFindings"],
+            message: 'status "passed" cannot have blocking findings',
+          })
+        }
+      }),
+    npmSecurity: z
+      .object({
+        status: z.enum(["passed", "failed", "unknown"]),
+        blockingFindings: z.number().int().nonnegative().max(1_000_000),
+        advisoryFindings: z.number().int().nonnegative().max(1_000_000),
+        scannedAt: z.string().max(100).optional(),
+        version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
+        integrity: z.string().startsWith("sha512-").optional(),
+      })
+      .optional(),
+    owner: z
+      .object({
+        login: z.string().max(100).optional(),
+        avatarUrl: httpUrlSchema.optional(),
+      })
+      .optional(),
+    repoMeta: z
+      .object({
+        stars: z
+          .number()
+          .int()
+          .nonnegative()
+          .max(Number.MAX_SAFE_INTEGER)
+          .optional(),
+        defaultBranch: z.string().max(255).optional(),
+        pushedAt: z.string().max(100).optional(),
+      })
+      .optional(),
+  })
+  .superRefine((entry, ctx) => {
+    if (!entry.package) return
+    if (
+      !entry.version ||
+      !entry.npm ||
+      entry.npm.package !== entry.package ||
+      entry.npm.version !== entry.version ||
+      !entry.npmSecurity ||
+      entry.npmSecurity.status !== "passed" ||
+      entry.npmSecurity.version !== entry.version ||
+      entry.npmSecurity.integrity !== entry.npm.integrity
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["package"],
+        message:
+          "npm source requires matching version, integrity, and passed security scan",
+      })
+    }
+  })
 
 export type DirectoryEntry = z.infer<typeof directoryEntrySchema>
 

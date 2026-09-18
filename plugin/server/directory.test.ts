@@ -440,6 +440,48 @@ describe("directory attachment searches", () => {
       expect.objectContaining({ redirect: "error" })
     )
   })
+  it("pairs npm guidance with npm artifact security", async () => {
+    const integrity = `sha512-${"b".repeat(86)}`
+    const catalogUrl = "https://catalog.example.test/npm-security"
+    globalThis.fetch = vi.fn(async () =>
+      Response.json({
+        generatedAt: "2026-09-18T00:00:00.000Z",
+        plugins: [
+          plugin({
+            package: "@acme/catalog",
+            version: "1.2.3",
+            npm: { package: "@acme/catalog", version: "1.2.3", integrity },
+            npmSecurity: {
+              status: "passed",
+              blockingFindings: 0,
+              advisoryFindings: 1,
+              version: "1.2.3",
+              integrity,
+            },
+            security: {
+              status: "passed",
+              blockingFindings: 0,
+              advisoryFindings: 0,
+              commit: CURRENT,
+            },
+          }),
+        ],
+      })
+    ) as typeof fetch
+
+    const result = await searchDirectorySecurity(
+      { query: "catalog" },
+      catalogUrl
+    )
+
+    expect(result.items[0]?.text).toContain(
+      "npm artifact security status: passed"
+    )
+    expect(result.items[0]?.text).toContain(`npm integrity: ${integrity}`)
+    expect(result.items[0]?.text).toContain(
+      "Git fallback security status: passed"
+    )
+  })
 })
 
 describe("installDirectoryPlugin", () => {

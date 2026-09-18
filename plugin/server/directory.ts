@@ -807,26 +807,44 @@ function readmeAttachmentText(entry: DirectoryEntry): string {
 }
 
 function securityAttachmentText(entry: DirectoryEntry): string {
-  const security = entry.security
-  const summary =
-    security?.status === "passed" || security?.status === "failed"
+  const git = entry.security
+  const gitSummary =
+    git?.status === "passed" || git?.status === "failed"
       ? [
-          `Security status: ${security.status}`,
-          `Blocking findings: ${security.blockingFindings}`,
-          `Advisory findings: ${security.advisoryFindings}`,
-          security.scannedAt ? `Scanned at: ${security.scannedAt}` : null,
-          security.commit ? `Scanned commit: ${security.commit}` : null,
-          security.reportUrl ? `Security report: ${security.reportUrl}` : null,
+          `${entry.package ? "Git fallback security" : "Security"} status: ${git.status}`,
+          `${entry.package ? "Git blocking" : "Blocking"} findings: ${git.blockingFindings}`,
+          `${entry.package ? "Git advisory" : "Advisory"} findings: ${git.advisoryFindings}`,
+          git.scannedAt
+            ? `${entry.package ? "Git scanned" : "Scanned"} at: ${git.scannedAt}`
+            : null,
+          git.commit
+            ? `${entry.package ? "Git scanned" : "Scanned"} commit: ${git.commit}`
+            : null,
+          git.reportUrl
+            ? `${entry.package ? "Git security" : "Security"} report: ${git.reportUrl}`
+            : null,
         ]
       : [
-          "Security status: unknown",
-          "No security attestation is available for this plugin.",
+          `${entry.package ? "Git fallback security" : "Security"} status: unknown`,
+          "No Git security attestation is available for this plugin.",
         ]
+  const npm = entry.npmSecurity
+  const npmSummary = entry.package
+    ? [
+        `npm artifact security status: ${npm?.status ?? "unknown"}`,
+        `npm package: ${entry.package}`,
+        `npm version: ${entry.npm?.version ?? "unavailable"}`,
+        `npm integrity: ${entry.npm?.integrity ?? "unavailable"}`,
+        `npm blocking findings: ${npm?.blockingFindings ?? "unknown"}`,
+        `npm advisory findings: ${npm?.advisoryFindings ?? "unknown"}`,
+      ]
+    : []
   return untrustedAttachmentText(
     [
       `# ${entry.name} security summary`,
       `Repository: ${entry.repo}`,
-      ...summary,
+      ...npmSummary,
+      ...gitSummary,
       `Directory page: ${getSiteUrl(entry)}`,
     ]
       .filter((line): line is string => Boolean(line))

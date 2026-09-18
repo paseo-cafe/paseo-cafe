@@ -153,6 +153,35 @@ describe("plugin install targets", () => {
       })
     ).toBeUndefined()
   })
+  it("requires npm metadata and security to match the install target", () => {
+    const integrity = `sha512-${"b".repeat(86)}`
+    const npmEntry = {
+      ...validEntry,
+      package: "@owner/plugin",
+      npm: { package: "@owner/plugin", version: "1.2.3", integrity },
+      npmSecurity: {
+        status: "passed" as const,
+        blockingFindings: 0,
+        advisoryFindings: 0,
+        version: "1.2.3",
+        integrity,
+      },
+    }
+
+    expect(directoryEntrySchema.safeParse(npmEntry).success).toBe(true)
+    expect(
+      directoryEntrySchema.safeParse({
+        ...npmEntry,
+        npmSecurity: { ...npmEntry.npmSecurity, version: "1.2.4" },
+      }).success
+    ).toBe(false)
+    expect(
+      directoryEntrySchema.safeParse({
+        ...npmEntry,
+        npmSecurity: { ...npmEntry.npmSecurity, status: "failed" },
+      }).success
+    ).toBe(false)
+  })
 
   it("rejects unsafe targets while parsing an untrusted catalog", () => {
     expect(
