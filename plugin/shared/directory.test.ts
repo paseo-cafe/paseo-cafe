@@ -54,11 +54,40 @@ describe("plugin install targets", () => {
       getInstallCommand({
         repo: "paseo-cafe/paseo-cafe",
         path: "plugin",
+        security: {
+          status: "passed",
+          blockingFindings: 0,
+          advisoryFindings: 0,
+          commit: "a".repeat(40),
+        },
       })
-    ).toBe("paseo plugin add paseo-cafe/paseo-cafe --path plugin")
+    ).toBe(
+      `paseo plugin add paseo-cafe/paseo-cafe --ref ${"a".repeat(40)} --path plugin`
+    )
+  })
+  it("uses npm only when the runtime supports it", () => {
+    const entry = {
+      repo: "paseo-cafe/paseo-cafe",
+      path: "plugin",
+      package: "@paseo-cafe/plugin",
+      version: "1.2.3",
+      security: {
+        status: "passed" as const,
+        blockingFindings: 0,
+        advisoryFindings: 0,
+        commit: "a".repeat(40),
+      },
+    }
+
+    expect(getInstallCommand(entry)).toBe(
+      `paseo plugin add paseo-cafe/paseo-cafe --ref ${"a".repeat(40)} --path plugin`
+    )
+    expect(getInstallCommand(entry, true)).toBe(
+      "paseo plugin add npm:@paseo-cafe/plugin@1.2.3"
+    )
   })
 
-  it("tracks the default branch while repository links pin the scanned commit", () => {
+  it("pins Git installs and repository links to the scanned commit", () => {
     const commit = "a".repeat(40)
     const security = {
       status: "passed" as const,
@@ -70,9 +99,11 @@ describe("plugin install targets", () => {
       getInstallCommand({
         repo: "paseo-cafe/paseo-cafe",
         path: "plugin",
-        repoMeta: { defaultBranch: "main" },
+        security,
       })
-    ).toBe("paseo plugin add paseo-cafe/paseo-cafe --ref main --path plugin")
+    ).toBe(
+      `paseo plugin add paseo-cafe/paseo-cafe --ref ${commit} --path plugin`
+    )
     expect(
       getRepositoryUrl({
         repo: "paseo-cafe/paseo-cafe",
@@ -103,19 +134,24 @@ describe("plugin install targets", () => {
       getInstallCommand({
         repo: "paseo-cafe/paseo-cafe",
         path: "bad; echo pwn",
+        security: {
+          status: "passed",
+          blockingFindings: 0,
+          advisoryFindings: 0,
+          commit: "a".repeat(40),
+        },
       })
     ).toBeUndefined()
   })
 
-  it("omits unusable branch metadata instead of rejecting a valid target", () => {
+  it("withholds commands when no immutable revision is available", () => {
     expect(getInstallRef("release@{bad")).toBeUndefined()
     expect(
       getInstallCommand({
         repo: "paseo-cafe/paseo-cafe",
         path: "plugin",
-        repoMeta: { defaultBranch: "release@{bad" },
       })
-    ).toBe("paseo plugin add paseo-cafe/paseo-cafe --path plugin")
+    ).toBeUndefined()
   })
 
   it("rejects unsafe targets while parsing an untrusted catalog", () => {

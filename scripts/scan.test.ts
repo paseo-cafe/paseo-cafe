@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { PluginSecurity } from "../src/lib/plugin-schema"
 import {
   isFullyScanned,
+  loadPublishedNpmSecurityCatalog,
   loadPublishedSecurityCatalog,
   readRegistryAddedAt,
   renderPluginsRedirect,
@@ -126,6 +127,37 @@ describe("loadPublishedSecurityCatalog", () => {
         advisoryFindings: 0,
         scannedAt: SCANNED_AT,
         commit: REVISION,
+      },
+    })
+  })
+  it("loads npm security only for its exact published artifact", () => {
+    const root = temporaryDirectory()
+    const artifactPath = join(root, "plugin-security-results.json")
+    writeFileSync(
+      artifactPath,
+      JSON.stringify(
+        scannerArtifact({
+          npm: {
+            package: "@acme/example",
+            version: "1.2.3",
+            integrity: `sha512-${"b".repeat(86)}`,
+            scannedAt: SCANNED_AT,
+            status: "passed",
+            blockingFindings: 0,
+            advisoryFindings: 1,
+            coverage: { files: 3, bytes: 128 },
+            buildCommands: [],
+            findings: [],
+          },
+        })
+      )
+    )
+
+    expect(loadPublishedNpmSecurityCatalog(artifactPath)).toMatchObject({
+      example: {
+        package: "@acme/example",
+        version: "1.2.3",
+        status: "passed",
       },
     })
   })

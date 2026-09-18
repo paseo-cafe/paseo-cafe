@@ -18,6 +18,7 @@ export type StaticScanInput = {
   root: string
   pluginPath?: string
   registryId?: string
+  allowManifestDescription?: boolean
 }
 export type StaticScanOutput = {
   files: number
@@ -132,6 +133,7 @@ export function scanStaticFiles(input: StaticScanInput): StaticScanOutput {
         manifest,
         manifestPath,
         input.registryId,
+        input.allowManifestDescription,
         findings,
         buildCommands
       )
@@ -271,6 +273,7 @@ function validateManifest(
   raw: string,
   path: string,
   registryId: string | undefined,
+  allowDescription: boolean | undefined,
   findings: SecurityFinding[],
   buildCommands: string[][]
 ) {
@@ -371,8 +374,13 @@ function validateManifest(
         )
       else for (const cmd of parsed.build as string[][]) buildCommands.push(cmd)
     }
-    for (const key of Object.keys(parsed))
-      if (!["id", "requirements", "build"].includes(key))
+    for (const key of Object.keys(parsed)) {
+      const allowed =
+        key === "id" ||
+        key === "requirements" ||
+        key === "build" ||
+        (allowDescription === true && key === "description")
+      if (!allowed)
         findings.push(
           finding(
             "manifest",
@@ -383,6 +391,7 @@ function validateManifest(
             `unknown manifest key ${key}`
           )
         )
+    }
   } catch {
     findings.push(
       finding("manifest", "json", "high", true, path, "invalid JSON manifest")

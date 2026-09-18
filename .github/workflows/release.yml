@@ -22,11 +22,45 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      id-token: write
       issues: write
       pull-requests: write
     steps:
       - name: Create release pull request or GitHub release
+        id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      - name: Check out released source
+        if: steps.release.outputs['plugin--release_created'] == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Bun
+        if: steps.release.outputs['plugin--release_created'] == 'true'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Set up Node.js
+        if: steps.release.outputs['plugin--release_created'] == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Prepare npm package
+        if: steps.release.outputs['plugin--release_created'] == 'true'
+        run: bun run scripts/prepare-plugin-package.ts "$RUNNER_TEMP/paseo-cafe"
+
+      - name: Verify npm package contents
+        if: steps.release.outputs['plugin--release_created'] == 'true'
+        working-directory: ${{ runner.temp }}/paseo-cafe
+        run: npm pack --dry-run
+
+      - name: Publish npm package
+        if: steps.release.outputs['plugin--release_created'] == 'true'
+        working-directory: ${{ runner.temp }}/paseo-cafe
+        run: npm publish --access public --provenance

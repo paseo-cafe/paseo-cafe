@@ -1,5 +1,5 @@
 import { MAX_API_README_TEXT_LENGTH } from "@/lib/directory-api"
-import { getInstallCommand } from "@/lib/install-command"
+import { getGitInstallCommand, getInstallCommand } from "@/lib/install-command"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
 
@@ -82,6 +82,8 @@ export function renderPluginMarkdown(
   const description =
     oneLine(plugin.description, 1_000) || "No description available."
   const pluginName = oneLine(plugin.name, 200)
+  const installCommand = getInstallCommand(plugin)
+  const gitInstallCommand = getGitInstallCommand(plugin)
   const lines = [
     heading(titleLevel, pluginName),
     "",
@@ -125,8 +127,18 @@ export function renderPluginMarkdown(
     heading(sectionLevel, "Install"),
     "",
     "```sh",
-    getInstallCommand(plugin),
+    installCommand ?? "Exact install target unavailable",
     "```",
+    ...(plugin.package && gitInstallCommand
+      ? [
+          "",
+          "Paseo 0.8 GitHub fallback:",
+          "",
+          "```sh",
+          gitInstallCommand,
+          "```",
+        ]
+      : []),
     "",
     heading(sectionLevel, "Caveats"),
     "",

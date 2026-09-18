@@ -12,12 +12,16 @@
  * validate.yml workflow and blocks the PR from being merged.
  */
 import { readdirSync, readFileSync } from "node:fs"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
+import { normalizePluginVersion } from "../src/lib/plugin-schema.ts"
 import {
   registryEntrySchema,
   registryIdSchema,
 } from "../src/lib/registry-schema.ts"
 import { fetchRawJson, GitHubNotFoundError, listDir } from "./github.ts"
+import { extractNpmPackage, resolveNpmPackage } from "./npm-registry.ts"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
 const REGISTRY_DIR = process.env.REGISTRY_DIR ?? join(process.cwd(), "registry")
@@ -73,54 +77,107 @@ async function main() {
     }
     const entry = parsed.data
 
-    if (SKIP_GITHUB_VALIDATION) continue
+    let gitPackageVersion: string | undefined
+    if (!SKIP_GITHUB_VALIDATION) {
+      const [owner, repo] = entry.repo.split("/")
 
-    const [owner, repo] = entry.repo.split("/")
+      try {
+        const dirEntries = await listDir(owner, repo, entry.path ?? "", "HEAD")
+        const manifestEntry = dirEntries.find(
+          (e) => e.name === "paseo-plugin.json"
+        )
+        if (!manifestEntry) {
+          problems.push({
+            file,
+            message: `no paseo-plugin.json found in ${entry.repo}${entry.path ? `/${entry.path}` : ""}`,
+          })
+          continue
+        }
 
-    try {
-      const dirEntries = await listDir(owner, repo, entry.path ?? "", "HEAD")
-      const manifestEntry = dirEntries.find(
-        (e) => e.name === "paseo-plugin.json"
-      )
-      if (!manifestEntry) {
-        problems.push({
-          file,
-          message: `no paseo-plugin.json found in ${entry.repo}${entry.path ? `/${entry.path}` : ""}`,
-        })
-        continue
+        const manifestPath = entry.path
+          ? `${entry.path}/paseo-plugin.json`
+          : "paseo-plugin.json"
+        const manifest = await fetchRawJson<{ id?: string }>(
+          owner,
+          repo,
+          "HEAD",
+          manifestPath
+        )
+        if (!manifest || typeof manifest.id !== "string") {
+          problems.push({
+            file,
+            message: `paseo-plugin.json at ${manifestPath} is missing a string "id" field`,
+          })
+        } else if (manifest.id !== expectedId) {
+          problems.push({
+            file,
+            message: `paseo-plugin.json id "${manifest.id}" must match registry ID "${expectedId}"`,
+          })
+        }
+        const packagePath = entry.path
+          ? `${entry.path}/package.json`
+          : "package.json"
+        const packageJson = await fetchRawJson<{ version?: unknown }>(
+          owner,
+          repo,
+          "HEAD",
+          packagePath
+        )
+        gitPackageVersion = normalizePluginVersion(packageJson?.version)
+      } catch (err) {
+        if (err instanceof GitHubNotFoundError) {
+          problems.push({
+            file,
+            message: `repo/path not found: ${entry.repo}${entry.path ? `/${entry.path}` : ""}`,
+          })
+        } else {
+          problems.push({
+            file,
+            message: `error checking ${entry.repo}: ${(err as Error).message}`,
+          })
+        }
       }
-
-      const manifestPath = entry.path
-        ? `${entry.path}/paseo-plugin.json`
-        : "paseo-plugin.json"
-      const manifest = await fetchRawJson<{ id?: string }>(
-        owner,
-        repo,
-        "HEAD",
-        manifestPath
+    }
+    if (entry.package) {
+      const directory = await mkdtemp(
+        join(tmpdir(), "paseo-cafe-npm-validate-")
       )
-      if (!manifest || typeof manifest.id !== "string") {
+      try {
+        const release = await resolveNpmPackage(
+          entry.package,
+          join(directory, "cache")
+        )
+        const extracted = join(directory, "package")
+        await extractNpmPackage(release, extracted, join(directory, "cache"))
+        const packageJson = JSON.parse(
+          await readFile(join(extracted, "package.json"), "utf8")
+        ) as { name?: unknown; version?: unknown }
+        const manifest = JSON.parse(
+          await readFile(join(extracted, "paseo-plugin.json"), "utf8")
+        ) as { id?: unknown }
+        if (packageJson.name !== entry.package) {
+          throw new Error(`package.json name must equal ${entry.package}`)
+        }
+        if (normalizePluginVersion(packageJson.version) !== release.version) {
+          throw new Error("package.json version does not match npm metadata")
+        }
+        if (manifest.id !== expectedId) {
+          throw new Error(
+            `published paseo-plugin.json id "${String(manifest.id)}" must match registry ID "${expectedId}"`
+          )
+        }
+        if (!SKIP_GITHUB_VALIDATION && gitPackageVersion !== release.version) {
+          throw new Error(
+            `Git package version ${gitPackageVersion ?? "missing"} does not match npm ${release.version}`
+          )
+        }
+      } catch (error) {
         problems.push({
           file,
-          message: `paseo-plugin.json at ${manifestPath} is missing a string "id" field`,
+          message: `invalid npm package ${entry.package}: ${(error as Error).message}`,
         })
-      } else if (manifest.id !== expectedId) {
-        problems.push({
-          file,
-          message: `paseo-plugin.json id "${manifest.id}" must match registry ID "${expectedId}"`,
-        })
-      }
-    } catch (err) {
-      if (err instanceof GitHubNotFoundError) {
-        problems.push({
-          file,
-          message: `repo/path not found: ${entry.repo}${entry.path ? `/${entry.path}` : ""}`,
-        })
-      } else {
-        problems.push({
-          file,
-          message: `error checking ${entry.repo}: ${(err as Error).message}`,
-        })
+      } finally {
+        await rm(directory, { recursive: true, force: true })
       }
     }
   }

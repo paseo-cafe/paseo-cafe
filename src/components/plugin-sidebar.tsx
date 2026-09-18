@@ -116,7 +116,10 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
 
       <PluginManifest manifest={plugin.manifest} />
       <PluginHealthChecks health={plugin.health} />
-      <PluginSecurityScanSection security={plugin.security} />
+      {plugin.package ? (
+        <PluginSecurityScanSection security={plugin.npmSecurity} source="npm" />
+      ) : null}
+      <PluginSecurityScanSection security={plugin.security} source="Git" />
     </aside>
   )
 }

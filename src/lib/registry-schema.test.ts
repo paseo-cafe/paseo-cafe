@@ -13,6 +13,29 @@ describe("registryEntrySchema", () => {
     })
     expect(result.success).toBe(true)
   })
+  it("accepts public npm package names without selectors", () => {
+    expect(
+      registryEntrySchema.parse({
+        repo: "owner/repo",
+        package: "@owner/paseo-plugin",
+      }).package
+    ).toBe("@owner/paseo-plugin")
+  })
+
+  it.each([
+    "@owner/paseo-plugin@1.2.3",
+    "npm:@owner/paseo-plugin",
+    "https://registry.npmjs.org/package",
+    "Owner/Plugin",
+    "file:../plugin",
+  ])("rejects npm package source %j", (packageName) => {
+    expect(
+      registryEntrySchema.safeParse({
+        repo: "owner/repo",
+        package: packageName,
+      }).success
+    ).toBe(false)
+  })
 
   it("defaults categories, platforms, and caveats to empty arrays", () => {
     const result = registryEntrySchema.parse({

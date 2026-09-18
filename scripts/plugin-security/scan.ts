@@ -4,12 +4,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
+import { extractNpmPackage, resolveNpmPackage } from "../npm-registry.ts"
 import {
   REPORT_DETAILS_CLOSE,
   REPORT_DETAILS_OPEN,
   REPORT_SUMMARY_CLOSE,
   REPORT_SUMMARY_OPEN,
   type SecurityFinding,
+  type SecurityNpmResult,
   type SecurityPluginResult,
   type SecurityResults,
   type SecurityTarget,
@@ -18,7 +20,7 @@ import { scanStaticFiles } from "./static-scan.ts"
 
 const CLONE_TIMEOUT_MS = 60_000
 
-function main() {
+async function main() {
   const args = process.argv.slice(2)
   const targetsPath = valueFor(args, "--targets")
   const reportPath = valueFor(args, "--report")
@@ -33,6 +35,7 @@ function main() {
       version: z.literal(1),
       targets: z.array(
         z.object({
+          package: z.string().optional(),
           id: z.string(),
           repo: z.string(),
           path: z.string().optional(),
@@ -46,7 +49,7 @@ function main() {
   const generatedAt = new Date().toISOString()
   const results: SecurityResults = { version: 1, generatedAt, plugins: {} }
   for (const target of targets.targets) {
-    results.plugins[target.id] = scanTarget(target, generatedAt)
+    results.plugins[target.id] = await scanTarget(target, generatedAt)
   }
 
   writeFileSync(reportPath, renderReport(results))
@@ -54,7 +57,10 @@ function main() {
     writeFileSync(jsonPath, `${JSON.stringify(results, null, 2)}\n`)
   }
   if (
-    Object.values(results.plugins).some((plugin) => plugin.blockingFindings > 0)
+    Object.values(results.plugins).some(
+      (plugin) =>
+        plugin.blockingFindings > 0 || (plugin.npm?.blockingFindings ?? 0) > 0
+    )
   ) {
     process.exitCode = 1
   }
@@ -103,7 +109,16 @@ export function checkoutTargetRepository(
   return actualCommit
 }
 
-function scanTarget(
+async function scanTarget(
+  target: SecurityTarget,
+  generatedAt: string
+): Promise<SecurityPluginResult> {
+  const git = scanGitTarget(target, generatedAt)
+  if (target.package) git.npm = await scanNpmTarget(target, generatedAt)
+  return git
+}
+
+function scanGitTarget(
   target: SecurityTarget,
   generatedAt: string
 ): SecurityPluginResult {
@@ -151,6 +166,63 @@ function scanTarget(
           severity: "high",
           blocking: true,
           path: target.path ?? ".",
+          message: (error as Error).message,
+        },
+      ],
+    }
+  } finally {
+    rmSync(temp, { recursive: true, force: true })
+  }
+}
+export async function scanNpmTarget(
+  target: SecurityTarget,
+  generatedAt: string
+): Promise<SecurityNpmResult> {
+  const packageName = target.package
+  if (!packageName) throw new Error("npm scan requires a package")
+  const temp = mkdtempSync(join(tmpdir(), "paseo-plugin-npm-security-"))
+  try {
+    const release = await resolveNpmPackage(packageName, join(temp, "cache"))
+    const packageRoot = join(temp, "package")
+    await extractNpmPackage(release, packageRoot, join(temp, "cache"))
+    const staticResult = scanStaticFiles({
+      root: packageRoot,
+      pluginPath: ".",
+      registryId: target.id,
+      allowManifestDescription: true,
+    })
+    const findings = staticResult.findings
+    const blockingFindings = findings.filter(
+      (finding) => finding.blocking
+    ).length
+    return {
+      package: packageName,
+      version: release.version,
+      integrity: release.integrity,
+      scannedAt: generatedAt,
+      status: blockingFindings ? "failed" : "passed",
+      blockingFindings,
+      advisoryFindings: findings.length - blockingFindings,
+      coverage: { files: staticResult.files, bytes: staticResult.bytes },
+      buildCommands: staticResult.buildCommands,
+      findings,
+    }
+  } catch (error) {
+    return {
+      package: packageName,
+      scannedAt: generatedAt,
+      status: "unavailable",
+      blockingFindings: 1,
+      advisoryFindings: 0,
+      coverage: { files: 0, bytes: 0 },
+      buildCommands: [],
+      findings: [
+        {
+          tool: "scanner",
+          ruleId: "scan-error",
+          severity: "high",
+          blocking: true,
+          path: ".",
           message: (error as Error).message,
         },
       ],
@@ -316,9 +388,10 @@ export function renderReport(results: SecurityResults) {
     `Generated: ${escapeReportText(results.generatedAt)}`,
     "",
   ]
-  const findings = Object.values(results.plugins).flatMap(
-    (plugin) => plugin.findings
-  )
+  const findings = Object.values(results.plugins).flatMap((plugin) => [
+    ...plugin.findings,
+    ...(plugin.npm?.findings ?? []),
+  ])
   const guidance = renderRuleGuidance(findings)
   if (guidance.length > 0) lines.push(...guidance, "")
 
@@ -337,6 +410,23 @@ export function renderReport(results: SecurityResults) {
         `- [${escapeReportText(finding.tool)}] ${escapeReportText(finding.ruleId)} ${escapeReportText(location)} ${escapeReportText(finding.message)}`
       )
     }
+    if (plugin.npm) {
+      lines.push(
+        `npm package: ${escapeReportText(plugin.npm.package)}`,
+        `npm status: ${plugin.npm.status}`,
+        `npm version: ${escapeReportText(plugin.npm.version ?? "unavailable")}`,
+        `npm blocking findings: ${plugin.npm.blockingFindings}`,
+        `npm advisory findings: ${plugin.npm.advisoryFindings}`,
+        ""
+      )
+      for (const finding of plugin.npm.findings) {
+        const location = `${finding.path}${finding.line ? `:${finding.line}` : ""}`
+        lines.push(
+          `- [npm/${escapeReportText(finding.tool)}] ${escapeReportText(finding.ruleId)} ${escapeReportText(location)} ${escapeReportText(finding.message)}`
+        )
+      }
+      lines.push("")
+    }
     lines.push("")
   }
   return lines.join("\n")
@@ -347,4 +437,4 @@ function valueFor(argv: string[], flag: string) {
   return index >= 0 ? argv[index + 1] : undefined
 }
 
-if (import.meta.main) main()
+if (import.meta.main) await main()

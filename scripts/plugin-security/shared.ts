@@ -25,9 +25,48 @@ export type SecurityTarget = {
   id: string
   repo: string
   path?: string
+  package?: string
   ref: string
   commit: string
 }
+export const securityNpmResultSchema = z
+  .object({
+    package: z.string(),
+    version: z.string().optional(),
+    integrity: z.string().startsWith("sha512-").optional(),
+    scannedAt: z.string().datetime(),
+    status: z.enum(["passed", "failed", "unavailable"]),
+    blockingFindings: z.number().int().nonnegative(),
+    advisoryFindings: z.number().int().nonnegative(),
+    coverage: z.object({
+      files: z.number().int().nonnegative(),
+      bytes: z.number().int().nonnegative(),
+    }),
+    buildCommands: z.array(z.array(z.string())),
+    findings: z.array(securityFindingSchema),
+  })
+  .strict()
+  .superRefine((result, ctx) => {
+    if (result.status === "passed" && result.blockingFindings > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["blockingFindings"],
+        message: 'status "passed" cannot have blocking findings',
+      })
+    }
+    if (
+      result.status !== "unavailable" &&
+      (!result.version || !result.integrity)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["version"],
+        message: "available npm scans require version and integrity",
+      })
+    }
+  })
+
+export type SecurityNpmResult = z.infer<typeof securityNpmResultSchema>
 
 export const securityPluginResultSchema = z
   .object({
@@ -46,6 +85,7 @@ export const securityPluginResultSchema = z
     }),
     buildCommands: z.array(z.array(z.string())),
     findings: z.array(securityFindingSchema),
+    npm: securityNpmResultSchema.optional(),
   })
   .strict()
   .superRefine((result, ctx) => {

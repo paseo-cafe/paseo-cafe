@@ -53,6 +53,19 @@ describe("GET /api/plugins", () => {
       name: "Adversarial",
       description: "",
       version: "1.2.3",
+      package: "@example/adversarial",
+      npm: {
+        package: "@example/adversarial",
+        version: "1.2.3",
+        integrity: `sha512-${"b".repeat(86)}`,
+      },
+      npmSecurity: {
+        status: "passed",
+        blockingFindings: 0,
+        advisoryFindings: 1,
+        version: "1.2.3",
+        integrity: `sha512-${"b".repeat(86)}`,
+      },
       manifest: { payload: "m".repeat(100_000) },
       categories: [],
       platforms: [],
@@ -95,6 +108,9 @@ describe("GET /api/plugins", () => {
     expect(projected).not.toHaveProperty("security")
     expect(directoryPluginSchema.safeParse(projected).success).toBe(true)
     expect(projected.version).toBe("1.2.3")
+    expect(projected.package).toBe("@example/adversarial")
+    expect(projected.npm).toMatchObject({ version: "1.2.3" })
+    expect(projected.npmSecurity).toMatchObject({ status: "passed" })
     expect(projected.readmeText).toBe(
       readmeText.slice(0, MAX_API_README_TEXT_LENGTH)
     )

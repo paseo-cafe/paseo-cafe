@@ -33,6 +33,9 @@ const REPOSITORY_PATTERN =
 const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
 const GIT_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$/
 const GIT_COMMIT_PATTERN = /^[0-9a-f]{40}$/i
+const NPM_PACKAGE_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
+const SEMVER_PATTERN =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 
 export function isValidCatalogRepository(repo: string): boolean {
   return REPOSITORY_PATTERN.test(repo)
@@ -47,6 +50,14 @@ export function isValidCatalogPath(path: string): boolean {
 
 export function isValidCatalogCommit(commit: string): boolean {
   return GIT_COMMIT_PATTERN.test(commit)
+}
+export function isValidCatalogPackage(packageName: string): boolean {
+  return packageName.length <= 214 && NPM_PACKAGE_PATTERN.test(packageName)
+}
+export function isValidCatalogVersion(version: string): boolean {
+  return (
+    version.length <= CATALOG_VERSION_MAX_LENGTH && SEMVER_PATTERN.test(version)
+  )
 }
 
 export function isValidCatalogRef(ref: string): boolean {
@@ -175,6 +186,37 @@ export function getCatalogInstallCommand(entry: {
 }): string | undefined {
   const args = getCatalogInstallArgs(entry)
   return args ? ["paseo", "plugin", "add", ...args].join(" ") : undefined
+}
+export function getCatalogNpmInstallArgs(
+  packageName: string,
+  version: string
+): string[] | undefined {
+  return isValidCatalogPackage(packageName) && isValidCatalogVersion(version)
+    ? [`npm:${packageName}@${version}`]
+    : undefined
+}
+
+export function getCatalogNpmInstallCommand(
+  packageName: string,
+  version: string
+): string | undefined {
+  const args = getCatalogNpmInstallArgs(packageName, version)
+  return args ? ["paseo", "plugin", "add", ...args].join(" ") : undefined
+}
+
+export function getCatalogPreferredInstallCommand(entry: {
+  package?: string
+  version?: string
+  repo: string
+  path?: string
+  ref?: string
+}): string | undefined {
+  if (entry.package) {
+    return entry.version
+      ? getCatalogNpmInstallCommand(entry.package, entry.version)
+      : undefined
+  }
+  return getCatalogInstallCommand(entry)
 }
 
 export type CatalogHealthCheck =

@@ -71,7 +71,7 @@ export async function selectTargets(opts: {
  * clone failure, where scanTarget falls back to target.commit verbatim.
  */
 async function resolveLocalTargets(
-  entries: { id: string; repo: string; path?: string }[],
+  entries: { id: string; repo: string; path?: string; package?: string }[],
   token?: string
 ): Promise<SecurityTarget[]> {
   const targets: SecurityTarget[] = []
@@ -212,6 +212,7 @@ function validateRegistryEntry(entry: {
   id: string
   repo: string
   path?: string
+  package?: string
 }) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(entry.repo))
     throw new Error(`unsafe repo ${entry.repo}`)
@@ -235,13 +236,14 @@ function encodePath(path: string) {
   return path.split("/").map(encodeURIComponent).join("/")
 }
 function toTarget(
-  entry: { id: string; repo: string; path?: string },
+  entry: { id: string; repo: string; path?: string; package?: string },
   commit: string
 ): SecurityTarget {
   return {
     id: entry.id,
     repo: entry.repo,
     path: entry.path,
+    package: entry.package,
     ref: commit,
     commit,
   }

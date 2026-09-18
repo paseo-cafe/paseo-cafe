@@ -4,9 +4,14 @@ import {
   normalizePluginVersion,
   type PluginRecord,
   pluginHealthSchema,
+  pluginNpmMetadataSchema,
+  pluginNpmSecuritySchema,
 } from "@/lib/plugin-schema"
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
-import { CATALOG_VERSION_MAX_LENGTH } from "../../plugin/shared/catalog"
+import {
+  CATALOG_VERSION_MAX_LENGTH,
+  isValidCatalogPackage,
+} from "../../plugin/shared/catalog"
 
 export const MAX_API_RESPONSE_BYTES = 16 * 1_024 * 1_024
 export const MAX_API_README_TEXT_LENGTH = 16_000
@@ -28,6 +33,12 @@ export const directoryPluginSchema = z.object({
   id: z.string().max(200),
   repo: z.string().max(200),
   path: z.string().max(500).optional(),
+  package: z
+    .string()
+    .max(214)
+    .refine(isValidCatalogPackage, "Invalid npm package name")
+    .optional(),
+  npm: pluginNpmMetadataSchema.optional(),
   url: httpUrlSchema.max(2_048),
   name: z.string().max(200),
   description: z.string().max(1_000),
@@ -67,6 +78,7 @@ export const directoryPluginSchema = z.object({
       reportUrl: httpUrlSchema.max(2_048).optional(),
     })
     .optional(),
+  npmSecurity: pluginNpmSecuritySchema.optional(),
   images: z.array(directoryImageUrlSchema).max(32),
   readmeText: z.string().max(MAX_API_README_TEXT_LENGTH).optional(),
   scanError: z.string().max(4_000).optional(),
@@ -107,7 +119,8 @@ export function projectPluginForDirectory(
     plugin.id.length > 200 ||
     plugin.repo.length > 200 ||
     plugin.url.length > 2_048 ||
-    (plugin.path?.length ?? 0) > 500
+    (plugin.path?.length ?? 0) > 500 ||
+    (plugin.package?.length ?? 0) > 214
   ) {
     throw new Error(
       `Plugin ${plugin.id.slice(0, 200)} has overlong identity data`
@@ -134,6 +147,8 @@ export function projectPluginForDirectory(
     id: plugin.id,
     repo: plugin.repo,
     url: plugin.url,
+    ...(plugin.package ? { package: plugin.package } : {}),
+    ...(plugin.npm ? { npm: plugin.npm } : {}),
     name: boundedString(plugin.name, 200),
     description: boundedString(plugin.description, 1_000),
     categories: [],
@@ -143,6 +158,7 @@ export function projectPluginForDirectory(
     health: plugin.health,
     scannedAt: boundedString(plugin.scannedAt, 100),
     ...(plugin.addedAt ? { addedAt: plugin.addedAt } : {}),
+    ...(plugin.npmSecurity ? { npmSecurity: plugin.npmSecurity } : {}),
     ...(plugin.path ? { path: plugin.path } : {}),
     ...(version !== undefined ? { version } : {}),
     ...(security ? { security } : {}),

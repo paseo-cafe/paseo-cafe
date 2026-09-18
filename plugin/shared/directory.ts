@@ -21,14 +21,17 @@ import {
   getCatalogAddedDateBadge,
   getCatalogInstallCommand,
   getCatalogInstallRef,
+  getCatalogNpmInstallCommand,
   getCatalogRepositoryOwner,
   getCatalogRepositoryUrl,
   isCatalogAddedAtKnown,
   isOfficialCatalogPlugin,
   isValidCatalogCommit,
+  isValidCatalogPackage,
   isValidCatalogPath,
   isValidCatalogRef,
   isValidCatalogRepository,
+  isValidCatalogVersion,
   normalizeCatalogCategories,
   normalizeCatalogCategory,
   normalizeCatalogCategoryFilter,
@@ -419,12 +422,31 @@ export const directoryEntrySchema = z.object({
     .max(500)
     .refine(isValidCatalogPath, "Expected a safe repository subpath")
     .optional(),
+  package: z
+    .string()
+    .max(214)
+    .refine(isValidCatalogPackage, "Expected a valid npm package name")
+    .optional(),
+  npm: z
+    .object({
+      package: z.string().max(214),
+      version: z
+        .string()
+        .max(CATALOG_VERSION_MAX_LENGTH)
+        .refine(isValidCatalogVersion, "Expected a semantic version"),
+      integrity: z.string().startsWith("sha512-"),
+    })
+    .optional(),
   url: httpUrlSchema,
   name: z.string().max(200),
   description: z.string().max(4_000).default(""),
   // Normalized package.json semver from the catalog scanner. Optional so an
   // older catalog or a plugin without a valid version still remains browsable.
-  version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
+  version: z
+    .string()
+    .max(CATALOG_VERSION_MAX_LENGTH)
+    .refine(isValidCatalogVersion, "Expected a semantic version")
+    .optional(),
   author: z.string().max(200).optional(),
   categories: z.array(z.string().max(100)).max(32).default([]),
   platforms: z.array(z.string().max(100)).max(32).default([]),
@@ -493,6 +515,16 @@ export const directoryEntrySchema = z.object({
         })
       }
     }),
+  npmSecurity: z
+    .object({
+      status: z.enum(["passed", "failed", "unknown"]),
+      blockingFindings: z.number().int().nonnegative().max(1_000_000),
+      advisoryFindings: z.number().int().nonnegative().max(1_000_000),
+      scannedAt: z.string().max(100).optional(),
+      version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
+      integrity: z.string().startsWith("sha512-").optional(),
+    })
+    .optional(),
   owner: z
     .object({
       login: z.string().max(100).optional(),
@@ -520,10 +552,13 @@ export const installedPluginSchema = z.object({
   path: z.string(),
   enabled: z.boolean(),
   status: z.enum(["running", "failed", "disabled"]),
-  source: z.enum(["git", "directory"]).default("directory"),
+  source: z.enum(["git", "directory", "npm"]).default("directory"),
   remote: z.string().optional(),
   ref: z.string().optional(),
   commit: z.string().optional(),
+  pluginPath: z.string().optional(),
+  packageName: z.string().optional(),
+  management: z.enum(["legacy", "reviewed"]).default("legacy"),
   version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
   latestCommit: z.string().optional(),
   updateState: z
@@ -587,11 +622,9 @@ export const directorySecuritySearchRpc = defineRpc({
 })
 
 /**
- * Attachment searches always read the default catalog: Paseo calls the search
- * contract with `{ query }` only, and a server handler cannot read its own
- * settings document (PluginServerContext exposes registerSettings/handle/
- * registerProvider, and its context is just `paseo`). A host that overrides
- * directoryUrl therefore still gets paseo.cafe results in the composer.
+ * Attachment searches remain host-scoped. Paseo 0.9 lets the server read the
+ * registered settings document; Paseo 0.8 handlers pass no override and retain
+ * the production/environment fallback.
  */
 export const directoryAttachments = defineAttachmentSource({
   id: "paseo-plugins",
@@ -633,12 +666,17 @@ export const directoryInstallRpc = defineRpc({
   name: "directory.install",
   input: z.object({
     repo: z.string(),
-    path: z.string().optional(),
-    ref: z
+    package: z
       .string()
-      .max(255)
-      .refine(isValidCatalogRef, "Expected a valid Git branch")
+      .max(214)
+      .refine(isValidCatalogPackage, "Expected a valid npm package name")
       .optional(),
+    version: z
+      .string()
+      .max(CATALOG_VERSION_MAX_LENGTH)
+      .refine(isValidCatalogVersion, "Expected a semantic version")
+      .optional(),
+    path: z.string().optional(),
     expectedCommit: z
       .string()
       .regex(/^[0-9a-f]{40}$/i)
@@ -663,7 +701,16 @@ export const directoryUpdateRpc = defineRpc({
         .max(255)
         .refine(isValidCatalogRef, "Expected a valid Git branch")
         .optional(),
+      package: z
+        .string()
+        .max(214)
+        .refine(isValidCatalogPackage, "Expected a valid npm package name")
+        .optional(),
       version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
+      commit: z
+        .string()
+        .regex(/^[0-9a-f]{40}$/i)
+        .optional(),
     }),
   }),
   output: z.object({
@@ -683,12 +730,22 @@ export const getInstallRef = getCatalogInstallRef
 
 export const getRepositoryOwner = getCatalogRepositoryOwner
 export function getInstallCommand(
-  entry: Pick<DirectoryEntry, "repo" | "path" | "repoMeta">
+  entry: Pick<
+    DirectoryEntry,
+    "repo" | "path" | "package" | "version" | "security"
+  >,
+  npmSupported = false
 ): string | undefined {
+  if (npmSupported && entry.package) {
+    return entry.version
+      ? getCatalogNpmInstallCommand(entry.package, entry.version)
+      : undefined
+  }
+  if (!entry.security?.commit) return undefined
   return getCatalogInstallCommand({
     repo: entry.repo,
     path: entry.path,
-    ref: entry.repoMeta?.defaultBranch,
+    ref: entry.security?.commit,
   })
 }
 
@@ -773,16 +830,25 @@ function pluginPathFromCheckout(path: string): string | undefined {
 }
 
 export function findInstallations(
-  entry: Pick<DirectoryEntry, "id" | "repo" | "path">,
+  entry: Pick<DirectoryEntry, "id" | "repo" | "path" | "package">,
   installations: readonly InstalledPlugin[]
 ): InstalledPlugin[] {
   const expectedRepo = entry.repo.toLowerCase()
   const expectedPath = normalizePluginPath(entry.path)
   return installations.filter((installation) => {
     if (installation.source === "directory") return installation.id === entry.id
+    if (installation.source === "npm") {
+      return Boolean(
+        entry.package && installation.packageName === entry.package
+      )
+    }
+    const installedPath =
+      installation.management === "reviewed"
+        ? normalizePluginPath(installation.pluginPath)
+        : pluginPathFromCheckout(installation.path)
     return (
       githubRepoFromRemote(installation.remote) === expectedRepo &&
-      pluginPathFromCheckout(installation.path) === expectedPath
+      installedPath === expectedPath
     )
   })
 }

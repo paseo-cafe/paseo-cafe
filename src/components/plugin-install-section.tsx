@@ -1,18 +1,38 @@
 import { CopyCommand } from "@/components/copy-command"
-import { getInstallCommand } from "@/lib/install-command"
+import { getGitInstallCommand, getInstallCommand } from "@/lib/install-command"
 import type { PluginRecord } from "@/lib/plugin-schema"
 
 export function PluginInstallSection({ plugin }: { plugin: PluginRecord }) {
+  const command = getInstallCommand(plugin)
+  const gitCommand = getGitInstallCommand(plugin)
   return (
     <div>
       <h2 className="mb-2 font-medium text-foreground/60 text-sm">Install</h2>
-      <CopyCommand command={getInstallCommand(plugin)} />
+      {plugin.package ? (
+        <p className="mb-1 text-foreground/40 text-xs uppercase tracking-wide">
+          npmjs · Paseo 0.9+
+        </p>
+      ) : null}
+      {command ? (
+        <CopyCommand command={command} />
+      ) : (
+        <p className="text-foreground/50 text-sm">
+          Exact install target unavailable. Refresh after the next successful
+          scan.
+        </p>
+      )}
+      {plugin.package && gitCommand ? (
+        <div className="mt-3">
+          <p className="mb-1 text-foreground/40 text-xs uppercase tracking-wide">
+            GitHub · Paseo 0.8 fallback
+          </p>
+          <CopyCommand command={gitCommand} />
+        </div>
+      ) : null}
       {plugin.security?.commit ? (
         <p className="mt-2 text-foreground/50 text-xs">
-          Security status covers commit{" "}
-          <code>{plugin.security.commit.slice(0, 12)}</code>. This command
-          tracks {plugin.repoMeta?.defaultBranch ?? "the default branch"}.
-          Refresh the listing before installing if the branch changed.
+          Git security status and fallback installation are pinned to commit{" "}
+          <code>{plugin.security.commit.slice(0, 12)}</code>.
         </p>
       ) : null}
       {plugin.installNotesHtml ? (

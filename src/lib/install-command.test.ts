@@ -1,57 +1,71 @@
 import { describe, expect, it } from "vitest"
-import { getInstallCommand } from "./install-command"
+import { getGitInstallCommand, getInstallCommand } from "./install-command"
+
+const COMMIT = "a".repeat(40)
+const security = {
+  status: "passed" as const,
+  blockingFindings: 0,
+  advisoryFindings: 0,
+  commit: COMMIT,
+}
 
 describe("getInstallCommand", () => {
-  it("includes --path for a subpath plugin", () => {
+  it("pins a subpath Git plugin to the scanned commit", () => {
     expect(
       getInstallCommand({
         repo: "mcowger/paseo-plugins",
         path: "subagent-activity",
-      })
-    ).toBe("paseo plugin add mcowger/paseo-plugins --path subagent-activity")
-  })
-
-  it("tracks the scanned default branch", () => {
-    expect(
-      getInstallCommand({
-        repo: "mcowger/paseo-plugins",
-        path: "subagent-activity",
-        repoMeta: {
-          stars: 1,
-          openIssues: 0,
-          defaultBranch: "main",
-          pushedAt: "2026-09-10T00:00:00Z",
-          topics: [],
-          archived: false,
-          license: null,
-        },
+        security,
       })
     ).toBe(
-      "paseo plugin add mcowger/paseo-plugins --ref main --path subagent-activity"
+      `paseo plugin add mcowger/paseo-plugins --ref ${COMMIT} --path subagent-activity`
     )
   })
 
   it("omits --path for a single-plugin repo", () => {
-    expect(getInstallCommand({ repo: "someone/their-plugin" })).toBe(
-      "paseo plugin add someone/their-plugin"
+    expect(getInstallCommand({ repo: "someone/their-plugin", security })).toBe(
+      `paseo plugin add someone/their-plugin --ref ${COMMIT}`
     )
   })
 
-  it("rejects shell metacharacters in unvalidated input", () => {
-    expect(() =>
+  it("pins npm while retaining the exact Git command", () => {
+    const plugin = {
+      repo: "someone/their-plugin",
+      package: "@someone/paseo-plugin",
+      version: "1.2.3",
+      security,
+    }
+
+    expect(getInstallCommand(plugin)).toBe(
+      "paseo plugin add npm:@someone/paseo-plugin@1.2.3"
+    )
+    expect(getGitInstallCommand(plugin)).toBe(
+      `paseo plugin add someone/their-plugin --ref ${COMMIT}`
+    )
+  })
+
+  it("withholds mutable or invalid targets", () => {
+    expect(getInstallCommand({ repo: "someone/their-plugin" })).toBeUndefined()
+    expect(
       getInstallCommand({
         repo: "someone/their-plugin",
         path: "plugin; echo 'unsafe'",
+        security,
       })
-    ).toThrow("Invalid plugin install target")
-  })
-
-  it("rejects an overlong path instead of emitting a different command", () => {
-    expect(() =>
+    ).toBeUndefined()
+    expect(
       getInstallCommand({
         repo: "someone/their-plugin",
         path: "x".repeat(501),
+        security,
       })
-    ).toThrow("exceeds registry limits")
+    ).toBeUndefined()
+    expect(
+      getInstallCommand({
+        repo: "someone/their-plugin",
+        package: "@someone/paseo-plugin",
+        security,
+      })
+    ).toBeUndefined()
   })
 })

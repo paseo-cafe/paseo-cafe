@@ -10,11 +10,11 @@ checks, and screenshots. Search and filtering happen on the client. Installs run
 attachment source can attach the plugin's full listing to a prompt for agent review before you
 trust it.
 
-Update availability is based on each plugin directory's `package.json` semver. An unrelated
-monorepo commit therefore does not mark every plugin as outdated. A missing or invalid installed
-or catalog version leaves update status unavailable rather than guessing. Until Paseo supports
-explicit-ref updates, applying an update still installs the tracked branch's current HEAD, which
-may be newer than the commit scanned by the catalog.
+Update availability is based on package semver. Entries with a declared public npm package install
+the exact scanner-resolved version from npmjs on Paseo 0.9. Paseo 0.8 installs the exact
+security-scanned Git commit instead; those legacy installs remain pinned until reinstalled or moved
+to Paseo 0.9. Existing installations always update from their installed source, and every update
+passes the exact catalog version or commit rather than a mutable tag or branch.
 
 ## Screenshots
 
@@ -32,7 +32,8 @@ may be newer than the commit scanned by the catalog.
 paseo plugin add paseo-cafe/paseo-cafe:plugin
 ```
 
-Requires a Paseo 0.8 release; the manifest declares `requirements.paseo` as `^0.8.0`.
+Supports Paseo 0.8 and 0.9 releases; the manifest declares `requirements.paseo` as
+`>=0.8.0 <0.10.0`.
 
 By default the catalog is read from `https://paseo.cafe/api/plugins`. Point **Settings →
 Plugins → Paseo Cafe** at another deployment (a local `bun run dev`, a staging build, or a
@@ -40,9 +41,9 @@ self-hosted fork) that serves the same shape. `PASEO_CAFE_DIRECTORY_URL` on the 
 lower-priority fallback for hosts that cannot persist plugin settings.
 
 A custom catalog must use HTTPS, or HTTP on loopback (`localhost`, `*.localhost`,
-`127.0.0.0/8`, `[::1]`). The catalog picks which repositories the install button hands to the
-`paseo` CLI, so anyone able to rewrite a plaintext response chooses what gets installed on the
-daemon host.
+`127.0.0.0/8`, `[::1]`). The catalog picks which public npmjs package or GitHub repository the
+install button hands to the `paseo` CLI, so anyone able to rewrite a plaintext response chooses
+what gets installed on the daemon host.
 
 ## Limitations
 
@@ -51,7 +52,6 @@ daemon host.
 - Installing shells out to the `paseo` CLI, so that binary must be on the daemon's `PATH`.
 - Git installs and updates of this companion plugin run `npm ci --omit=dev` so its server-side
   semver dependency is available in the managed checkout.
-- The composer attachment source always searches the default catalog. Paseo calls an
-  attachment search with the query alone, and a plugin's server handler cannot read its own
-  settings, so a custom Catalog URL applies to the sidebar surface only.
+- On Paseo 0.8, composer attachment searches use the default catalog because that server API
+  cannot read plugin settings. Paseo 0.9 attachment searches honor the configured Catalog URL.
 - Catalog responses are cached on the daemon for five minutes. **Refresh** bypasses that cache.

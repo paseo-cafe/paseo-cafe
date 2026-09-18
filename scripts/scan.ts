@@ -32,10 +32,15 @@ import {
   resolveGitHubAssetImages,
 } from "../src/lib/images.ts"
 import { renderMarkdownToHtml } from "../src/lib/markdown.ts"
-import type { PluginRecord, PluginSecurity } from "../src/lib/plugin-schema.ts"
+import type {
+  PluginNpmSecurity,
+  PluginRecord,
+  PluginSecurity,
+} from "../src/lib/plugin-schema.ts"
 import {
   gitCommitSchema,
   normalizePluginVersion,
+  pluginNpmSecuritySchema,
   pluginOwnerLogin,
   pluginRecordSchema,
   pluginSecuritySchema,
@@ -68,6 +73,7 @@ import {
   rawUrl,
   resolveGitHubAssetContentType,
 } from "./github.ts"
+import { resolveNpmPackage } from "./npm-registry.ts"
 import { renderOgImage } from "./og-image.tsx"
 import { securityResultsSchema } from "./plugin-security/shared.ts"
 
@@ -224,6 +230,43 @@ export function loadPublishedSecurityCatalog(
     return {}
   }
 }
+export function loadPublishedNpmSecurityCatalog(
+  artifactPath = SECURITY_ARTIFACT_PATH
+): Record<string, PluginNpmSecurity & { package: string }> {
+  if (!existsSync(artifactPath)) return {}
+  try {
+    const result = securityResultsSchema.safeParse(
+      JSON.parse(readFileSync(artifactPath, "utf8")) as unknown
+    )
+    if (!result.success) return {}
+    return Object.fromEntries(
+      Object.entries(result.data.plugins).flatMap(([id, security]) => {
+        if (!security.npm) return []
+        return [
+          [
+            id,
+            {
+              package: security.npm.package,
+              ...pluginNpmSecuritySchema.parse({
+                status:
+                  security.npm.status === "unavailable"
+                    ? "unknown"
+                    : security.npm.status,
+                blockingFindings: security.npm.blockingFindings,
+                advisoryFindings: security.npm.advisoryFindings,
+                scannedAt: security.npm.scannedAt,
+                version: security.npm.version,
+                integrity: security.npm.integrity,
+              }),
+            },
+          ],
+        ]
+      })
+    )
+  } catch {
+    return {}
+  }
+}
 
 const INDEX_PATH = join(ROOT, "data", "plugins.json")
 const PUBLIC_DIR = join(ROOT, "public")
@@ -248,13 +291,16 @@ function isRecent(iso: string): boolean {
   const cutoff = Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000
   return pushed >= cutoff
 }
-
 export async function scanOne(
   entryFile: string,
   securityCatalog: Record<string, PluginSecurity>,
   registryDir = REGISTRY_DIR,
   addedAt?: string,
-  offline = false
+  offline = false,
+  npmSecurityCatalog: Record<
+    string,
+    PluginNpmSecurity & { package: string }
+  > = {}
 ): Promise<PluginRecord> {
   const id = registryIdSchema.parse(entryFile.slice(0, -".json".length))
   const raw = JSON.parse(readFileSync(join(registryDir, entryFile), "utf8"))
@@ -267,6 +313,7 @@ export async function scanOne(
     id,
     repo: entry.repo,
     path: entry.path,
+    package: entry.package,
     url: `https://github.com/${entry.repo}`,
     name: id,
     description: "",
@@ -289,6 +336,9 @@ export async function scanOne(
   if (offline) return pluginRecordSchema.parse(base)
 
   try {
+    const npmRelease = entry.package
+      ? await resolveNpmPackage(entry.package)
+      : undefined
     const repoMeta = await fetchRepoMeta(owner, repo)
     const branch = repoMeta.default_branch
     const repositoryUrl = entry.path
@@ -418,12 +468,27 @@ export async function scanOne(
       0,
       MAX_README_IMAGES
     )
-    const version = normalizePluginVersion(pkg?.version)
-
+    const gitVersion = normalizePluginVersion(pkg?.version)
+    const version = npmRelease?.version ?? gitVersion
     const record: PluginRecord = {
       id,
       repo: entry.repo,
       path: entry.path,
+      package: entry.package,
+      npm: npmRelease
+        ? {
+            package: npmRelease.package,
+            version: npmRelease.version,
+            integrity: npmRelease.integrity,
+          }
+        : undefined,
+      npmSecurity:
+        npmRelease &&
+        npmSecurityCatalog[id]?.package === npmRelease.package &&
+        npmSecurityCatalog[id]?.version === npmRelease.version &&
+        npmSecurityCatalog[id]?.integrity === npmRelease.integrity
+          ? npmSecurityCatalog[id]
+          : undefined,
       url: repositoryUrl,
       name: id,
       description:
@@ -489,6 +554,11 @@ export async function scanOne(
     if (version === "0.0.0") {
       scanErrors.push(
         'package.json version "0.0.0" is a placeholder; publish a real release version'
+      )
+    }
+    if (npmRelease && gitVersion !== npmRelease.version) {
+      scanErrors.push(
+        `Git package version ${gitVersion ?? "missing"} does not match npm ${npmRelease.version}`
       )
     }
 
@@ -698,6 +768,7 @@ async function main() {
   mkdirSync(OG_DIR, { recursive: true })
 
   const securityCatalog = loadPublishedSecurityCatalog()
+  const npmSecurityCatalog = loadPublishedNpmSecurityCatalog()
   const addedAt = readRegistryAddedAt()
   if (addedAt.size === 0 && files.length > 0) {
     console.warn(
@@ -714,7 +785,8 @@ async function main() {
       securityCatalog,
       REGISTRY_DIR,
       addedAt.get(file),
-      offline
+      offline,
+      npmSecurityCatalog
     )
     if (record.scanError) console.warn(`  ! ${record.scanError}`)
     scanned.set(record.id, record)

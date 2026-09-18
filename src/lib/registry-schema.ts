@@ -7,6 +7,7 @@ import {
   type CatalogCategory,
   type CatalogPlatform,
   formatCatalogVersion,
+  isValidCatalogPackage,
   isValidCatalogPath,
   isValidCatalogRepository,
   normalizeCatalogCategory,
@@ -67,6 +68,11 @@ export const registryEntrySchema = z
       .string()
       .max(500)
       .refine(isValidCatalogPath, "path must be a safe repository subpath")
+      .optional(),
+    /** Public npmjs.org package used by Paseo 0.9 and newer. */
+    package: z
+      .string()
+      .refine(isValidCatalogPackage, "package must be a valid npm package name")
       .optional(),
     /** Optional curator/author-assigned categories, refined over time. */
     categories: z.array(z.string().min(1)).default([]),

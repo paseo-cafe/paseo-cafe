@@ -21,6 +21,7 @@ import {
   CATALOG_PLATFORMS,
   type CatalogCategory,
   type CatalogPlatform,
+  isValidCatalogPackage,
   isValidCatalogPath,
   isValidCatalogRepository,
 } from "../../plugin/shared/catalog"
@@ -50,6 +51,7 @@ const REQUIRED_CHECKS = [
   "Your repo is public on GitHub.",
   "Its paseo-plugin.json id matches the registry filename.",
   "Its package.json has a released semantic version, not 0.0.0, and you will increment it for each plugin update.",
+  "If supplied, the npm package is public on npmjs.org and contains the same plugin ID and version as the GitHub source.",
 ]
 
 const RECOMMENDED = [
@@ -64,7 +66,7 @@ const RECOMMENDED = [
 
 const AUTO_GENERATED = [
   "Name from the validated plugin ID; description, author, and license from package.json, paseo-plugin.json, and the README. package.json.version is the update identity used by the companion catalog.",
-  "The exact install command (paseo plugin add ...), derived from repo + path.",
+  "The install commands: npmjs for Paseo 0.9 when a package is supplied, and GitHub for Paseo 0.8.",
   "Screenshots, from an images/ folder in your repo.",
   "Demo videos, detected in your README (YouTube, Loom, or an uploaded GitHub video).",
   "A best-effort limitations/caveats excerpt, detected from your README if you didn't declare platforms/caveats yourself.",
@@ -76,6 +78,7 @@ interface SubmissionForm {
   registryId: string
   repo: string
   path: string
+  package: string
   categories: CatalogCategory[]
   platforms: CatalogPlatform[]
   caveats: string
@@ -85,6 +88,7 @@ const INITIAL_FORM: SubmissionForm = {
   registryId: "",
   repo: "",
   path: "",
+  package: "",
   categories: [],
   platforms: [],
   caveats: "",
@@ -94,6 +98,7 @@ interface SubmissionErrors {
   registryId?: string
   repo?: string
   path?: string
+  package?: string
   caveats?: string
 }
 
@@ -102,6 +107,7 @@ function validateSubmission(form: SubmissionForm): SubmissionErrors {
   const registryId = form.registryId.trim()
   const repo = form.repo.trim()
   const path = form.path.trim()
+  const packageName = form.package.trim()
   const caveats = form.caveats
     .split("\n")
     .map((caveat) => caveat.trim())
@@ -121,6 +127,9 @@ function validateSubmission(form: SubmissionForm): SubmissionErrors {
   if (path && !isValidCatalogPath(path)) {
     errors.path = "Use a repository-relative path without . or .. segments."
   }
+  if (packageName && !isValidCatalogPackage(packageName)) {
+    errors.package = "Use a public npm package name such as @scope/name."
+  }
   if (caveats.length > 6) {
     errors.caveats = "Add no more than 6 caveats."
   } else if (caveats.some((caveat) => caveat.length > 140)) {
@@ -135,6 +144,7 @@ function buildIssueUrl(form: SubmissionForm): string {
   const registryId = form.registryId.trim()
   const repo = form.repo.trim()
   const path = form.path.trim()
+  const packageName = form.package.trim()
   const caveats = form.caveats
     .split("\n")
     .map((caveat) => caveat.trim())
@@ -146,6 +156,7 @@ function buildIssueUrl(form: SubmissionForm): string {
   url.searchParams.set("registry-id", registryId)
   url.searchParams.set("repo", repo)
   if (path) url.searchParams.set("path", path)
+  if (packageName) url.searchParams.set("package", packageName)
   if (form.categories.length > 0) {
     url.searchParams.set("categories", form.categories.join(", "))
   }
@@ -364,6 +375,33 @@ function SubmitPage() {
               >
                 {errors.path ??
                   "Only needed when one repository hosts multiple plugins."}
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-3 border-border border-b p-4 sm:grid-cols-[11rem_1fr]">
+            <label htmlFor="package" className="font-medium text-sm">
+              npm package
+              <span className="mt-1 block font-normal text-foreground/45 text-xs">
+                Optional · npmjs.org only
+              </span>
+            </label>
+            <div>
+              <Input
+                id="package"
+                value={form.package}
+                onChange={(event) => updateField("package", event.target.value)}
+                placeholder="@yourname/paseo-plugin"
+                maxLength={214}
+                aria-invalid={Boolean(errors.package)}
+                aria-describedby="package-help"
+                autoComplete="off"
+              />
+              <p
+                id="package-help"
+                className={`mt-1.5 text-xs ${errors.package ? "text-destructive" : "text-foreground/50"}`}
+              >
+                {errors.package ??
+                  "Paseo 0.9 installs this package; Paseo 0.8 uses the GitHub source."}
               </p>
             </div>
           </div>

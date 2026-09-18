@@ -8,7 +8,7 @@ import { ExpandableSection } from "@/components/expandable-section"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { formatDateTime } from "@/lib/format-date"
-import type { PluginSecurity } from "@/lib/plugin-schema"
+import type { PluginNpmSecurity, PluginSecurity } from "@/lib/plugin-schema"
 
 const STATUS_LABELS: Record<PluginSecurity["status"] | "unset", string> = {
   passed: "Passed",
@@ -19,8 +19,10 @@ const STATUS_LABELS: Record<PluginSecurity["status"] | "unset", string> = {
 
 export function PluginSecurityScan({
   security,
+  source = "Git",
 }: {
-  security?: PluginSecurity
+  security?: PluginSecurity | PluginNpmSecurity
+  source?: "Git" | "npm"
 }) {
   const attestation =
     security?.status === "passed" || security?.status === "failed"
@@ -37,7 +39,7 @@ export function PluginSecurityScan({
         <IconAlertTriangle />
       )}
       <AlertTitle className="flex flex-wrap items-center gap-2">
-        <span>Security scan</span>
+        <span>{source} security scan</span>
         <Badge
           variant={
             security?.status === "passed"
@@ -64,10 +66,13 @@ export function PluginSecurityScan({
             {attestation.scannedAt ? (
               <p>
                 Scanned {formatDateTime(attestation.scannedAt)}
-                {attestation.commit ? ` at commit ${attestation.commit}` : ""}.
+                {"commit" in attestation && attestation.commit
+                  ? ` at commit ${attestation.commit}`
+                  : ""}
+                .
               </p>
             ) : null}
-            {attestation.reportUrl ? (
+            {"reportUrl" in attestation && attestation.reportUrl ? (
               <a
                 href={attestation.reportUrl}
                 target="_blank"
@@ -88,15 +93,17 @@ export function PluginSecurityScan({
 
 export function PluginSecurityScanSection({
   security,
+  source,
 }: {
-  security?: PluginSecurity
+  security?: PluginSecurity | PluginNpmSecurity
+  source?: "Git" | "npm"
 }) {
   return (
     <ExpandableSection
-      title="Security scan"
+      title={`${source ?? "Git"} security scan`}
       subtitle={STATUS_LABELS[security?.status ?? "unset"]}
     >
-      <PluginSecurityScan security={security} />
+      <PluginSecurityScan security={security} source={source} />
     </ExpandableSection>
   )
 }

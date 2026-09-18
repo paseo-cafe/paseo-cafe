@@ -9,6 +9,8 @@ import { z } from "zod"
 import {
   CATALOG_VERSION_MAX_LENGTH,
   getCatalogInstallArgs,
+  getCatalogNpmInstallArgs,
+  isValidCatalogPackage,
 } from "../shared/catalog"
 import type {
   DirectoryEntry,
@@ -35,7 +37,6 @@ import {
   isTrustedCatalogUrl,
   isValidCommit,
   isValidInstallPath,
-  isValidRef,
   isValidRepo,
   stripHtml,
 } from "../shared/directory"
@@ -57,7 +58,7 @@ const directoryResponseSchema = z.object({
     .pipe(z.iso.datetime({ offset: true, local: true }))
     .optional(),
 })
-const pluginUpdateResponseSchema = z.array(
+const legacyPluginUpdateResponseSchema = z.array(
   z.object({
     id: z.string(),
     updated: z.boolean(),
@@ -66,6 +67,50 @@ const pluginUpdateResponseSchema = z.array(
     commits: z.number().int().nonnegative(),
   })
 )
+const reviewedPluginUpdateResponseSchema = z.array(
+  z.object({
+    id: z.string(),
+    outcome: z.enum([
+      "updated",
+      "current",
+      "installed-newer",
+      "local",
+      "error",
+      "declined",
+    ]),
+    error: z.string().optional(),
+    warning: z.string().optional(),
+  })
+)
+const pluginSourceIdentitySchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("directory"), path: z.string() }),
+  z.object({
+    kind: z.literal("git"),
+    remote: z.string(),
+    pluginPath: z.string(),
+  }),
+  z.object({
+    kind: z.literal("npm"),
+    packageName: z.string(),
+    pluginPath: z.string(),
+  }),
+])
+const paseoPluginListItemSchema = z.object({
+  id: z.string(),
+  path: z.string(),
+  enabled: z.boolean(),
+  status: z.enum(["running", "failed", "disabled"]),
+  source: z.enum(["git", "directory"]).optional(),
+  remote: z.string().optional(),
+  ref: z.string().optional(),
+  commit: z.string().optional(),
+  installation: z
+    .object({
+      identity: pluginSourceIdentitySchema,
+      currentRevision: z.string().optional(),
+    })
+    .optional(),
+})
 const TRACKED_BRANCH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
 const UPDATE_STATUS_TTL_MS = 60_000
 const UPDATE_CHECK_CONCURRENCY = 4
@@ -136,6 +181,15 @@ export async function execPaseo(args: readonly string[], timeout: number) {
     windowsVerbatimArguments: invocation.windowsVerbatimArguments,
   })
 }
+export function supportsReviewedPluginManagement(versionText: string): boolean {
+  const version = semver.valid(versionText.trim())
+  return version !== null && semver.gte(version, "0.9.0-0")
+}
+
+async function usesReviewedPluginManagement(): Promise<boolean> {
+  const { stdout } = await execPaseo(["--version"], 10_000)
+  return supportsReviewedPluginManagement(stdout)
+}
 
 async function execGit(
   cwd: string,
@@ -163,21 +217,65 @@ type GitRunner = typeof execGit
 interface CatalogUpdateTarget {
   ref?: string
   version?: string
+  commit?: string
 }
 
 /**
- * Retains the Git safety checks for tracked sources, but only reports an
- * available update when the catalog package version is valid and greater.
+ * Keeps Cafe's package-semver policy across both Paseo management contracts.
+ * Paseo 0.8 installations retain branch metadata and need a Git refresh;
+ * Paseo 0.9 reports an immutable installed revision that can be compared with
+ * the catalog's scanned commit directly.
  */
 export async function inspectUpdateStatus(
   installation: InstalledPlugin,
   entry: CatalogUpdateTarget,
   runGit: GitRunner = execGit
 ): Promise<InstalledPlugin> {
+  const installedVersion = semver.valid(installation.version ?? "")
+  const latestVersion = semver.valid(entry.version ?? "")
+  if (installation.source === "npm") {
+    if (!installedVersion || !latestVersion) {
+      return { ...installation, updateState: "unknown" }
+    }
+    return {
+      ...installation,
+      version: installedVersion,
+      updateState: semver.gt(latestVersion, installedVersion)
+        ? "available"
+        : "current",
+    }
+  }
+  if (installation.source !== "git" || !installation.commit) {
+    return { ...installation, updateState: "unknown" }
+  }
+  if (installation.management === "reviewed") {
+    const latestCommit = isValidCommit(entry.commit ?? "")
+      ? entry.commit?.toLowerCase()
+      : undefined
+    if (!latestCommit) return { ...installation, updateState: "unknown" }
+    if (latestCommit === installation.commit.toLowerCase()) {
+      return {
+        ...installation,
+        version: installedVersion ?? installation.version,
+        latestCommit,
+        updateState: installedVersion && latestVersion ? "current" : "unknown",
+      }
+    }
+    if (!installedVersion || !latestVersion) {
+      return { ...installation, latestCommit, updateState: "unknown" }
+    }
+    return {
+      ...installation,
+      version: installedVersion,
+      latestCommit,
+      updateState: semver.gt(latestVersion, installedVersion)
+        ? "available"
+        : "current",
+    }
+  }
+
   if (
-    installation.source !== "git" ||
     !installation.ref ||
-    !installation.commit ||
     !TRACKED_BRANCH_PATTERN.test(installation.ref) ||
     installation.ref.includes("..")
   ) {
@@ -226,8 +324,6 @@ export async function inspectUpdateStatus(
       throw new Error("Could not resolve tracked branch")
     }
 
-    const installedVersion = semver.valid(installation.version ?? "")
-    const latestVersion = semver.valid(entry.version ?? "")
     if (latestCommit === installation.commit) {
       return {
         ...installation,
@@ -246,8 +342,6 @@ export async function inspectUpdateStatus(
     if (ancestor.exitCode !== 0) {
       return { ...installation, latestCommit, updateState: "diverged" }
     }
-    // Legacy installs and custom catalogs may not carry a valid version. Keep
-    // them usable, but never infer an update from a repository commit alone.
     if (!installedVersion || !latestVersion) {
       return { ...installation, latestCommit, updateState: "unknown" }
     }
@@ -272,7 +366,7 @@ async function cachedUpdateStatus(
   installation: InstalledPlugin,
   entry: CatalogUpdateTarget
 ): Promise<InstalledPlugin> {
-  const key = `${installation.path}\u0000${installation.ref ?? ""}\u0000${installation.commit ?? ""}\u0000${installation.version ?? ""}\u0000${entry.ref ?? ""}\u0000${entry.version ?? ""}`
+  const key = `${installation.management}\u0000${installation.path}\u0000${installation.ref ?? ""}\u0000${installation.commit ?? ""}\u0000${installation.version ?? ""}\u0000${entry.ref ?? ""}\u0000${entry.version ?? ""}\u0000${entry.commit ?? ""}`
   const now = Date.now()
   const cached = updateStatusCache.get(key)
   if (cached && cached.expiresAt > now) return cached.value
@@ -319,12 +413,13 @@ async function addUpdateStatus(
   >()
   for (const entry of plugins) {
     for (const installation of findInstallations(entry, installations)) {
-      if (installation.source === "git") {
+      if (installation.source !== "directory") {
         matched.set(installation.id, {
           installation,
           entry: {
             ref: entry.repoMeta?.defaultBranch,
             version: entry.version,
+            commit: entry.security?.commit,
           },
         })
       }
@@ -381,13 +476,48 @@ export async function readInstalledPluginVersion(
     return undefined
   }
 }
+export function normalizeInstalledPlugin(value: unknown): InstalledPlugin {
+  const item = paseoPluginListItemSchema.parse(value)
+  const installation = item.installation
+  if (!installation) {
+    return installedPluginSchema.parse({ ...item, management: "legacy" })
+  }
+
+  const base = {
+    id: item.id,
+    path: item.path,
+    enabled: item.enabled,
+    status: item.status,
+    management: "reviewed" as const,
+  }
+  switch (installation.identity.kind) {
+    case "git":
+      return installedPluginSchema.parse({
+        ...base,
+        source: "git",
+        remote: installation.identity.remote,
+        pluginPath: installation.identity.pluginPath,
+        commit: installation.currentRevision,
+      })
+    case "npm":
+      return installedPluginSchema.parse({
+        ...base,
+        source: "npm",
+        packageName: installation.identity.packageName,
+        pluginPath: installation.identity.pluginPath,
+      })
+    case "directory":
+      return installedPluginSchema.parse({ ...base, source: "directory" })
+  }
+}
 
 async function listInstalledPlugins() {
   const { stdout } = await execPaseo(["plugin", "ls", "--json"], 30_000)
   const installations = z
-    .array(installedPluginSchema)
+    .array(z.unknown())
     .max(500)
     .parse(JSON.parse(stdout))
+    .map(normalizeInstalledPlugin)
   return Promise.all(
     installations.map(async (installation) => {
       const version = await readInstalledPluginVersion(installation.path)
@@ -613,9 +743,15 @@ function listingAttachmentText(entry: DirectoryEntry): string {
     : "Not reported"
   const content = [
     `# ${entry.name}`,
-    entry.description,
     `Repository URL: ${getRepositoryUrl(entry)}`,
-    `Install: ${getInstallCommand(entry) ?? "Unavailable: invalid catalog target"}`,
+    entry.package ? `npm package: ${entry.package}` : null,
+    entry.package
+      ? `Install on Paseo 0.9+: ${getInstallCommand(entry, true)}`
+      : null,
+    entry.package
+      ? `Git install (Paseo 0.8 fallback): ${getInstallCommand(entry) ?? "Unavailable: invalid catalog target"}`
+      : `Install: ${getInstallCommand(entry) ?? "Unavailable: invalid catalog target"}`,
+    entry.description,
     entry.paseoVersionRequirement
       ? `Paseo requirement: ${entry.paseoVersionRequirement}`
       : null,
@@ -725,9 +861,10 @@ async function searchDirectoryAttachments(
   query: string,
   resourceType: string,
   text: (entry: DirectoryEntry) => string,
-  idSuffix?: string
+  idSuffix?: string,
+  baseUrl?: string
 ) {
-  const { plugins } = await fetchDirectory(undefined)
+  const { plugins } = await fetchDirectory(baseUrl)
   return {
     items: attachmentMatches(plugins, query).map((entry) => ({
       id: idSuffix ? `${entry.id}:${idSuffix}` : entry.id,
@@ -742,83 +879,164 @@ async function searchDirectoryAttachments(
 }
 
 export async function searchDirectory(
-  input: RpcInput<typeof directorySearchRpc>
+  input: RpcInput<typeof directorySearchRpc>,
+  baseUrl?: string
 ): Promise<RpcOutput<typeof directorySearchRpc>> {
   return searchDirectoryAttachments(
     input.query,
     "Paseo plugin",
-    listingAttachmentText
+    listingAttachmentText,
+    undefined,
+    baseUrl
   )
 }
 
 export async function searchDirectoryManifests(
-  input: RpcInput<typeof directoryManifestSearchRpc>
+  input: RpcInput<typeof directoryManifestSearchRpc>,
+  baseUrl?: string
 ): Promise<RpcOutput<typeof directoryManifestSearchRpc>> {
   return searchDirectoryAttachments(
     input.query,
     "Paseo plugin manifest",
     manifestAttachmentText,
-    "manifest"
+    "manifest",
+    baseUrl
   )
 }
 
 export async function searchDirectoryReadmes(
-  input: RpcInput<typeof directoryReadmeSearchRpc>
+  input: RpcInput<typeof directoryReadmeSearchRpc>,
+  baseUrl?: string
 ): Promise<RpcOutput<typeof directoryReadmeSearchRpc>> {
   return searchDirectoryAttachments(
     input.query,
     "Paseo plugin README",
     readmeAttachmentText,
-    "readme"
+    "readme",
+    baseUrl
   )
 }
 
 export async function searchDirectorySecurity(
-  input: RpcInput<typeof directorySecuritySearchRpc>
+  input: RpcInput<typeof directorySecuritySearchRpc>,
+  baseUrl?: string
 ): Promise<RpcOutput<typeof directorySecuritySearchRpc>> {
   return searchDirectoryAttachments(
     input.query,
     "Paseo plugin security summary",
     securityAttachmentText,
-    "security"
+    "security",
+    baseUrl
   )
 }
 
 export function buildInstallArgs(input: {
   repo: string
+  package?: string
+  version?: string
   path?: string
-  ref?: string
+  commit?: string
+  reviewed?: boolean
 }): string[] {
-  const args = getCatalogInstallArgs(input)
+  if (input.reviewed && input.package) {
+    const args = input.version
+      ? getCatalogNpmInstallArgs(input.package, input.version)
+      : undefined
+    if (!args) throw new Error("npm installation requires an exact version")
+    return ["plugin", "add", ...args]
+  }
+  if (!isValidCommit(input.commit ?? "")) {
+    throw new Error("Git installation requires an exact scanned commit")
+  }
+  const args = getCatalogInstallArgs({
+    repo: input.repo,
+    path: input.path,
+    ref: input.commit,
+  })
   if (!args) throw new Error("Invalid plugin install target")
   return ["plugin", "add", ...args]
 }
 
-export async function remoteBranchMatchesCommit(
-  repo: string,
-  ref: string,
-  expectedCommit: string,
-  runGit: GitRunner = execGit
-): Promise<boolean> {
-  const remoteRef = `refs/heads/${ref}`
-  const result = await runGit(
-    process.cwd(),
-    ["ls-remote", "--exit-code", `https://github.com/${repo}.git`, remoteRef],
-    30_000
-  )
-  if (result.exitCode !== 0) return false
+export function buildUpdateArgs(
+  pluginId: string,
+  management: InstalledPlugin["management"],
+  source: InstalledPlugin["source"],
+  commit?: string,
+  version?: string
+): string[] {
+  if (management === "reviewed" && source === "npm") {
+    const targetVersion = semver.valid(version ?? "")
+    if (!targetVersion) throw new Error("npm update requires a catalog version")
+    return ["plugin", "update", pluginId, "--version", targetVersion, "--json"]
+  }
+  if (management === "reviewed") {
+    if (!commit || !isValidCommit(commit)) {
+      throw new Error("Reviewed plugin update requires a scanned commit")
+    }
+    return ["plugin", "update", pluginId, "--ref", commit, "--json"]
+  }
+  return ["plugin", "update", pluginId, "--json"]
+}
+export function parsePluginUpdateResult(
+  stdout: string,
+  management: InstalledPlugin["management"],
+  pluginId: string,
+  revision?: string
+): RpcOutput<typeof directoryUpdateRpc> {
+  if (management === "reviewed") {
+    if (!revision) {
+      throw new Error("Reviewed plugin result requires a target revision")
+    }
+    const displayRevision = /^[0-9a-f]{40,64}$/i.test(revision)
+      ? revision.slice(0, 12)
+      : revision
+    const [result] = reviewedPluginUpdateResponseSchema.parse(
+      JSON.parse(stdout)
+    )
+    if (!result)
+      return { ok: false, message: `No update result for ${pluginId}.` }
+    if (result.outcome === "error") {
+      return {
+        ok: false,
+        message: result.error ?? `Update failed for ${pluginId}.`,
+      }
+    }
+    if (result.outcome === "updated") {
+      return {
+        ok: true,
+        updated: true,
+        message: `Updated ${pluginId} to ${displayRevision}.${result.warning ? ` ${result.warning}` : ""}`,
+      }
+    }
+    if (result.outcome === "current") {
+      return {
+        ok: true,
+        updated: false,
+        message: `${pluginId} is already up to date.`,
+      }
+    }
+    return {
+      ok: false,
+      message: `Update result for ${pluginId} is ${result.outcome}.`,
+    }
+  }
 
-  const [commit, resolvedRef] = result.stdout.trim().split(/\s+/)
-  return (
-    resolvedRef === remoteRef &&
-    commit?.toLowerCase() === expectedCommit.toLowerCase()
-  )
+  const [result] = legacyPluginUpdateResponseSchema.parse(JSON.parse(stdout))
+  if (!result)
+    return { ok: false, message: `No update result for ${pluginId}.` }
+  return {
+    ok: true,
+    updated: result.updated,
+    message: result.updated
+      ? `Updated ${pluginId} by ${result.commits} commit${result.commits === 1 ? "" : "s"}.`
+      : `${pluginId} is already up to date.`,
+  }
 }
 
 export async function installDirectoryPlugin(
   input: RpcInput<typeof directoryInstallRpc>
 ): Promise<RpcOutput<typeof directoryInstallRpc>> {
-  const { repo, path, ref, expectedCommit } = input
+  const { repo, package: packageName, version, path, expectedCommit } = input
 
   // Re-validated here even though the client only ever sends entries straight
   // from fetchDirectory(): this is the boundary that actually shells out, and
@@ -832,8 +1050,8 @@ export async function installDirectoryPlugin(
   if (path !== undefined && !isValidInstallPath(path)) {
     return { ok: false, message: `"${path}" isn't a valid plugin subpath.` }
   }
-  if (ref !== undefined && !isValidRef(ref)) {
-    return { ok: false, message: `"${ref}" isn't a valid Git branch.` }
+  if (packageName !== undefined && !isValidCatalogPackage(packageName)) {
+    return { ok: false, message: `"${packageName}" isn't a valid npm package.` }
   }
   if (expectedCommit !== undefined && !isValidCommit(expectedCommit)) {
     return {
@@ -841,31 +1059,24 @@ export async function installDirectoryPlugin(
       message: `"${expectedCommit}" isn't a valid scanned commit.`,
     }
   }
-  if (expectedCommit !== undefined && ref === undefined) {
-    return {
-      ok: false,
-      message: "The scanned commit cannot be verified without a branch name.",
-    }
-  }
 
-  const args = buildInstallArgs({ repo, path, ref })
   try {
-    if (
-      expectedCommit !== undefined &&
-      ref !== undefined &&
-      !(await remoteBranchMatchesCommit(repo, ref, expectedCommit))
-    ) {
-      return {
-        ok: false,
-        message:
-          "The repository changed since this catalog scan. Refresh Paseo Cafe before installing.",
-      }
-    }
+    const reviewed = await usesReviewedPluginManagement()
+    const npmInstall = reviewed && packageName !== undefined
+    const args = buildInstallArgs({
+      repo,
+      package: packageName,
+      version,
+      path,
+      commit: expectedCommit,
+      reviewed: npmInstall,
+    })
 
     // Arguments are passed as an array on Unix and strictly quoted through
     // cmd.exe for npm's paseo.cmd shim on Windows.
     const { stdout } = await execPaseo(args, 120_000)
-    return { ok: true, message: stdout.trim() || `Installed ${repo}.` }
+    const source = npmInstall ? packageName : repo
+    return { ok: true, message: stdout.trim() || `Installed ${source}.` }
   } catch (error) {
     return { ok: false, message: commandFailureMessage(error) }
   }
@@ -897,7 +1108,7 @@ export async function updateDirectoryPlugin(
     const installed = await listInstalledPlugins()
     const target = findInstallations(entry, installed).find(
       (installation) =>
-        installation.id === pluginId && installation.source === "git"
+        installation.id === pluginId && installation.source !== "directory"
     )
     if (!target) {
       return {
@@ -908,6 +1119,7 @@ export async function updateDirectoryPlugin(
     const checked = await inspectUpdateStatus(target, {
       ref: entry.ref,
       version: entry.version,
+      commit: entry.commit,
     })
     if (checked.updateState !== "available") {
       return {
@@ -919,21 +1131,22 @@ export async function updateDirectoryPlugin(
       }
     }
     const { stdout } = await execPaseo(
-      ["plugin", "update", pluginId, "--json"],
+      buildUpdateArgs(
+        pluginId,
+        target.management,
+        target.source,
+        entry.commit,
+        entry.version
+      ),
       120_000
     )
-    const [result] = pluginUpdateResponseSchema.parse(JSON.parse(stdout))
-    if (!result) {
-      return { ok: false, message: `No update result for ${pluginId}.` }
-    }
     updateStatusCache.clear()
-    return {
-      ok: true,
-      updated: result.updated,
-      message: result.updated
-        ? `Updated ${pluginId} by ${result.commits} commit${result.commits === 1 ? "" : "s"}.`
-        : `${pluginId} is already up to date.`,
-    }
+    return parsePluginUpdateResult(
+      stdout,
+      target.management,
+      pluginId,
+      target.source === "npm" ? entry.version : entry.commit?.slice(0, 12)
+    )
   } catch (error) {
     return { ok: false, message: commandFailureMessage(error) }
   }

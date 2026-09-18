@@ -42,6 +42,16 @@ body:
     validations:
       required: false
   - type: input
+    id: package
+    attributes:
+      label: npm package (optional)
+      description: >-
+        Public package name on npmjs.org. Paseo 0.9 installs this package;
+        Paseo 0.8 continues using the GitHub repository above.
+      placeholder: "@yourname/paseo-plugin"
+    validations:
+      required: false
+  - type: input
     id: categories
     attributes:
       label: Categories

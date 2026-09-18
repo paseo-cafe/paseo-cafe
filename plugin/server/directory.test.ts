@@ -11,17 +11,20 @@ import {
 import {
   buildInstallArgs,
   buildPaseoInvocation,
+  buildUpdateArgs,
   execPaseo,
   inspectUpdateStatus,
   installDirectoryPlugin,
   listDirectory,
   mapWithConcurrency,
+  normalizeInstalledPlugin,
+  parsePluginUpdateResult,
   readInstalledPluginVersion,
-  remoteBranchMatchesCommit,
   searchDirectory,
   searchDirectoryManifests,
   searchDirectoryReadmes,
   searchDirectorySecurity,
+  supportsReviewedPluginManagement,
   updateDirectoryPlugin,
 } from "./directory"
 
@@ -49,7 +52,7 @@ const LATEST = "b".repeat(40)
 function gitInstallation(
   overrides: Partial<InstalledPlugin> = {}
 ): InstalledPlugin {
-  return {
+  return installedPluginSchema.parse({
     id: "review",
     path: "/tmp/version/checkout/plugins/review",
     enabled: true,
@@ -61,7 +64,7 @@ function gitInstallation(
     version: "1.2.3",
     updateState: "unknown",
     ...overrides,
-  }
+  })
 }
 function catalogTarget(version: string | undefined, ref = "main") {
   return { ref, version }
@@ -419,10 +422,28 @@ describe("directory attachment searches", () => {
     expect(security.items[1]?.text).not.toContain("Scanned commit:")
     expect(security.items[1]?.text).not.toContain("attacker.example")
   })
+  it("reads attachments from the host-configured catalog", async () => {
+    const catalogUrl = "https://catalog.example.test/attachments"
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        generatedAt: "2026-09-18T00:00:00.000Z",
+        plugins: [plugin()],
+      })
+    )
+    globalThis.fetch = fetcher as typeof fetch
+
+    const result = await searchDirectory({ query: "catalog" }, catalogUrl)
+
+    expect(result.items[0]?.identifier).toBe("catalog")
+    expect(fetcher).toHaveBeenCalledWith(
+      catalogUrl,
+      expect.objectContaining({ redirect: "error" })
+    )
+  })
 })
 
 describe("installDirectoryPlugin", () => {
-  it("rejects untrusted repository, path, and ref values before spawning Paseo", async () => {
+  it("rejects untrusted repository and path values before spawning Paseo", async () => {
     await expect(
       installDirectoryPlugin({ repo: "acme/plugin --ref main" })
     ).resolves.toEqual({
@@ -435,68 +456,140 @@ describe("installDirectoryPlugin", () => {
       ok: false,
       message: `"../outside" isn't a valid plugin subpath.`,
     })
-    await expect(
-      installDirectoryPlugin({ repo: "acme/plugin", ref: "bad ref" })
-    ).resolves.toEqual({
-      ok: false,
-      message: `"bad ref" isn't a valid Git branch.`,
-    })
-    await expect(
-      installDirectoryPlugin({
-        repo: "acme/plugin",
-        expectedCommit: "a".repeat(40),
-      })
-    ).resolves.toEqual({
-      ok: false,
-      message: "The scanned commit cannot be verified without a branch name.",
-    })
   })
 
-  it("tracks the scanned branch in the install command", () => {
+  it("pins Paseo 0.8 Git installs to the scanned commit", () => {
     expect(
-      buildInstallArgs({ repo: "acme/plugin", path: "nested", ref: "main" })
+      buildInstallArgs({
+        repo: "acme/plugin",
+        path: "nested",
+        commit: LATEST,
+      })
     ).toEqual([
       "plugin",
       "add",
       "acme/plugin",
       "--ref",
-      "main",
+      LATEST,
       "--path",
       "nested",
     ])
   })
-
-  it("accepts only the branch head that was security scanned", async () => {
-    const commit = "b".repeat(40)
-    const matchingGit = vi.fn(async () => ({
-      stdout: `${commit}\trefs/heads/main\n`,
-      exitCode: 0,
-    }))
-    const changedGit = vi.fn(async () => ({
-      stdout: `${"c".repeat(40)}\trefs/heads/main\n`,
-      exitCode: 0,
-    }))
-
-    await expect(
-      remoteBranchMatchesCommit("acme/plugin", "main", commit, matchingGit)
-    ).resolves.toBe(true)
-    await expect(
-      remoteBranchMatchesCommit("acme/plugin", "main", commit, changedGit)
-    ).resolves.toBe(false)
-    expect(matchingGit).toHaveBeenCalledWith(
-      expect.any(String),
-      [
-        "ls-remote",
-        "--exit-code",
-        "https://github.com/acme/plugin.git",
-        "refs/heads/main",
-      ],
-      30_000
+  it("pins reviewed installs to the scanned commit", () => {
+    expect(
+      buildInstallArgs({
+        repo: "acme/plugin",
+        path: "nested",
+        commit: LATEST,
+        reviewed: true,
+      })
+    ).toEqual([
+      "plugin",
+      "add",
+      "acme/plugin",
+      "--ref",
+      LATEST,
+      "--path",
+      "nested",
+    ])
+  })
+  it("uses npm on reviewed daemons when a package is listed", () => {
+    expect(
+      buildInstallArgs({
+        repo: "acme/plugin",
+        package: "@acme/plugin",
+        version: "1.2.3",
+        reviewed: true,
+      })
+    ).toEqual(["plugin", "add", "npm:@acme/plugin@1.2.3"])
+  })
+  it("rejects install targets without an exact revision", () => {
+    expect(() => buildInstallArgs({ repo: "acme/plugin" })).toThrow(
+      "exact scanned commit"
     )
+    expect(() =>
+      buildInstallArgs({
+        repo: "acme/plugin",
+        package: "@acme/plugin",
+        reviewed: true,
+      })
+    ).toThrow("exact version")
+  })
+
+  it("recognizes the reviewed management CLI generation", () => {
+    expect(supportsReviewedPluginManagement("0.8.0\n")).toBe(false)
+    expect(supportsReviewedPluginManagement("0.9.0-beta.1\n")).toBe(true)
+    expect(supportsReviewedPluginManagement("0.9.0\n")).toBe(true)
   })
 })
 
 describe("catalog installation matching", () => {
+  it("normalizes legacy and reviewed inventory without conflating npm", () => {
+    const legacy = normalizeInstalledPlugin({
+      id: "review",
+      path: "/tmp/version/checkout/plugins/review",
+      enabled: true,
+      status: "running",
+      source: "git",
+      remote: "https://github.com/acme/plugins.git",
+      ref: "main",
+      commit: CURRENT,
+    })
+    const reviewed = normalizeInstalledPlugin({
+      id: "review-canary",
+      path: "/tmp/review-canary/checkout/plugins/review",
+      enabled: true,
+      status: "running",
+      installation: {
+        identity: {
+          kind: "git",
+          remote: "https://github.com/acme/plugins.git",
+          pluginPath: "plugins/review",
+        },
+        currentRevision: CURRENT,
+      },
+    })
+    const npm = normalizeInstalledPlugin({
+      id: "review",
+      path: "/tmp/review/node_modules/review",
+      enabled: true,
+      status: "running",
+      installation: {
+        identity: { kind: "npm", packageName: "review", pluginPath: "." },
+        currentRevision: "1.2.3",
+      },
+    })
+
+    expect(legacy).toMatchObject({ management: "legacy", ref: "main" })
+    expect(reviewed).toMatchObject({
+      management: "reviewed",
+      source: "git",
+      pluginPath: "plugins/review",
+      commit: CURRENT,
+    })
+    expect(npm).toMatchObject({
+      management: "reviewed",
+      source: "npm",
+      packageName: "review",
+    })
+    expect(
+      findInstallations(
+        { id: "review", repo: "acme/plugins", path: "plugins/review" },
+        [legacy, reviewed, npm]
+      ).map((installation) => installation.id)
+    ).toEqual(["review", "review-canary"])
+    expect(
+      findInstallations(
+        {
+          id: "review",
+          repo: "acme/plugins",
+          package: "review",
+        },
+        [npm]
+      )
+    ).toEqual([npm])
+  })
+
   it("does not bind an equal runtime ID to a different Git source", () => {
     const matches = findInstallations(
       { id: "review", repo: "trusted/review" },
@@ -602,6 +695,43 @@ describe("installed package version", () => {
 })
 
 describe("update status classification", () => {
+  it("uses reviewed revisions without fetching the managed checkout", async () => {
+    const runGit = vi.fn()
+    const available = await inspectUpdateStatus(
+      gitInstallation({ management: "reviewed", ref: undefined }),
+      { version: "1.3.0", commit: LATEST },
+      runGit
+    )
+    const current = await inspectUpdateStatus(
+      gitInstallation({ management: "reviewed", ref: undefined }),
+      { version: "1.2.3", commit: LATEST },
+      runGit
+    )
+
+    expect(available).toMatchObject({
+      latestCommit: LATEST,
+      updateState: "available",
+    })
+    expect(current).toMatchObject({
+      latestCommit: LATEST,
+      updateState: "current",
+    })
+    expect(runGit).not.toHaveBeenCalled()
+  })
+  it("compares npm installations by published package version", async () => {
+    const available = await inspectUpdateStatus(
+      gitInstallation({
+        source: "npm",
+        packageName: "@acme/plugin",
+        management: "reviewed",
+        commit: undefined,
+      }),
+      { version: "1.3.0" }
+    )
+
+    expect(available.updateState).toBe("available")
+  })
+
   it("keeps tags and commits pinned when no tracked branch existed at install", async () => {
     const runGit = vi
       .fn()
@@ -782,6 +912,54 @@ describe("update target validation", () => {
 
     expect(result.ok).toBe(false)
     expect(result.message).toContain("outside the running plugin")
+  })
+})
+describe("update command compatibility", () => {
+  it("uses each generation's update arguments and response shape", () => {
+    expect(buildUpdateArgs("review", "legacy", "git", LATEST)).toEqual([
+      "plugin",
+      "update",
+      "review",
+      "--json",
+    ])
+    expect(buildUpdateArgs("review", "reviewed", "git", LATEST)).toEqual([
+      "plugin",
+      "update",
+      "review",
+      "--ref",
+      LATEST,
+      "--json",
+    ])
+    expect(
+      buildUpdateArgs("review", "reviewed", "npm", undefined, "1.3.0")
+    ).toEqual(["plugin", "update", "review", "--version", "1.3.0", "--json"])
+    expect(
+      parsePluginUpdateResult(
+        JSON.stringify([
+          {
+            id: "review",
+            updated: true,
+            previousCommit: CURRENT,
+            currentCommit: LATEST,
+            commits: 2,
+          },
+        ]),
+        "legacy",
+        "review"
+      )
+    ).toMatchObject({ ok: true, updated: true })
+    expect(
+      parsePluginUpdateResult(
+        JSON.stringify([{ id: "review", outcome: "updated" }]),
+        "reviewed",
+        "review",
+        LATEST
+      )
+    ).toEqual({
+      ok: true,
+      updated: true,
+      message: `Updated review to ${LATEST.slice(0, 12)}.`,
+    })
   })
 })
 

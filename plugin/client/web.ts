@@ -1,3 +1,4 @@
+import * as paseoClient from "@getpaseo/plugin/client"
 import { Linking, Platform } from "react-native"
 
 // This plugin typechecks without the DOM library. Declare only what this module uses.
@@ -6,6 +7,15 @@ declare const window: {
 }
 
 export async function openExternal(url: string): Promise<void> {
+  const openExternalUrl = (
+    paseoClient as typeof paseoClient & {
+      openExternalUrl?: (target: string) => Promise<void>
+    }
+  ).openExternalUrl
+  if (openExternalUrl) {
+    await openExternalUrl(url)
+    return
+  }
   if (Platform.OS === "web") {
     window.open(url, "_blank", "noopener,noreferrer")
     return

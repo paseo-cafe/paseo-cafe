@@ -4,6 +4,7 @@ import { PLATFORMS } from "@/lib/registry-schema"
 import {
   CATALOG_VERSION_MAX_LENGTH,
   type CatalogHealthCheck,
+  isValidCatalogPackage,
 } from "../../plugin/shared/catalog"
 
 /**
@@ -69,6 +70,24 @@ export const pluginSecuritySchema = z
       })
     }
   })
+export const pluginNpmSecuritySchema = z
+  .object({
+    status: z.enum(["passed", "failed", "unknown"]),
+    blockingFindings: z.number().int().nonnegative(),
+    advisoryFindings: z.number().int().nonnegative(),
+    scannedAt: z.string().optional(),
+    version: z.string().optional(),
+    integrity: z.string().startsWith("sha512-").optional(),
+  })
+  .superRefine((security, ctx) => {
+    if (security.status === "passed" && security.blockingFindings > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["blockingFindings"],
+        message: 'status "passed" cannot have blocking findings',
+      })
+    }
+  })
 
 export const pluginRepoMetaSchema = z.object({
   stars: z.number().int().nonnegative(),
@@ -107,71 +126,98 @@ export const videoEmbedSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("file"), url: z.string().url() }),
 ])
-
-export const pluginRecordSchema = z.object({
-  id: z.string(),
-  repo: z.string(),
-  path: z.string().optional(),
-  url: z.string().url(),
-  name: z.string(),
-  description: z.string().default(""),
-  version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
-  author: z.string().optional(),
-  license: z.string().optional(),
-  categories: z.array(z.string()).default([]),
-  // Author-declared in registry/<id>.json — see src/lib/registry-schema.ts.
-  // Authoritative when present; limitationsNotes below is the best-effort
-  // fallback for whatever the author didn't declare here.
-  platforms: z.array(z.enum(PLATFORMS)).default([]),
-  caveats: z.array(z.string()).default([]),
-  // The plugin's own declared `requirements.paseo` from its paseo-plugin.json
-  // (e.g. ">=0.8.0") — pulled out of `manifest` below at scan time so the
-  // site/plugin can highlight it directly instead of everyone re-parsing
-  // manifest.requirements.paseo themselves. See scripts/scan.ts.
-  paseoVersionRequirement: z.string().optional(),
-  manifest: z.record(z.string(), z.json()).optional(),
-  repoMeta: pluginRepoMetaSchema.optional(),
-  owner: pluginOwnerSchema.optional(),
-  // Best-effort bounded copy of the plugin README markdown fetched at scan
-  // time. readmeText is the sanitized-source markdown retained for display
-  // and debugging, and readmeHtml is readmeText rendered through the shared
-  // markdown sanitizer pipeline in src/lib/markdown.ts. The site renders only
-  // the HTML field.
-  readmeText: z.string().optional(),
-  readmeHtml: z.string().optional(),
-  health: pluginHealthSchema,
-  // Best-effort excerpt of an "Install"/"Setup"/"Getting started" README
-  // section — supplementary to the always-correct generated install
-  // command (see src/lib/install-command.ts), for anything extra the
-  // author called out (env vars, prerequisites, etc). installNotesHtml is
-  // installNotes rendered to sanitized HTML at scan time (src/lib/markdown.ts)
-  // — the only thing the site actually renders.
-  installNotes: z.string().optional(),
-  installNotesHtml: z.string().optional(),
-  // Same idea, but for a "Limitations"/"Caveats"/"Known issues" README
-  // section — the free, deterministic first line of defense for things like
-  // "macOS only" that an author didn't declare via `platforms`/`caveats`
-  // above. See src/lib/readme.ts's extractLimitationsSection.
-  limitationsNotes: z.string().optional(),
-  limitationsNotesHtml: z.string().optional(),
-  security: pluginSecuritySchema.optional(),
-  images: z.array(z.string()).default([]),
-  videos: z.array(videoEmbedSchema).default([]),
-  scanError: z.string().optional(),
-  // When this plugin's registry entry first landed in this repo's git history
-  // — the catalog's "added" date, derived at scan time (see
-  // readRegistryAddedAt in scripts/scan.ts) rather than hand-authored.
-  // Optional: an entry that isn't committed yet, or a shallow checkout, has
-  // no history to read, and an unknown date is left unknown.
-  addedAt: z.iso.datetime({ offset: true }).optional(),
-  scannedAt: z.string(),
+export const pluginNpmMetadataSchema = z.object({
+  package: z.string().refine(isValidCatalogPackage),
+  version: z.string().max(CATALOG_VERSION_MAX_LENGTH),
+  integrity: z.string().startsWith("sha512-"),
 })
+
+export const pluginRecordSchema = z
+  .object({
+    id: z.string(),
+    repo: z.string(),
+    path: z.string().optional(),
+    package: z.string().refine(isValidCatalogPackage).optional(),
+    npm: pluginNpmMetadataSchema.optional(),
+    url: z.string().url(),
+    name: z.string(),
+    description: z.string().default(""),
+    version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
+    author: z.string().optional(),
+    license: z.string().optional(),
+    categories: z.array(z.string()).default([]),
+    // Author-declared in registry/<id>.json — see src/lib/registry-schema.ts.
+    // Authoritative when present; limitationsNotes below is the best-effort
+    // fallback for whatever the author didn't declare here.
+    platforms: z.array(z.enum(PLATFORMS)).default([]),
+    caveats: z.array(z.string()).default([]),
+    // The plugin's own declared `requirements.paseo` from its paseo-plugin.json
+    // (e.g. ">=0.8.0") — pulled out of `manifest` below at scan time so the
+    // site/plugin can highlight it directly instead of everyone re-parsing
+    // manifest.requirements.paseo themselves. See scripts/scan.ts.
+    paseoVersionRequirement: z.string().optional(),
+    manifest: z.record(z.string(), z.json()).optional(),
+    repoMeta: pluginRepoMetaSchema.optional(),
+    owner: pluginOwnerSchema.optional(),
+    // Best-effort bounded copy of the plugin README markdown fetched at scan
+    // time. readmeText is the sanitized-source markdown retained for display
+    // and debugging, and readmeHtml is readmeText rendered through the shared
+    // markdown sanitizer pipeline in src/lib/markdown.ts. The site renders only
+    // the HTML field.
+    readmeText: z.string().optional(),
+    readmeHtml: z.string().optional(),
+    health: pluginHealthSchema,
+    // Best-effort excerpt of an "Install"/"Setup"/"Getting started" README
+    // section — supplementary to the always-correct generated install
+    // command (see src/lib/install-command.ts), for anything extra the
+    // author called out (env vars, prerequisites, etc). installNotesHtml is
+    // installNotes rendered to sanitized HTML at scan time (src/lib/markdown.ts)
+    // — the only thing the site actually renders.
+    installNotes: z.string().optional(),
+    installNotesHtml: z.string().optional(),
+    // Same idea, but for a "Limitations"/"Caveats"/"Known issues" README
+    // section — the free, deterministic first line of defense for things like
+    // "macOS only" that an author didn't declare via `platforms`/`caveats`
+    // above. See src/lib/readme.ts's extractLimitationsSection.
+    limitationsNotes: z.string().optional(),
+    limitationsNotesHtml: z.string().optional(),
+    security: pluginSecuritySchema.optional(),
+    npmSecurity: pluginNpmSecuritySchema.optional(),
+    images: z.array(z.string()).default([]),
+    videos: z.array(videoEmbedSchema).default([]),
+    scanError: z.string().optional(),
+    // When this plugin's registry entry first landed in this repo's git history
+    // — the catalog's "added" date, derived at scan time (see
+    // readRegistryAddedAt in scripts/scan.ts) rather than hand-authored.
+    // Optional: an entry that isn't committed yet, or a shallow checkout, has
+    // no history to read, and an unknown date is left unknown.
+    addedAt: z.iso.datetime({ offset: true }).optional(),
+    scannedAt: z.string(),
+  })
+  .superRefine((plugin, ctx) => {
+    if (plugin.npm && plugin.package !== plugin.npm.package) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["npm", "package"],
+        message: "npm metadata must match package source",
+      })
+    }
+    if (plugin.npm && plugin.version !== plugin.npm.version) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["npm", "version"],
+        message: "catalog version must match npm metadata",
+      })
+    }
+  })
 
 export type PluginHealth = z.infer<typeof pluginHealthSchema>
 export type PluginSecurity = z.infer<typeof pluginSecuritySchema>
 export type PluginRepoMeta = z.infer<typeof pluginRepoMetaSchema>
+export type PluginNpmSecurity = z.infer<typeof pluginNpmSecuritySchema>
 export type PluginOwner = z.infer<typeof pluginOwnerSchema>
 export type VideoEmbed = z.infer<typeof videoEmbedSchema>
+export type PluginNpmMetadata = z.infer<typeof pluginNpmMetadataSchema>
 export type PluginRecord = z.infer<typeof pluginRecordSchema>
 
 /**

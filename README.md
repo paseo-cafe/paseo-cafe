@@ -12,10 +12,11 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
                          →  Nitro prerender              (.output/public)
 ```
 
-1. **`registry/*.json`** is the only thing a human writes — a pointer at a repo (see
-   [Submitting a plugin](#submitting-a-plugin)).
+1. **`registry/*.json`** is the only thing a human writes — a GitHub source plus an optional public
+   npmjs package (see [Submitting a plugin](#submitting-a-plugin)).
 2. **`scripts/validate-registry.ts`** runs on every PR that touches registry inputs. It checks the
-   entry is well-formed, the repo/path exists, and `paseo-plugin.json.id` matches the registry filename.
+   entry is well-formed, the repo/path exists, `paseo-plugin.json.id` matches the registry filename,
+   and any declared npm package publishes the same ID and version.
    CI detects affected paths, runs the app and/or companion-plugin checks, then reports one
    aggregate `All checks passed` result. App checks cover formatting, lint, types, tests, and the
    production build; plugin checks cover formatting, lint, types, and tests. See
@@ -66,6 +67,7 @@ itself at `/submit`. The short version — add one file, `registry/<your-plugin-
 {
   "repo": "yourname/your-repo", // GitHub "owner/repo", not a full URL
   "path": "optional/subpath", // omit if your repo *is* the plugin
+  "package": "@yourname/paseo-plugin", // optional; npmjs only, no version or tag
   "categories": ["productivity"], // free-form, refined over time
   "platforms": ["macos"], // only if platform-restricted — omit if it runs anywhere
   "caveats": ["Requires an OpenAI API key"], // short one-liners worth flagging, up to 6
@@ -79,17 +81,22 @@ Requirements, checked automatically by CI:
 - `path`, when present, is at most 500 characters and uses the shared safe repository-path
   validation applied by both the site and companion plugin.
 - Your repo (at `path`, if given) contains a valid `paseo-plugin.json` with the same `id`.
+- `package`, when present, is a public npmjs package name with no version, tag, URL, or registry.
+- Paseo 0.9 installs declared packages from npm; Paseo 0.8 retains the GitHub source.
+- Install commands always use the scanner-derived exact npm version or Git commit; mutable tags and
+  branches are never handed to an install or update action.
 
 The plugin name comes from the registry filename after it is validated against the manifest ID.
 Description, version, license, screenshots, stars, and the best-effort limitations excerpt are read
-from the plugin repository automatically. A `README.md`, `LICENSE`, and an `images/` folder with
-screenshots all make a listing better; none are required to get in.
+automatically. When `package` is present, its current published version is the catalog version and
+must match the Git source. A `README.md`, `LICENSE`, and an `images/` folder in the repository all
+make a listing better; none are required to get in.
 
-Paseo Cafe uses the plugin directory's own `package.json.version` as its update identity. Start at a
-real semantic version such as `0.1.0`, not the `0.0.0` placeholder, and increment it whenever you
-publish a plugin update. Missing or invalid versions remain browsable and installable but report
-their version as unavailable. The scanner flags `0.0.0`, because updates cannot be detected until
-the maintainer starts incrementing it.
+Paseo Cafe uses the published npm version when `package` is declared and otherwise uses the Git
+plugin directory's `package.json.version`. Start at a real semantic version such as `0.1.0`, not
+the `0.0.0` placeholder, and increment it whenever you publish a plugin update. Missing or invalid
+versions remain browsable and installable but report their version as unavailable. The scanner
+flags `0.0.0`, because updates cannot be detected until the maintainer starts incrementing it.
 
 
 Open a PR adding your `registry/<id>.json`. Once Registry validation and CI pass, it's ready to merge.
