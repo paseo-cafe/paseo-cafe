@@ -131,6 +131,38 @@ describe("npm-first catalog sorting", () => {
     ])
   })
 
+  it("treats incomplete npm metrics as Git-only ranking data", () => {
+    const repoMeta = (stars: number) => ({
+      stars,
+      openIssues: 0,
+      defaultBranch: "main",
+      pushedAt: "2026-09-01T00:00:00.000Z",
+      topics: [],
+      archived: false,
+      license: null,
+    })
+    const incomplete = plugin("incomplete", {
+      npm: {
+        package: "incomplete",
+        version: "1.0.0",
+        integrity: `sha512-${"a".repeat(86)}`,
+        downloadsLast30Days: 1,
+      },
+      repoMeta: repoMeta(1),
+    })
+
+    expect(
+      sortPlugins(
+        [
+          plugin("git", { repoMeta: repoMeta(50) }),
+          incomplete,
+          npm("npm", 0, "2026-01-01T00:00:00.000Z"),
+        ],
+        "popular"
+      ).map((entry) => entry.id)
+    ).toEqual(["npm", "git", "incomplete"])
+  })
+
   it("groups npm before Git for recency and alphabetical sorting", () => {
     const entries = [
       plugin("a-git", { addedAt: "2026-09-10T00:00:00.000Z" }),

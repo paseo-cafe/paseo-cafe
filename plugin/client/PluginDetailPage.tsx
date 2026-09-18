@@ -29,6 +29,7 @@ import {
   getUpdateReviewDetails,
   HEALTH_KEYS,
   HEALTH_LABELS,
+  hasCompleteDirectoryNpmMetrics,
   isOfficialPlugin,
   stripHtml,
 } from "../shared/directory"
@@ -469,6 +470,7 @@ export function PluginDetailPage({
     ),
   ]
   const versionLabel = formatDirectoryVersion(entry.version)
+  const hasNpmMetrics = hasCompleteDirectoryNpmMetrics(entry)
   const limitationsText = entry.limitationsNotesHtml
     ? stripHtml(entry.limitationsNotesHtml)
     : undefined
@@ -598,7 +600,7 @@ export function PluginDetailPage({
         ) : null}
 
         <View style={styles.metaRow}>
-          {entry.npm?.downloadsLast30Days !== undefined ? (
+          {hasNpmMetrics ? (
             <View style={styles.metaItem}>
               <Icon
                 name="Download"
@@ -609,7 +611,7 @@ export function PluginDetailPage({
                 {formatDirectoryDownloads(entry.npm.downloadsLast30Days)}
               </Text>
             </View>
-          ) : !entry.npm && entry.repoMeta?.stars !== undefined ? (
+          ) : entry.repoMeta?.stars !== undefined ? (
             <View style={styles.metaItem}>
               <Icon
                 name="Star"
@@ -619,7 +621,7 @@ export function PluginDetailPage({
               <Text style={styles.metaText}>{entry.repoMeta.stars} stars</Text>
             </View>
           ) : null}
-          {entry.npm?.publishedAt ? (
+          {hasNpmMetrics ? (
             <Text style={styles.metaText}>
               Published {formatDirectoryDate(entry.npm.publishedAt)}
             </Text>

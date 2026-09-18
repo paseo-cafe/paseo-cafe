@@ -30,6 +30,7 @@ import {
   getCatalogPublishedDateBadge,
   getCatalogRepositoryOwner,
   getCatalogRepositoryUrl,
+  hasCompleteCatalogNpmMetrics,
   isCatalogAddedAtKnown,
   isCatalogRecencyKnown,
   isOfficialCatalogPlugin,
@@ -136,6 +137,7 @@ export const formatDirectoryDate = formatCatalogDateForReader
 export const formatDirectoryCompactCount = formatCatalogCompactCount
 export const formatDirectoryDownloads = formatCatalogDownloads
 
+export const hasCompleteDirectoryNpmMetrics = hasCompleteCatalogNpmMetrics
 export const DIRECTORY_STATUS_FILTERS = [
   "all",
   "installed",

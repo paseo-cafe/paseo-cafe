@@ -12,6 +12,7 @@ import {
   getDirectoryAddedDateBadge,
   getDirectoryPublishedDateBadge,
   HEALTH_KEYS,
+  hasCompleteDirectoryNpmMetrics,
   normalizeDirectoryCategory,
 } from "../shared/directory"
 import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
@@ -35,13 +36,16 @@ interface BadgeTone {
 export function getPluginRowPopularity(
   entry: DirectoryEntry
 ): { source: "npm" | "git"; text: string } | undefined {
-  if (entry.npm?.downloadsLast30Days !== undefined) {
+  if (hasCompleteDirectoryNpmMetrics(entry)) {
     return {
       source: "npm",
       text: formatDirectoryDownloads(entry.npm.downloadsLast30Days),
     }
   }
-  if (!entry.npm && entry.repoMeta?.stars !== undefined) {
+  if (
+    !hasCompleteDirectoryNpmMetrics(entry) &&
+    entry.repoMeta?.stars !== undefined
+  ) {
     return {
       source: "git",
       text: formatDirectoryCompactCount(entry.repoMeta.stars),
@@ -205,7 +209,7 @@ export function PluginRow({
 
   const popularity = getPluginRowPopularity(entry)
   const addedBadge = showAddedDate
-    ? entry.npm
+    ? hasCompleteDirectoryNpmMetrics(entry)
       ? getDirectoryPublishedDateBadge(entry)
       : getDirectoryAddedDateBadge(entry)
     : undefined

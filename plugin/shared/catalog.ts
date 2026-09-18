@@ -298,13 +298,26 @@ export interface CatalogNpmMetrics {
   repoMeta?: { stars?: number }
   addedAt?: string
 }
+export function hasCompleteCatalogNpmMetrics(
+  entry: CatalogNpmMetrics
+): entry is CatalogNpmMetrics & {
+  npm: { downloadsLast30Days: number; publishedAt: string }
+} {
+  return (
+    entry.npm?.downloadsLast30Days !== undefined &&
+    entry.npm.publishedAt !== undefined
+  )
+}
 
 /** npm-backed entries always precede Git-only entries. */
 export function compareCatalogSource(
   a: CatalogNpmMetrics,
   b: CatalogNpmMetrics
 ): number {
-  return Number(Boolean(b.npm)) - Number(Boolean(a.npm))
+  return (
+    Number(hasCompleteCatalogNpmMetrics(b)) -
+    Number(hasCompleteCatalogNpmMetrics(a))
+  )
 }
 
 function getCatalogNpmPublishedAtTime(entry: CatalogNpmMetrics): number {
@@ -321,9 +334,9 @@ export function compareCatalogPopularity(
 ): number {
   const source = compareCatalogSource(a, b)
   if (source !== 0) return source
-  if (a.npm && b.npm) {
+  if (hasCompleteCatalogNpmMetrics(a) && hasCompleteCatalogNpmMetrics(b)) {
     return (
-      (b.npm.downloadsLast30Days ?? 0) - (a.npm.downloadsLast30Days ?? 0) ||
+      b.npm.downloadsLast30Days - a.npm.downloadsLast30Days ||
       getCatalogNpmPublishedAtTime(b) - getCatalogNpmPublishedAtTime(a)
     )
   }
@@ -337,14 +350,14 @@ export function compareCatalogRecency(
 ): number {
   const source = compareCatalogSource(a, b)
   if (source !== 0) return source
-  if (a.npm && b.npm) {
+  if (hasCompleteCatalogNpmMetrics(a) && hasCompleteCatalogNpmMetrics(b)) {
     return getCatalogNpmPublishedAtTime(b) - getCatalogNpmPublishedAtTime(a)
   }
   return compareCatalogAddedAt(a, b)
 }
 
 export function isCatalogRecencyKnown(entry: CatalogNpmMetrics): boolean {
-  return entry.npm
+  return hasCompleteCatalogNpmMetrics(entry)
     ? getCatalogNpmPublishedAtTime(entry) > 0
     : isCatalogAddedAtKnown(entry)
 }

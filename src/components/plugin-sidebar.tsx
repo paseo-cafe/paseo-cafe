@@ -17,11 +17,15 @@ import { pluginOwnerLogin } from "@/lib/plugin-schema"
 import { pluginRepositoryUrl } from "@/lib/plugin-source"
 import { normalizeCategory, PLATFORM_LABELS } from "@/lib/registry-schema"
 import { buildReportIssueUrl } from "@/lib/report-issue-url"
-import { formatCatalogDownloads } from "../../plugin/shared/catalog"
+import {
+  formatCatalogDownloads,
+  hasCompleteCatalogNpmMetrics,
+} from "../../plugin/shared/catalog"
 
 export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
   const username = pluginOwnerLogin(plugin)
   const repositoryUrl = pluginRepositoryUrl(plugin)
+  const hasNpmMetrics = hasCompleteCatalogNpmMetrics(plugin)
 
   return (
     <aside className="flex flex-col gap-6 bg-card p-3 lg:sticky lg:top-20 lg:w-1/3 lg:shrink-0 lg:self-start">
@@ -65,18 +69,18 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
         </a>
       </div>
       <div className="flex flex-col gap-1.5 text-foreground/70 text-sm">
-        {plugin.npm?.downloadsLast30Days !== undefined ? (
+        {hasNpmMetrics ? (
           <span className="flex items-center gap-1.5">
             <IconDownload className="size-4 shrink-0" />
             {formatCatalogDownloads(plugin.npm.downloadsLast30Days)}
           </span>
-        ) : !plugin.npm && plugin.repoMeta ? (
+        ) : plugin.repoMeta ? (
           <span className="flex items-center gap-1.5">
             <IconStar className="size-4 shrink-0" /> {plugin.repoMeta.stars}{" "}
             stars
           </span>
         ) : null}
-        {plugin.npm?.publishedAt ? (
+        {hasNpmMetrics ? (
           <span>
             Published <ReaderDate iso={plugin.npm.publishedAt} />
           </span>

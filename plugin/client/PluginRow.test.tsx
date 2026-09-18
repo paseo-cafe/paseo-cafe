@@ -63,6 +63,7 @@ describe("plugin row popularity", () => {
         version: "1.0.0",
         integrity,
         downloadsLast30Days: 1_234,
+        publishedAt: "2026-09-18T00:00:00.000Z",
       },
       npmSecurity: {
         status: "passed",
@@ -72,6 +73,11 @@ describe("plugin row popularity", () => {
         integrity,
       },
     })
+    const incompleteNpmEntry = directoryEntrySchema.parse({
+      ...npmEntry,
+      npm: { ...npmEntry.npm, publishedAt: undefined },
+      repoMeta: { stars: 2_000 },
+    })
 
     expect(getPluginRowPopularity(gitEntry)).toEqual({
       source: "git",
@@ -80,6 +86,10 @@ describe("plugin row popularity", () => {
     expect(getPluginRowPopularity(npmEntry)).toEqual({
       source: "npm",
       text: "1,234 downloads / 30 days",
+    })
+    expect(getPluginRowPopularity(incompleteNpmEntry)).toEqual({
+      source: "git",
+      text: "2k",
     })
   })
 })
