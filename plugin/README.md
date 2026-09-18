@@ -10,11 +10,11 @@ checks, and screenshots. Search and filtering happen on the client. Installs run
 attachment source can attach the plugin's full listing to a prompt for agent review before you
 trust it.
 
-Update availability is based on package semver. Entries with a declared public npm package install
-the exact scanner-resolved version from npmjs on Paseo 0.9. Paseo 0.8 installs the exact
-security-scanned Git commit instead; those legacy installs remain pinned until reinstalled or moved
-to Paseo 0.9. Existing installations always update from their installed source, and every update
-passes the exact catalog version or commit rather than a mutable tag or branch.
+Update availability is based on package semver. The catalog accepts packages from npmjs only and
+pins the scanner-resolved version; Paseo resolves that exact package/version through the daemon
+host's npm configuration. Paseo 0.8 installs the exact security-scanned Git commit instead; those
+legacy installs remain pinned until reinstalled or moved to Paseo 0.9. Existing installations
+always update from their installed source using the exact catalog version or commit.
 
 ## Screenshots
 

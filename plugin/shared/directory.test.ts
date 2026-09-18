@@ -21,6 +21,8 @@ import {
   getRepositoryUrl,
   getRepositoryUrlAtRef,
   getSiteUrl,
+  getUpdateReviewDetails,
+  installedPluginSchema,
   isDefaultDirectoryBrowseView,
   isDirectoryAddedAtKnown,
   isOfficialPlugin,
@@ -181,6 +183,24 @@ describe("plugin install targets", () => {
         npmSecurity: { ...npmEntry.npmSecurity, status: "failed" },
       }).success
     ).toBe(false)
+  })
+  it("shows the exact npm package and version in update review", () => {
+    const installation = installedPluginSchema.parse({
+      id: "plugin",
+      path: "/plugins/plugin",
+      enabled: true,
+      status: "running",
+      source: "npm",
+      packageName: "@owner/plugin",
+      version: "1.2.3",
+      management: "reviewed",
+    })
+
+    expect(getUpdateReviewDetails(installation, { version: "1.3.0" })).toEqual({
+      identity: "npm:@owner/plugin",
+      revision: "1.2.3 → 1.3.0",
+      review: "Review npm package @owner/plugin@1.3.0 before updating.",
+    })
   })
 
   it("rejects unsafe targets while parsing an untrusted catalog", () => {

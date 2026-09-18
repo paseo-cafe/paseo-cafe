@@ -24,6 +24,7 @@ import {
   getRepositoryUrl,
   getRepositoryUrlAtRef,
   getSiteUrl,
+  getUpdateReviewDetails,
   HEALTH_KEYS,
   HEALTH_LABELS,
   isOfficialPlugin,
@@ -457,6 +458,9 @@ export function PluginDetailPage({
   const updateRepositoryUrl = confirmingUpdate?.latestCommit
     ? getRepositoryUrlAtRef(entry, confirmingUpdate.latestCommit)
     : repositoryUrl
+  const updateReview = confirmingUpdate
+    ? getUpdateReviewDetails(confirmingUpdate, entry)
+    : null
   const repositoryOwner = getRepositoryOwner(entry.repo)
   const ownerMetadataMatchesRepository =
     entry.owner?.login?.toLowerCase() === repositoryOwner.toLowerCase()
@@ -1251,22 +1255,17 @@ export function PluginDetailPage({
         <Modal.Content contentContainerStyle={styles.modalBody}>
           <Text style={styles.modalTitle}>{confirmingUpdate?.id}</Text>
           <Text selectable style={styles.modalText}>
-            {confirmingUpdate?.remote}
-            {confirmingUpdate?.ref ? ` · ${confirmingUpdate.ref}` : ""}
+            {updateReview?.identity}
           </Text>
           <Text selectable style={styles.modalText}>
-            {confirmingUpdate?.commit?.slice(0, 12)} →{" "}
-            {confirmingUpdate?.latestCommit?.slice(0, 12)}
+            {updateReview?.revision}
           </Text>
           <Text style={styles.modalText}>
             Updating replaces trusted, unsandboxed plugin code on this Paseo
             host. Review the source before continuing.
           </Text>
-          {confirmingUpdate?.latestCommit ? (
-            <Text style={styles.modalText}>
-              Review commit {confirmingUpdate.latestCommit.slice(0, 12)} before
-              updating.
-            </Text>
+          {updateReview ? (
+            <Text style={styles.modalText}>{updateReview.review}</Text>
           ) : null}
           <View style={styles.actionsRow}>
             <Pressable

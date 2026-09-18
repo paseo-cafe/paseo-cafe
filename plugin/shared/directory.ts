@@ -589,6 +589,28 @@ export const installedPluginSchema = z.object({
 })
 
 export type InstalledPlugin = z.infer<typeof installedPluginSchema>
+export function getUpdateReviewDetails(
+  installation: InstalledPlugin,
+  entry: Pick<DirectoryEntry, "version">
+): { identity: string; revision: string; review: string } {
+  if (installation.source === "npm") {
+    const packageName = installation.packageName ?? "npm package"
+    const current = installation.version ?? "unknown"
+    const target = entry.version ?? "unknown"
+    return {
+      identity: `npm:${packageName}`,
+      revision: `${current} → ${target}`,
+      review: `Review npm package ${packageName}@${target} before updating.`,
+    }
+  }
+  const current = installation.commit?.slice(0, 12) ?? "unknown"
+  const target = installation.latestCommit?.slice(0, 12) ?? "unknown"
+  return {
+    identity: `${installation.remote ?? installation.path}${installation.ref ? ` · ${installation.ref}` : ""}`,
+    revision: `${current} → ${target}`,
+    review: `Review commit ${target} before updating.`,
+  }
+}
 
 export const directoryListRpc = defineRpc({
   name: "directory.list",
