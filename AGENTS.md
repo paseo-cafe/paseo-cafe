@@ -77,11 +77,16 @@ the other by hand**:
    do) is expected and fine — keep any such shared module free of anything
    that would make it fail to typecheck under the website's DOM-ful config.
 
-4. **Plugin release identity.** The catalog and companion plugin use each plugin's
-   `package.json.version` as its update identity. Registry submissions must use a real semantic
-   version rather than `0.0.0`, and every released plugin change must increment it. Keep this
-   contract visible in submitter-facing guidance and templates; the registry scanner must flag
-   placeholder versions.
+4. **Plugin release identity.** The catalog and companion plugin use each
+   plugin's `package.json.version` as its update identity. Every new registry
+   submission must declare a public npm package whose published manifest has
+   the same plugin ID and a real semantic version rather than `0.0.0`; every
+   released plugin change must increment that version. Existing Git-only
+   registry entries may remain while their authors migrate, so periodic
+   full-registry scans must continue to accept them, while pull-request
+   admission must reject new entries without a package. Keep this contract
+   visible in submitter-facing guidance and templates; the registry scanner
+   must flag placeholder versions.
 
    Release Please owns the companion plugin's version bumps. Feature and fix PRs must not edit
    `plugin/package.json`, `plugin/package-lock.json`, `.release-please-manifest.json`, or
@@ -96,13 +101,14 @@ bun run check                                  # website: biome + tsc
 
 ## Prefer a plugin-submission issue over a hand-written registry PR
 
-When asked to add a plugin to the registry, open a GitHub issue from the
-**Add a plugin** template (`.github/ISSUE_TEMPLATE/plugin-submission.yml`)
-instead of hand-writing `registry/<id>.json` and opening a PR directly. The
-`plugin-submission.yml` workflow parses that issue, generates and validates
-the registry entry with the same `registryEntrySchema` the manual path uses,
-and opens a PR that closes the issue — the existing registry admission
-workflow (`plugin-security.yml`) still reviews that PR like any other.
+When asked to add a plugin to the registry, require its public npm package and
+open a GitHub issue from the **Add a plugin** template
+(`.github/ISSUE_TEMPLATE/plugin-submission.yml`) instead of hand-writing
+`registry/<id>.json` and opening a PR directly. The `plugin-submission.yml`
+workflow parses that issue, generates and validates the registry entry with the
+same `registryEntrySchema` the manual path uses, and opens a PR that closes the
+issue — the existing registry admission workflow (`plugin-security.yml`) still
+reviews that PR like any other.
 
 Only hand-edit `registry/*.json` directly for changes the issue template
 doesn't cover (e.g. editing curator fields on an existing entry, or deleting

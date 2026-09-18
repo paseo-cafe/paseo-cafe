@@ -142,7 +142,10 @@ describe("selectTargets", () => {
     )
     responses.set(
       "https://raw.githubusercontent.com/a/head/head-sha/registry/new-plugin.json",
-      JSON.stringify({ repo: "owner/new-plugin" })
+      JSON.stringify({
+        repo: "owner/new-plugin",
+        package: "@owner/new-plugin",
+      })
     )
     responses.set(
       "https://api.github.com/repos/owner/new-plugin/commits/HEAD",
@@ -156,10 +159,56 @@ describe("selectTargets", () => {
         id: "new-plugin",
         repo: "owner/new-plugin",
         path: undefined,
+        package: "@owner/new-plugin",
         ref: "plugin-commit",
         commit: "plugin-commit",
       },
     ])
+  })
+
+  it("rejects a new pull-request plugin without an npm package", async () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    const registry = join(root, "registry")
+    mkdirSync(registry)
+    const eventPath = join(root, "event.json")
+    writeFileSync(
+      eventPath,
+      JSON.stringify({
+        action: "opened",
+        pull_request: {
+          base: { sha: "base-sha", repo: { full_name: "a/base" } },
+          head: { sha: "head-sha", repo: { full_name: "a/head" } },
+        },
+      })
+    )
+    responses.set(
+      "https://api.github.com/repos/a/base/contents/registry?ref=base-sha",
+      []
+    )
+    responses.set(
+      "https://api.github.com/repos/a/head/contents/registry?ref=head-sha",
+      [
+        {
+          name: "new-plugin.json",
+          path: "registry/new-plugin.json",
+          type: "file",
+        },
+      ]
+    )
+    responses.set(
+      "https://raw.githubusercontent.com/a/head/head-sha/registry/new-plugin.json",
+      JSON.stringify({ repo: "owner/new-plugin" })
+    )
+    responses.set(
+      "https://api.github.com/repos/owner/new-plugin/commits/HEAD",
+      { sha: "plugin-commit" }
+    )
+
+    await expect(
+      selectTargets({ registryRoot: registry, eventPath, githubToken: "token" })
+    ).rejects.toThrow(
+      'new registry entry "new-plugin" must declare a public npm package'
+    )
   })
 
   it("writes count lines to GITHUB_OUTPUT", () => {

@@ -8,6 +8,7 @@
 
 - [ ] `paseo-plugin.json.id` matches the registry filename.
 - [ ] For a new plugin submission, `package.json.version` is a released semantic version, not `0.0.0`.
+- [ ] For a new plugin submission, the registry entry declares a public npm package with the same plugin ID and version.
 - [ ] The repository and plugin path are public.
 
 Plugin releases do not require a Paseo Cafe PR. The catalog scanner reads releases from the plugin

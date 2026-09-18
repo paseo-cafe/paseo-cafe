@@ -51,7 +51,7 @@ const REQUIRED_CHECKS = [
   "Your repo is public on GitHub.",
   "Its paseo-plugin.json id matches the registry filename.",
   "Its package.json has a released semantic version, not 0.0.0, and you will increment it for each plugin update.",
-  "If supplied, the npm package is public on npmjs.org and contains the same plugin ID and version as the GitHub source.",
+  "Its npm package is public on npmjs.org and contains the same plugin ID and version as the GitHub source.",
 ]
 
 const RECOMMENDED = [
@@ -66,7 +66,7 @@ const RECOMMENDED = [
 
 const AUTO_GENERATED = [
   "Name from the validated plugin ID; description, author, and license from package.json, paseo-plugin.json, and the README. package.json.version is the update identity used by the companion catalog.",
-  "The install commands: npmjs for Paseo 0.9 when a package is supplied, and GitHub for Paseo 0.8.",
+  "The install commands: npmjs for Paseo 0.9 and GitHub for Paseo 0.8.",
   "Screenshots, from an images/ folder in your repo.",
   "Demo videos, detected in your README (YouTube, Loom, or an uploaded GitHub video).",
   "A best-effort limitations/caveats excerpt, detected from your README if you didn't declare platforms/caveats yourself.",
@@ -127,7 +127,9 @@ function validateSubmission(form: SubmissionForm): SubmissionErrors {
   if (path && !isValidCatalogPath(path)) {
     errors.path = "Use a repository-relative path without . or .. segments."
   }
-  if (packageName && !isValidCatalogPackage(packageName)) {
+  if (!packageName) {
+    errors.package = "Enter the public npm package for this plugin."
+  } else if (!isValidCatalogPackage(packageName)) {
     errors.package = "Use a public npm package name such as @scope/name."
   }
   if (caveats.length > 6) {
@@ -382,7 +384,7 @@ function SubmitPage() {
             <label htmlFor="package" className="font-medium text-sm">
               npm package
               <span className="mt-1 block font-normal text-foreground/45 text-xs">
-                Optional · npmjs.org only
+                Required · npmjs.org only
               </span>
             </label>
             <div>
@@ -391,6 +393,7 @@ function SubmitPage() {
                 value={form.package}
                 onChange={(event) => updateField("package", event.target.value)}
                 placeholder="@yourname/paseo-plugin"
+                required
                 maxLength={214}
                 aria-invalid={Boolean(errors.package)}
                 aria-describedby="package-help"

@@ -29,8 +29,8 @@ type RegistrySnapshotEntry = {
   id: string
   repo: string
   path?: string
+  package?: string
   fingerprint: string
-  commit: string
 }
 
 export async function selectTargets(opts: {
@@ -91,11 +91,18 @@ async function selectPullRequestTargets(
 ): Promise<SecurityTarget[]> {
   const base = await readRegistrySnapshot(baseRepo, baseSha, token)
   const head = await readRegistrySnapshot(headRepo, headSha, token)
+  const baseIds = new Set(Array.from(base.values(), (entry) => entry.id))
   const targets: SecurityTarget[] = []
   for (const [identity, entry] of head.entries()) {
-    if (base.get(identity)?.fingerprint !== entry.fingerprint) {
-      targets.push(toTarget(entry, entry.commit))
+    const previous = base.get(identity)
+    if (previous?.fingerprint === entry.fingerprint) continue
+    if (!previous && !baseIds.has(entry.id) && !entry.package) {
+      throw new Error(
+        `new registry entry "${entry.id}" must declare a public npm package`
+      )
     }
+    const commit = await resolvePluginRepoRevision(entry.repo, token)
+    targets.push(toTarget(entry, commit))
   }
   return targets
 }
@@ -136,11 +143,9 @@ async function readRegistrySnapshot(
     )
     const parsed = parseRegistryFile(entry.name, raw)
     const identity = key(parsed)
-    const commit = await resolvePluginRepoRevision(parsed.repo, token)
     out.set(identity, {
       ...parsed,
       fingerprint: `${parsed.id}\n${raw}`,
-      commit,
     })
   }
   return out

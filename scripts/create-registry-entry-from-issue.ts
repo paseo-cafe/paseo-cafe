@@ -61,7 +61,7 @@ function fail(message: string): never {
 const rawId = extractField("Registry filename (id)")
 const rawRepo = extractField("GitHub repository")
 const rawPath = extractField("Subpath (optional)")
-const rawPackage = extractField("npm package (optional)")
+const rawPackage = extractField("npm package")
 const rawCategories = extractField("Categories")
 const rawPlatforms = extractField("Platforms (only if platform-restricted)")
 const rawCaveats = extractField("Caveats")
@@ -94,7 +94,7 @@ if (existsSync(registryPath)) {
 const entryResult = registryEntrySchema.safeParse({
   repo: rawRepo,
   ...(rawPath ? { path: rawPath } : {}),
-  ...(rawPackage ? { package: rawPackage } : {}),
+  package: rawPackage,
   categories,
   platforms: splitList(rawPlatforms),
   caveats: splitLines(rawCaveats),

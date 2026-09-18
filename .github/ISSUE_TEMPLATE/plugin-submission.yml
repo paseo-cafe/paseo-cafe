@@ -44,13 +44,13 @@ body:
   - type: input
     id: package
     attributes:
-      label: npm package (optional)
+      label: npm package
       description: >-
-        Public package name on npmjs.org. Paseo 0.9 installs this package;
-        Paseo 0.8 continues using the GitHub repository above.
+        Required public package name on npmjs.org. Paseo 0.9 installs this
+        package; Paseo 0.8 continues using the GitHub repository above.
       placeholder: "@yourname/paseo-plugin"
     validations:
-      required: false
+      required: true
   - type: input
     id: categories
     attributes:
@@ -91,6 +91,7 @@ body:
             above.
           required: true
         - label: >-
-            `package.json.version` is a released semantic version, not
+            The npm package is public, contains the same plugin ID as the
+            GitHub source, and has a released semantic version rather than
             `0.0.0`.
           required: true

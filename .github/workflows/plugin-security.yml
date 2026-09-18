@@ -138,6 +138,7 @@ jobs:
         run: >-
           bun run security:targets
           --registry "${{ steps.registry.outputs.directory }}"
+          --event "$GITHUB_EVENT_PATH"
           --output "$RUNNER_TEMP/plugin-security-targets.json"
         env:
           GITHUB_TOKEN: ${{ github.token }}
