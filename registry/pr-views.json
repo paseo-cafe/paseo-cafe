@@ -2,6 +2,6 @@
   "repo": "pmusaraj/paseo-pr-views",
   "categories": ["github"],
   "platforms": [],
-  "caveats": [],
+  "caveats": ["Requires GitHub CLI authentication (gh auth login)"],
   "submittedBy": "pmusaraj"
 }
