@@ -1088,7 +1088,9 @@ export function PluginDetailPage({
                   style={styles.secondaryButton}
                   onPress={() => setConfirmingInstall("preview")}
                 >
-                  <Text style={styles.secondaryButtonText}>Try preview</Text>
+                  <Text style={styles.secondaryButtonText}>
+                    Review Preview v{entry.npmPreview?.version}
+                  </Text>
                 </Pressable>
               ) : null}
             </>

@@ -153,13 +153,21 @@ export function compareCatalogVersions(
   const rightMatch = SEMVER_PATTERN.exec(right)
   if (!leftMatch || !rightMatch) return undefined
 
-  for (const index of [1, 2, 3] as const) {
-    const comparison = compareNumericIdentifiers(
-      leftMatch[index] ?? "0",
-      rightMatch[index] ?? "0"
-    )
-    if (comparison !== 0) return comparison
-  }
+  let comparison = compareNumericIdentifiers(
+    leftMatch[1] ?? "0",
+    rightMatch[1] ?? "0"
+  )
+  if (comparison !== 0) return comparison
+  comparison = compareNumericIdentifiers(
+    leftMatch[2] ?? "0",
+    rightMatch[2] ?? "0"
+  )
+  if (comparison !== 0) return comparison
+  comparison = compareNumericIdentifiers(
+    leftMatch[3] ?? "0",
+    rightMatch[3] ?? "0"
+  )
+  if (comparison !== 0) return comparison
 
   const leftPrerelease = leftMatch[4]
   const rightPrerelease = rightMatch[4]
