@@ -1086,18 +1086,20 @@ it("prepares and consumes a one-use Paseo Cafe self-update", async () => {
     binDir,
     process.platform === "win32" ? "paseo.cmd" : "paseo"
   )
+  const shimScript = join(root, "paseo-shim.cjs")
   const shimProgram = [
-    `const args = process.argv.slice(1)`,
+    `const args = process.argv.slice(2)`,
     `if (JSON.stringify(args) === JSON.stringify(["plugin", "ls", "--json"])) console.log(${JSON.stringify(JSON.stringify(inventory))})`,
     `else { console.error("unexpected args: " + JSON.stringify(args)); process.exit(2) }`,
   ].join(";")
 
   try {
+    await writeFile(shimScript, shimProgram, "utf8")
     await writeFile(
       shim,
       process.platform === "win32"
-        ? `@echo off\r\n"${process.execPath}" -e "${shimProgram.replaceAll('"', '\\"')}" %*\r\n`
-        : `#!/bin/sh\nexec "${process.execPath}" -e '${shimProgram}' "$@"\n`,
+        ? `@echo off\r\n"${process.execPath}" "${shimScript}" %*\r\n`
+        : `#!/bin/sh\nexec "${process.execPath}" "${shimScript}" "$@"\n`,
       "utf8"
     )
     if (process.platform !== "win32") await chmod(shim, 0o755)
