@@ -549,7 +549,8 @@ describe("installDirectoryPlugin", () => {
           expectedVersion: "1.2.2",
           expectedIntegrity: integrity,
         },
-        catalogUrl
+        catalogUrl,
+        async () => true
       )
     ).resolves.toEqual({
       ok: false,

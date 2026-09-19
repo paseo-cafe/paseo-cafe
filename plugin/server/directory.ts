@@ -1088,7 +1088,8 @@ export function parsePluginUpdateResult(
 
 export async function installDirectoryPlugin(
   input: RpcInput<typeof directoryInstallRpc>,
-  baseUrl?: string
+  baseUrl?: string,
+  supportsNpm: () => Promise<boolean> = probeReviewedPluginManagement
 ): Promise<RpcOutput<typeof directoryInstallRpc>> {
   try {
     const directory = await fetchDirectory(baseUrl)
@@ -1111,7 +1112,7 @@ export async function installDirectoryPlugin(
       }
     }
 
-    const reviewed = await probeReviewedPluginManagement()
+    const reviewed = await supportsNpm()
     const installFromNpm = reviewed && entry.package !== undefined
     const release = installFromNpm
       ? getCatalogNpmRelease(entry, input.channel)
