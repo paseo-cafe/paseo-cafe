@@ -139,14 +139,17 @@ describe("plugin row popularity", () => {
     expect(getPluginRowPopularity(gitEntry)).toEqual({
       source: "git",
       text: "1.2k",
+      accessibilityLabel: "1234 GitHub stars",
     })
     expect(getPluginRowPopularity(npmEntry)).toEqual({
       source: "npm",
       text: "1,234 downloads / 30 days",
+      accessibilityLabel: "1,234 downloads / 30 days",
     })
     expect(getPluginRowPopularity(incompleteNpmEntry)).toEqual({
       source: "git",
       text: "2k",
+      accessibilityLabel: "2000 GitHub stars",
     })
   })
 })

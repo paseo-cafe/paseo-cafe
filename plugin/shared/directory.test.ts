@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { isValidCatalogVersion } from "./catalog"
+import { getCatalogGalleryImages, isValidCatalogVersion } from "./catalog"
 import {
   compareDirectoryAddedAt,
   compareDirectoryPopularity,
@@ -61,6 +61,28 @@ const validEntry = {
   scannedAt: new Date().toISOString(),
 }
 
+describe("gallery images", () => {
+  it("excludes owner avatar URLs while preserving plugin screenshots", () => {
+    expect(
+      getCatalogGalleryImages(
+        [
+          "https://example.com/plugin-screenshot.png",
+          "https://avatars.githubusercontent.com/u/639682?size=200",
+          "https://github.com/omercnet.png?size=100",
+          "https://github.com/another-owner.png?size=100",
+        ],
+        {
+          login: "OmerCNet",
+          avatarUrl: "https://avatars.githubusercontent.com/u/639682?v=4",
+        }
+      )
+    ).toEqual([
+      "https://example.com/plugin-screenshot.png",
+      "https://github.com/another-owner.png?size=100",
+    ])
+  })
+})
+
 describe("theme preview records", () => {
   const theme = {
     id: "midnight",
@@ -85,25 +107,49 @@ describe("theme preview records", () => {
     expect(directoryEntrySchema.parse(validEntry).themes).toEqual([])
   })
 
-  it("caps non-virtualized highlights while preserving catalog order", () => {
-    const entry = (id: string) =>
+  it("caps non-virtualized highlights in catalog popularity order", () => {
+    const integrity = `sha512-${"a".repeat(86)}`
+    const entry = (id: string, stars: number, downloads?: number) =>
       directoryEntrySchema.parse({
         ...validEntry,
         id,
         repo: `owner/${id}`,
         url: `https://github.com/owner/${id}`,
-        themes: Array.from({ length: 4 }, (_, index) => ({
-          ...theme,
-          id: `${id}-${index}`,
-        })),
+        repoMeta: { stars },
+        ...(downloads === undefined
+          ? {}
+          : {
+              package: id,
+              npm: {
+                package: id,
+                version: validEntry.version,
+                integrity,
+                downloadsLast30Days: downloads,
+                publishedAt: "2026-09-18T00:00:00.000Z",
+              },
+              npmSecurity: {
+                status: "passed" as const,
+                blockingFindings: 0,
+                advisoryFindings: 0,
+                version: validEntry.version,
+                integrity,
+              },
+            }),
+        themes: [{ ...theme, id: `${id}-theme` }],
       })
 
     expect(
-      getDirectoryThemeHighlights([entry("first"), entry("second")], 5).map(
-        ({ preview }) => preview.id
-      )
-    ).toEqual(["first-0", "first-1", "first-2", "first-3", "second-0"])
-    expect(getDirectoryThemeHighlights([entry("first")], 0)).toEqual([])
+      getDirectoryThemeHighlights(
+        [
+          entry("git-low", 10),
+          entry("npm-low", 1, 10),
+          entry("git-high", 200),
+          entry("npm-high", 1, 20),
+        ],
+        3
+      ).map(({ preview }) => preview.id)
+    ).toEqual(["npm-high-theme", "npm-low-theme", "git-high-theme"])
+    expect(getDirectoryThemeHighlights([entry("git", 1)], 0)).toEqual([])
   })
 
   it("rejects a palette that cannot render consistently across clients", () => {

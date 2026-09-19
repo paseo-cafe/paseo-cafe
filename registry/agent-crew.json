@@ -1,6 +1,7 @@
 {
   "repo": "omercnet/paseo-plugins",
   "path": "agent-crew",
+  "package": "@omercnet/paseo-agent-crew",
   "categories": ["monitoring", "productivity", "orchestration"],
   "caveats": ["Requires Paseo 0.8.x"],
   "submittedBy": "omercnet"

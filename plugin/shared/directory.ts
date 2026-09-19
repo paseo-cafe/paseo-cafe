@@ -31,6 +31,7 @@ import {
   getCatalogInstallRef,
   getCatalogNpmInstallCommand,
   getCatalogNpmInstallCommandForChannel,
+  getCatalogPopularityMetric,
   getCatalogPublishedDateBadge,
   getCatalogRepositoryOwner,
   getCatalogRepositoryUrl,
@@ -160,6 +161,7 @@ export const isDirectoryAddedAtKnown = isCatalogAddedAtKnown
 export const isDirectoryRecencyKnown = isCatalogRecencyKnown
 export const getDirectoryAddedDateBadge = getCatalogAddedDateBadge
 export const getDirectoryPublishedDateBadge = getCatalogPublishedDateBadge
+export const getDirectoryPopularityMetric = getCatalogPopularityMetric
 export const formatDirectoryDate = formatCatalogDateForReader
 export const formatDirectoryCompactCount = formatCatalogCompactCount
 export const formatDirectoryDownloads = formatCatalogDownloads
@@ -830,7 +832,7 @@ export function directoryCaveatNodes(
     inlineMarkdownFromPlainText(entry.caveats[index] ?? "")
   )
 }
-/** Bounds theme cards rendered outside the virtualized directory list. */
+/** Popularity-orders and bounds theme cards rendered outside the virtualized list. */
 export function getDirectoryThemeHighlights(
   entries: readonly DirectoryEntry[],
   limit: number
@@ -839,7 +841,8 @@ export function getDirectoryThemeHighlights(
   preview: DirectoryEntry["themes"][number]
 }> {
   if (limit <= 0) return []
-  return entries
+  return [...entries]
+    .sort(compareCatalogPopularity)
     .flatMap((entry) => entry.themes.map((preview) => ({ entry, preview })))
     .slice(0, limit)
 }

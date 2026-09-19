@@ -1,6 +1,7 @@
 {
   "repo": "omercnet/paseo-plugins",
   "path": "fresh-worktrees",
+  "package": "@omercnet/paseo-fresh-worktrees",
   "categories": ["automation", "git", "productivity"],
   "platforms": ["macos", "linux", "windows"],
   "caveats": [

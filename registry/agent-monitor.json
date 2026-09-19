@@ -1,6 +1,7 @@
 {
   "repo": "omercnet/paseo-plugins",
   "path": "agent-monitor",
+  "package": "@omercnet/paseo-agent-monitor",
   "categories": ["monitoring", "productivity"],
   "platforms": ["macos", "linux", "windows"],
   "caveats": ["Requires Paseo 0.8.x"],

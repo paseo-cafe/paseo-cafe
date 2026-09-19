@@ -84,6 +84,26 @@ export function formatCatalogVersion(
   return version ? `v${version}` : undefined
 }
 
+/** Excludes owner profile images that README extraction can mistake for screenshots. */
+export function getCatalogGalleryImages(
+  images: readonly string[],
+  owner: { login?: string; avatarUrl?: string } | undefined
+): string[] {
+  if (!owner) return [...images]
+
+  const ownerAvatar = owner.avatarUrl
+    ? (owner.avatarUrl.split(/[?#]/, 1)[0] ?? "").toLowerCase()
+    : undefined
+  const githubProfileAvatar = owner.login
+    ? `https://github.com/${owner.login}.png`.toLowerCase()
+    : undefined
+
+  return images.filter((image) => {
+    const identity = (image.split(/[?#]/, 1)[0] ?? "").toLowerCase()
+    return identity !== ownerAvatar && identity !== githubProfileAvatar
+  })
+}
+
 export const CATALOG_PLATFORMS = ["macos", "linux", "windows"] as const
 
 export type CatalogPlatform = (typeof CATALOG_PLATFORMS)[number]
@@ -477,6 +497,24 @@ export function hasCompleteCatalogNpmMetrics(
     entry.npm?.downloadsLast30Days !== undefined &&
     entry.npm.publishedAt !== undefined
   )
+}
+
+export interface CatalogPopularityMetric {
+  source: "npm" | "git"
+  count: number
+}
+
+/** Selects the popularity signal displayed and ranked on both catalog surfaces. */
+export function getCatalogPopularityMetric(
+  entry: CatalogNpmMetrics
+): CatalogPopularityMetric | undefined {
+  if (hasCompleteCatalogNpmMetrics(entry)) {
+    return { source: "npm", count: entry.npm.downloadsLast30Days }
+  }
+  if (entry.repoMeta?.stars !== undefined) {
+    return { source: "git", count: entry.repoMeta.stars }
+  }
+  return undefined
 }
 
 /** npm-backed entries always precede Git-only entries. */

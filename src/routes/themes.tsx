@@ -1,21 +1,23 @@
 import { IconArrowRight, IconPalette } from "@tabler/icons-react"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { PluginPopularity } from "@/components/plugin-card"
 import { ThemePreview } from "@/components/theme-preview"
 import { Badge } from "@/components/ui/badge"
-import { HOME_SEARCH_DEFAULT } from "@/lib/catalog-search"
+import { HOME_SEARCH_DEFAULT, sortPlugins } from "@/lib/catalog-search"
 import { listPlugins } from "@/lib/plugins-data"
 import { normalizeCategory } from "@/lib/registry-schema"
 import { seo } from "@/lib/seo"
 
 export const Route = createFileRoute("/themes")({
   loader: () =>
-    listPlugins()
-      .filter((plugin) =>
+    sortPlugins(
+      listPlugins().filter((plugin) =>
         plugin.categories.some(
           (category) => normalizeCategory(category) === "theme"
         )
-      )
-      .sort((a, b) => a.name.localeCompare(b.name)),
+      ),
+      "popular"
+    ),
   head: () =>
     seo({
       title: "Themes",
@@ -75,8 +77,8 @@ function ThemesPage() {
           </h2>
           <p className="text-foreground/50 text-sm">
             Each card is a small Paseo interface painted from the plugin&apos;s
-            declared palette. The app derives additional status, diff, syntax,
-            and terminal colors after installation.
+            declared palette. Theme plugins are ranked by npm downloads, then
+            GitHub stars, using the same popularity order as the main catalog.
           </p>
         </div>
 
@@ -91,13 +93,16 @@ function ThemesPage() {
                   {plugin.description || plugin.repo}
                 </p>
               </div>
-              <Link
-                to="/plugins/$id"
-                params={{ id: plugin.id }}
-                className="flex items-center gap-1 text-sm underline underline-offset-4"
-              >
-                Plugin details <IconArrowRight className="size-4" />
-              </Link>
+              <div className="flex items-center gap-4">
+                <PluginPopularity plugin={plugin} />
+                <Link
+                  to="/plugins/$id"
+                  params={{ id: plugin.id }}
+                  className="flex items-center gap-1 text-sm underline underline-offset-4"
+                >
+                  Plugin details <IconArrowRight className="size-4" />
+                </Link>
+              </div>
             </div>
 
             {plugin.themes?.length ? (

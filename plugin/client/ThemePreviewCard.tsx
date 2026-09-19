@@ -1,6 +1,11 @@
 import type { PluginTheme } from "@getpaseo/plugin"
+import { Icon } from "@getpaseo/plugin/client/react-native"
 import { Pressable, Text, View } from "react-native"
 import type { DirectoryEntry } from "../shared/directory"
+import {
+  formatDirectoryCompactCount,
+  getDirectoryPopularityMetric,
+} from "../shared/directory"
 import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 
 interface ThemePreviewCardProps {
@@ -8,6 +13,7 @@ interface ThemePreviewCardProps {
   preview: DirectoryEntry["themes"][number]
   theme: PluginTheme
   compact: boolean
+  showPopularity?: boolean
   onPress?: () => void
 }
 
@@ -16,15 +22,24 @@ export function ThemePreviewCard({
   preview,
   theme,
   compact,
+  showPopularity = false,
   onPress,
 }: ThemePreviewCardProps) {
   const accent = preview.colors.accent ?? preview.colors.foreground
+  const popularity = showPopularity
+    ? getDirectoryPopularityMetric(entry)
+    : undefined
+  const popularityLabel = popularity
+    ? popularity.source === "npm"
+      ? `${popularity.count} npm downloads in the last 30 days`
+      : `${popularity.count} GitHub stars`
+    : undefined
 
   return (
     <Pressable
       accessibilityRole={onPress ? "button" : undefined}
       disabled={!onPress}
-      accessibilityLabel={`View ${preview.name} theme plugin details`}
+      accessibilityLabel={`View ${preview.name} theme plugin details${popularityLabel ? `, ${popularityLabel}` : ""}`}
       onPress={onPress}
       style={{
         width: compact ? "100%" : "48.5%",
@@ -138,16 +153,39 @@ export function ThemePreviewCard({
           >
             {preview.name}
           </Text>
-          <Text
-            numberOfLines={1}
-            style={{
-              color: theme.colors.foregroundMuted,
-              fontFamily: CAFE_MONO_FONT,
-              fontSize: 11,
-            }}
-          >
-            {entry.name}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                flexShrink: 1,
+                color: theme.colors.foregroundMuted,
+                fontFamily: CAFE_MONO_FONT,
+                fontSize: 11,
+              }}
+            >
+              {entry.name}
+            </Text>
+            {popularity ? (
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
+              >
+                <Icon
+                  name={popularity.source === "npm" ? "Download" : "Star"}
+                  size={10}
+                  color={theme.colors.foregroundMuted}
+                />
+                <Text
+                  style={{
+                    color: theme.colors.foregroundMuted,
+                    fontFamily: CAFE_MONO_FONT,
+                    fontSize: 10,
+                  }}
+                >
+                  {formatDirectoryCompactCount(popularity.count)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
         <Text
           style={{
