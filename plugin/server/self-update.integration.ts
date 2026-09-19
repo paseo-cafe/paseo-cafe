@@ -14,7 +14,7 @@ import {
   type InstalledPlugin,
   type PendingSelfUpdate,
 } from "../shared/directory"
-import { buildPaseoInvocation, execPaseo } from "./directory"
+import { execPaseo } from "./directory"
 
 const execFileAsync = promisify(execFile)
 const PREVIOUS_VERSION = "0.5.0"
@@ -142,10 +142,9 @@ async function main(): Promise<void> {
     process.env.PATH = `${binDir}${delimiter}${originalPath ?? ""}`
     process.env.PASEO_CAFE_DIRECTORY_URL = catalogUrl
 
-    const invocation = buildPaseoInvocation(["daemon", "run", "--home", home])
-    daemon = spawn(invocation.executable, invocation.args, {
-      env: invocation.env,
-      windowsVerbatimArguments: invocation.windowsVerbatimArguments,
+    daemon = spawn(shim, ["daemon", "run"], {
+      env: process.env,
+      shell: process.platform === "win32",
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     })
