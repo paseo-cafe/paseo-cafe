@@ -1,0 +1,11 @@
+{
+  "repo": "Vokturz/paseo-plugins",
+  "path": "linear-tickets",
+  "package": "paseo-linear-tickets",
+  "categories": ["productivity"],
+  "caveats": [
+    "Requires a Linear personal API key with access to the relevant teams",
+    "Marking the ticket In Progress on launch writes to Linear and needs write permission"
+  ],
+  "submittedBy": "Vokturz"
+}
