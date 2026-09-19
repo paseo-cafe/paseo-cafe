@@ -23,6 +23,7 @@ jobs:
     outputs:
       app: ${{ steps.filter.outputs.app }}
       plugin: ${{ steps.filter.outputs.plugin }}
+      plugin_package: ${{ steps.filter.outputs.plugin_package }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -57,6 +58,16 @@ jobs:
               - "biome.json"
               - ".github/workflows/ci.yml"
 
+            plugin_package:
+              - "plugin/client/**"
+              - "plugin/images/**"
+              - "plugin/server/**"
+              - "plugin/shared/**"
+              - "plugin/index.client.tsx"
+              - "plugin/index.server.ts"
+              - "plugin/package.json"
+              - "plugin/paseo-plugin.json"
+              - "plugin/README.md"
   app:
     name: App
     needs: changes
@@ -171,9 +182,59 @@ jobs:
         working-directory: plugin
         run: npm run test
 
+  plugin-preview:
+    name: Publish plugin preview
+    needs: [changes, plugin]
+    if: >-
+      github.repository == 'paseo-cafe/paseo-cafe' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.changes.outputs.plugin_package == 'true' &&
+      needs.plugin.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out tested source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Prepare npm package
+        run: bun run scripts/prepare-plugin-package.ts "$RUNNER_TEMP/paseo-cafe"
+
+      - name: Assign unique preview version
+        working-directory: ${{ runner.temp }}/paseo-cafe
+        run: >-
+          npm version prerelease
+          --preid="next.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          --no-git-tag-version
+
+      - name: Verify npm package contents
+        working-directory: ${{ runner.temp }}/paseo-cafe
+        run: npm pack --dry-run
+
+      - name: Publish npm package on next tag
+        working-directory: ${{ runner.temp }}/paseo-cafe
+        run: npm publish --access public --provenance --tag next
+
   all-checks:
     name: All checks passed
-    needs: [changes, app, plugin]
+    needs: [changes, app, plugin, plugin-preview]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -184,13 +245,14 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           APP_RESULT: ${{ needs.app.result }}
           PLUGIN_RESULT: ${{ needs.plugin.result }}
+          PREVIEW_RESULT: ${{ needs.plugin-preview.result }}
         run: |
           if [[ "$CHANGES_RESULT" != "success" ]]; then
             echo "Change detection failed: $CHANGES_RESULT"
             exit 1
           fi
 
-          for result in "$APP_RESULT" "$PLUGIN_RESULT"; do
+          for result in "$APP_RESULT" "$PLUGIN_RESULT" "$PREVIEW_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then
               echo "Required job failed: $result"
               exit 1
