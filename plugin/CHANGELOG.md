@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.5.0...v0.6.0) (2026-09-19)
+
+
+### Features
+
+* **catalog:** rank npm plugins by downloads ([#161](https://github.com/paseo-cafe/paseo-cafe/issues/161)) ([cc83f83](https://github.com/paseo-cafe/paseo-cafe/commit/cc83f83981b823ab9004610130b0788ba6050efb))
+
 ## [0.5.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.4.0...v0.5.0) (2026-09-18)
 
 
