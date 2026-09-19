@@ -16,6 +16,7 @@ function pluginWithPreview() {
     url: "https://github.com/acme/example",
     name: "Example",
     description: "Example plugin",
+    descriptionNodes: [{ type: "text", text: "Example plugin" }],
     version: "1.2.3",
     npm: {
       package: "@acme/example",
@@ -47,6 +48,7 @@ function pluginWithPreview() {
     categories: [],
     platforms: [],
     caveats: [],
+    caveatNodes: [],
     health: {
       manifestValid: true,
       hasReadme: true,
