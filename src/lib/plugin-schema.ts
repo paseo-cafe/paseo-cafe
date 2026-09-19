@@ -2,9 +2,12 @@ import * as semver from "semver"
 import { z } from "zod"
 import { PLATFORMS } from "@/lib/registry-schema"
 import {
+  CATALOG_THEME_APPEARANCES,
+  CATALOG_THEME_MAX_PER_PLUGIN,
   CATALOG_VERSION_MAX_LENGTH,
   type CatalogHealthCheck,
   isValidCatalogPackage,
+  isValidCatalogThemeColor,
 } from "../../plugin/shared/catalog"
 
 /**
@@ -134,6 +137,24 @@ export const pluginNpmMetadataSchema = z.object({
   downloadsLast30Days: z.number().int().nonnegative().optional(),
 })
 
+const themeHexColorSchema = z.string().refine(isValidCatalogThemeColor)
+
+export const pluginThemePreviewSchema = z.object({
+  id: z.string().min(1).max(200),
+  name: z.string().min(1).max(200),
+  appearance: z.enum(CATALOG_THEME_APPEARANCES),
+  colors: z.object({
+    background: themeHexColorSchema,
+    foreground: themeHexColorSchema,
+    raised: themeHexColorSchema,
+    control: themeHexColorSchema,
+    border: themeHexColorSchema,
+    accent: themeHexColorSchema.optional(),
+    mutedForeground: themeHexColorSchema,
+    ring: themeHexColorSchema,
+  }),
+})
+
 export const pluginRecordSchema = z
   .object({
     id: z.string(),
@@ -186,6 +207,10 @@ export const pluginRecordSchema = z
     security: pluginSecuritySchema.optional(),
     npmSecurity: pluginNpmSecuritySchema.optional(),
     images: z.array(z.string()).default([]),
+    themes: z
+      .array(pluginThemePreviewSchema)
+      .max(CATALOG_THEME_MAX_PER_PLUGIN)
+      .optional(),
     videos: z.array(videoEmbedSchema).default([]),
     scanError: z.string().optional(),
     // When this plugin's registry entry first landed in this repo's git history

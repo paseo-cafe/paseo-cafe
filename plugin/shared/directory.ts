@@ -12,6 +12,8 @@ import {
   CATALOG_HEALTH_KEYS,
   CATALOG_HEALTH_LABELS,
   CATALOG_PLATFORM_LABELS,
+  CATALOG_THEME_APPEARANCES,
+  CATALOG_THEME_MAX_PER_PLUGIN,
   CATALOG_VERSION_MAX_LENGTH,
   type CatalogCategory,
   type CatalogHealthCheck,
@@ -39,6 +41,7 @@ import {
   isValidCatalogPath,
   isValidCatalogRef,
   isValidCatalogRepository,
+  isValidCatalogThemeColor,
   isValidCatalogVersion,
   normalizeCatalogCategories,
   normalizeCatalogCategory,
@@ -101,6 +104,22 @@ const catalogUrlSchema = httpUrlSchema.refine(
   isTrustedCatalogUrl,
   "Catalog URL must use HTTPS, or HTTP on localhost"
 )
+const themeHexColorSchema = z.string().refine(isValidCatalogThemeColor)
+const directoryThemePreviewSchema = z.object({
+  id: z.string().min(1).max(200),
+  name: z.string().min(1).max(200),
+  appearance: z.enum(CATALOG_THEME_APPEARANCES),
+  colors: z.object({
+    background: themeHexColorSchema,
+    foreground: themeHexColorSchema,
+    raised: themeHexColorSchema,
+    control: themeHexColorSchema,
+    border: themeHexColorSchema,
+    accent: themeHexColorSchema.optional(),
+    mutedForeground: themeHexColorSchema,
+    ring: themeHexColorSchema,
+  }),
+})
 
 export const DIRECTORY_CATEGORIES = CATALOG_CATEGORIES
 
@@ -477,6 +496,10 @@ export const directoryEntrySchema = z
     paseoVersionRequirement: z.string().max(200).optional(),
     manifest: directoryManifestSchema.optional(),
     images: z.array(httpUrlSchema).max(32).default([]),
+    themes: z
+      .array(directoryThemePreviewSchema)
+      .max(CATALOG_THEME_MAX_PER_PLUGIN)
+      .default([]),
     // Raw README markdown from the scanner. Keep it optional so older catalog
     // payloads still parse, and bound it so the companion plugin never retains
     // or renders an unbounded blob.

@@ -54,6 +54,45 @@ const validEntry = {
   scannedAt: new Date().toISOString(),
 }
 
+describe("theme preview records", () => {
+  const theme = {
+    id: "midnight",
+    name: "Midnight",
+    appearance: "dark",
+    colors: {
+      background: "#101114",
+      foreground: "#f5f7ff",
+      raised: "#191b20",
+      control: "#242730",
+      border: "#343844",
+      accent: "#8da2fb",
+      mutedForeground: "#a4a8b3",
+      ring: "#68729a",
+    },
+  }
+
+  it("accepts complete hex palettes and defaults legacy records", () => {
+    expect(
+      directoryEntrySchema.parse({ ...validEntry, themes: [theme] }).themes
+    ).toEqual([theme])
+    expect(directoryEntrySchema.parse(validEntry).themes).toEqual([])
+  })
+
+  it("rejects a palette that cannot render consistently across clients", () => {
+    expect(
+      directoryEntrySchema.safeParse({
+        ...validEntry,
+        themes: [
+          {
+            ...theme,
+            colors: { ...theme.colors, background: "rebeccapurple" },
+          },
+        ],
+      }).success
+    ).toBe(false)
+  })
+})
+
 describe("plugin install targets", () => {
   it("accepts GitHub repositories and safe nested plugin paths", () => {
     expect(isValidRepo("paseo-cafe/paseo-cafe")).toBe(true)

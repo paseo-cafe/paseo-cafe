@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { useEffect, useMemo } from "react"
 import { CatalogResults } from "@/components/catalog-results"
 import { CatalogSidebar } from "@/components/catalog-sidebar"
 import { FeaturedSection } from "@/components/featured-section"
 import { InstallCallout } from "@/components/install-callout"
+import { ThemeFeaturedSection } from "@/components/theme-featured-section"
 import {
   clampCatalogPage,
   matchesPluginQuery,
@@ -158,6 +159,15 @@ function App() {
     })
   }, [navigate, page, requestedPage])
 
+  const themePlugins = useMemo(
+    () =>
+      plugins.filter((plugin) =>
+        plugin.categories.some(
+          (category) => normalizeCategory(category) === "theme"
+        )
+      ),
+    [plugins]
+  )
   const popular = useMemo(
     () => sortPlugins(plugins, "popular").slice(0, SECTION_LIMIT),
     [plugins]
@@ -200,6 +210,14 @@ function App() {
       </div>
 
       <p className="text-foreground/60 text-sm">{summary}</p>
+      {search.category === "theme" ? (
+        <p className="border border-border bg-card px-3 py-2 text-sm">
+          Want to compare the palettes themselves?{" "}
+          <Link to="/themes" className="underline underline-offset-4">
+            Open the Themes gallery.
+          </Link>
+        </p>
+      ) : null}
       <div className="mx-auto flex w-full flex-col gap-8 lg:flex-row lg:items-start">
         <CatalogSidebar
           search={search}
@@ -227,6 +245,7 @@ function App() {
         <div className="min-w-0 flex-1">
           {showFeatured ? (
             <div className="flex flex-col gap-8">
+              <ThemeFeaturedSection plugins={themePlugins} />
               <FeaturedSection
                 title="Popular"
                 description="Most downloaded npm plugins, followed by starred Git plugins."

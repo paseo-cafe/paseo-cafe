@@ -39,6 +39,7 @@ import { BrandMark } from "./BrandMark"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
 import { PluginRow } from "./PluginRow"
+import { ThemePreviewCard } from "./ThemePreviewCard"
 import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 
 const DIRECTORY_QUERY_KEY = "paseo-cafe-directory"
@@ -798,6 +799,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           ...entry.categories,
           ...entry.platforms,
           ...entry.caveats,
+          ...entry.themes.flatMap(({ id, name, appearance }) => [
+            id,
+            name,
+            appearance,
+          ]),
         ]
           .filter((value): value is string => Boolean(value))
           .join(" ")
@@ -897,6 +903,15 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           ).slice(0, FEATURED_LIMIT)
         : [],
     [defaultBrowseState, filtered, installationByEntryId]
+  )
+  const themeHighlights = useMemo(
+    () =>
+      defaultBrowseState
+        ? plugins.flatMap((entry) =>
+            entry.themes.map((preview) => ({ entry, preview }))
+          )
+        : [],
+    [defaultBrowseState, plugins]
   )
 
   function openPlugin(entry: DirectoryEntry) {
@@ -1018,6 +1033,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       featuredSection: { gap: 10 },
       sectionHeading: { gap: 2 },
       featuredItems: { gap: 8 },
+      themeItems: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        gap: 12,
+      },
       featuredHeader: {
         color: theme.colors.foreground,
         fontFamily: CAFE_MONO_FONT,
@@ -1241,9 +1261,37 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
               </Text>
             ) : null}
             {defaultBrowseState &&
-            (popularHighlights.length > 0 ||
+            (themeHighlights.length > 0 ||
+              popularHighlights.length > 0 ||
               recentlyAddedHighlights.length > 0) ? (
               <View style={styles.featuredBlock}>
+                {themeHighlights.length > 0 ? (
+                  <View style={styles.featuredSection}>
+                    <View style={styles.sectionHeading}>
+                      <Text
+                        accessibilityRole="header"
+                        style={styles.featuredHeader}
+                      >
+                        Themes
+                      </Text>
+                      <Text style={styles.featuredDescription}>
+                        Exact plugin palettes previewed before installation.
+                      </Text>
+                    </View>
+                    <View style={styles.themeItems}>
+                      {themeHighlights.map(({ entry, preview }) => (
+                        <ThemePreviewCard
+                          key={`${entry.id}-${preview.id}`}
+                          entry={entry}
+                          preview={preview}
+                          theme={theme}
+                          compact={layout.compact}
+                          onPress={() => openPlugin(entry)}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
                 {popularHighlights.length > 0 ? (
                   <View style={styles.featuredSection}>
                     <View style={styles.sectionHeading}>

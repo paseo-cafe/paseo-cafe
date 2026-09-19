@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  matchesPluginQuery,
   parseCatalogSearch,
   sortLabels,
   sortOptions,
@@ -180,5 +181,31 @@ describe("npm-first catalog sorting", () => {
       "z-npm",
       "a-git",
     ])
+  })
+})
+
+describe("theme search", () => {
+  it("matches a contributed variant name that is absent from plugin metadata", () => {
+    const entry = plugin("theme-pack", {
+      themes: [
+        {
+          id: "mocha",
+          name: "Catppuccin Mocha",
+          appearance: "dark",
+          colors: {
+            background: "#1e1e2e",
+            foreground: "#cdd6f4",
+            raised: "#313244",
+            control: "#45475a",
+            border: "#45475a",
+            accent: "#cba6f7",
+            mutedForeground: "#a6adc8",
+            ring: "#6c7086",
+          },
+        },
+      ],
+    })
+
+    expect(matchesPluginQuery(entry, "mocha")).toBe(true)
   })
 })

@@ -41,6 +41,7 @@ const config = defineConfig({
         routes: [
           BASE,
           `${BASE}submit`,
+          `${BASE}themes`,
           `${BASE}api/plugins`,
           `${BASE}llms.txt`,
           `${BASE}llms-full.txt`,

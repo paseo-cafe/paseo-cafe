@@ -9,6 +9,67 @@
 
 export const CATALOG_VERSION_MAX_LENGTH = 100
 
+export const CATALOG_THEME_APPEARANCES = ["light", "dark"] as const
+export const CATALOG_THEME_MAX_PER_PLUGIN = 12
+
+export type CatalogThemeAppearance = (typeof CATALOG_THEME_APPEARANCES)[number]
+
+/** The eight seed colors accepted by Paseo's `client.addTheme` API. */
+export interface CatalogThemeColors {
+  background: string
+  foreground: string
+  raised: string
+  control: string
+  border: string
+  accent?: string
+  mutedForeground: string
+  ring: string
+}
+
+/** Statically extracted theme contribution used for honest pre-install previews. */
+export interface CatalogThemePreview {
+  id: string
+  name: string
+  appearance: CatalogThemeAppearance
+  colors: CatalogThemeColors
+}
+
+export const CATALOG_THEME_COLOR_KEYS = [
+  "background",
+  "foreground",
+  "raised",
+  "control",
+  "border",
+  "accent",
+  "mutedForeground",
+  "ring",
+] as const satisfies readonly (keyof CatalogThemeColors)[]
+
+export type CatalogThemeColorKey = (typeof CATALOG_THEME_COLOR_KEYS)[number]
+
+export const CATALOG_THEME_COLOR_LABELS: Record<CatalogThemeColorKey, string> =
+  {
+    background: "Background",
+    foreground: "Text",
+    raised: "Raised",
+    control: "Control",
+    border: "Border",
+    accent: "Accent",
+    mutedForeground: "Muted",
+    ring: "Focus",
+  }
+
+export function getCatalogThemeColor(
+  colors: CatalogThemeColors,
+  key: CatalogThemeColorKey
+): string {
+  return key === "accent" ? (colors.accent ?? colors.foreground) : colors[key]
+}
+
+export function isValidCatalogThemeColor(value: string): boolean {
+  return /^#[0-9a-f]{6}$/i.test(value)
+}
+
 /** Presents normalized package versions consistently across catalog surfaces. */
 export function formatCatalogVersion(
   version: string | undefined

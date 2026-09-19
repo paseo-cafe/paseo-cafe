@@ -15,6 +15,7 @@ import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as OpenapiDotjsonRouteImport } from './routes/openapi[.]json'
 import { Route as PluginsRouteImport } from './routes/plugins'
 import { Route as SubmitRouteImport } from './routes/submit'
+import { Route as ThemesRouteImport } from './routes/themes'
 import { Route as ApiPluginsRouteImport } from './routes/api.plugins'
 import { Route as PluginsIndexRouteImport } from './routes/plugins.index'
 import { Route as PluginsIdRouteImport } from './routes/plugins.$id'
@@ -50,6 +51,11 @@ const PluginsRoute = PluginsRouteImport.update({
 const SubmitRoute = SubmitRouteImport.update({
   id: '/submit',
   path: '/submit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ThemesRoute = ThemesRouteImport.update({
+  id: '/themes',
+  path: '/themes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPluginsRoute = ApiPluginsRouteImport.update({
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/openapi.json': typeof OpenapiDotjsonRoute
   '/plugins': typeof PluginsRouteWithChildren
   '/submit': typeof SubmitRoute
+  '/themes': typeof ThemesRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
   '/plugins/{$id}.md': typeof PluginsChar123idChar125DotmdRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/llms.txt': typeof LlmsDottxtRoute
   '/openapi.json': typeof OpenapiDotjsonRoute
   '/submit': typeof SubmitRoute
+  '/themes': typeof ThemesRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
   '/plugins/{$id}.md': typeof PluginsChar123idChar125DotmdRoute
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/openapi.json': typeof OpenapiDotjsonRoute
   '/plugins': typeof PluginsRouteWithChildren
   '/submit': typeof SubmitRoute
+  '/themes': typeof ThemesRoute
   '/api/plugins': typeof ApiPluginsRoute
   '/plugins/$id': typeof PluginsIdRoute
   '/plugins/{$id}.md': typeof PluginsChar123idChar125DotmdRoute
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/openapi.json'
     | '/plugins'
     | '/submit'
+    | '/themes'
     | '/api/plugins'
     | '/plugins/$id'
     | '/plugins/{$id}.md'
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/openapi.json'
     | '/submit'
+    | '/themes'
     | '/api/plugins'
     | '/plugins/$id'
     | '/plugins/{$id}.md'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/openapi.json'
     | '/plugins'
     | '/submit'
+    | '/themes'
     | '/api/plugins'
     | '/plugins/$id'
     | '/plugins/{$id}.md'
@@ -178,6 +190,7 @@ export interface RootRouteChildren {
   OpenapiDotjsonRoute: typeof OpenapiDotjsonRoute
   PluginsRoute: typeof PluginsRouteWithChildren
   SubmitRoute: typeof SubmitRoute
+  ThemesRoute: typeof ThemesRoute
   ApiPluginsRoute: typeof ApiPluginsRoute
   UserUsernameRoute: typeof UserUsernameRoute
   ApiPluginChar123idChar125DotjsonRoute: typeof ApiPluginChar123idChar125DotjsonRoute
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       path: '/submit'
       fullPath: '/submit'
       preLoaderRoute: typeof SubmitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/themes': {
+      id: '/themes'
+      path: '/themes'
+      fullPath: '/themes'
+      preLoaderRoute: typeof ThemesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/plugins': {
@@ -294,6 +314,7 @@ const rootRouteChildren: RootRouteChildren = {
   OpenapiDotjsonRoute: OpenapiDotjsonRoute,
   PluginsRoute: PluginsRouteWithChildren,
   SubmitRoute: SubmitRoute,
+  ThemesRoute: ThemesRoute,
   ApiPluginsRoute: ApiPluginsRoute,
   UserUsernameRoute: UserUsernameRoute,
   ApiPluginChar123idChar125DotjsonRoute: ApiPluginChar123idChar125DotjsonRoute,

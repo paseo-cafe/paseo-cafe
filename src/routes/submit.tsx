@@ -61,6 +61,7 @@ const RECOMMENDED = [
   "A LICENSE file.",
   "An images/ folder with one or more screenshots.",
   "A demo video — a YouTube or Loom link, or a video dropped directly into the README — gets auto-embedded.",
+  "Theme plugins: keep addTheme palettes as literal hex-color objects in index.client.ts or index.client.tsx so the catalog can generate an exact preview.",
   "npm test and npm run typecheck scripts in package.json.",
 ]
 

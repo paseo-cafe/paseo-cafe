@@ -139,6 +139,9 @@ export function matchesPluginQuery(
     plugin.caveats.join(" "),
     plugin.limitationsNotes,
     plugin.paseoVersionRequirement,
+    ...(plugin.themes ?? []).map(
+      ({ id, name, appearance }) => `${id} ${name} ${appearance}`
+    ),
   ]
     .filter(Boolean)
     .join(" ")

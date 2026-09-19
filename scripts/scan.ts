@@ -81,6 +81,7 @@ import {
 } from "./npm-registry.ts"
 import { renderOgImage } from "./og-image.tsx"
 import { securityResultsSchema } from "./plugin-security/shared.ts"
+import { extractThemePreviews } from "./theme-previews.ts"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
 const ROOT = process.cwd()
@@ -355,6 +356,7 @@ export async function scanOne(
       updatedRecently: false,
     },
     images: [],
+    themes: [],
     videos: [],
     addedAt,
     scannedAt,
@@ -450,6 +452,16 @@ export async function scanOne(
       revision && imagesDirEntry?.type === "dir"
         ? await listDir(owner, repo, imagesDirEntry.path, revision)
         : []
+    const clientEntry =
+      byName.get("index.client.ts") ?? byName.get("index.client.tsx")
+    const clientSource =
+      clientEntry &&
+      entry.categories.some(
+        (category) => category.trim().toLowerCase() === "theme"
+      )
+        ? await fetchRawText(owner, repo, contentRef, clientEntry.path)
+        : null
+    const themes = clientSource ? extractThemePreviews(clientSource) : []
 
     const manifestId =
       typeof manifest?.id === "string" ? manifest.id : undefined
@@ -591,6 +603,7 @@ export async function scanOne(
         ? securityForRevision(securityCatalog[id], revision)
         : undefined,
       images,
+      themes,
       videos,
       installNotes,
       installNotesHtml,
@@ -713,6 +726,7 @@ export function writeSitemap(records: PluginRecord[]) {
   const staticPages = [
     { path: "/", changefreq: "daily" },
     { path: "/submit", changefreq: "monthly" },
+    { path: "/themes", changefreq: "weekly" },
   ]
 
   // One entry per distinct owner login — /user/$username pages are indexable

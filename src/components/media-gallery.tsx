@@ -1,5 +1,7 @@
 import { IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react"
 import { useCallback, useEffect, useState } from "react"
+import { ThemePreview } from "@/components/theme-preview"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogClose,
@@ -34,13 +36,13 @@ function bentoTileClass(index: number, visibleCount: number): string {
   return index === 1 ? "col-span-2 row-span-1" : "col-span-1 row-span-1"
 }
 
-/** Combined screenshots + demo videos for a plugin's detail page. Videos first — they're the richer asset when present. */
+/** Theme previews, demo videos, and screenshots for a plugin detail page. */
 export function MediaGallery({
   plugin,
 }: {
-  plugin: Pick<PluginRecord, "name" | "images" | "videos">
+  plugin: Pick<PluginRecord, "name" | "images" | "videos" | "themes">
 }) {
-  const { images, videos } = plugin
+  const { images, themes = [], videos } = plugin
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null)
 
   // The dialog never closes while stepping between images — only the <img>'s
@@ -78,7 +80,8 @@ export function MediaGallery({
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [zoomedIndex, stepZoomedIndex])
 
-  if (images.length === 0 && videos.length === 0) return null
+  if (themes.length === 0 && images.length === 0 && videos.length === 0)
+    return null
 
   const visibleImages = images.slice(0, MAX_VISIBLE_IMAGES)
   const hiddenImageCount = images.length - visibleImages.length
@@ -86,6 +89,19 @@ export function MediaGallery({
   return (
     <div>
       <h2 className="mb-2 font-medium text-foreground/60 text-sm">Gallery</h2>
+      {themes.length > 0 ? (
+        <div className="mb-3 grid gap-3 sm:grid-cols-2">
+          {themes.map((theme) => (
+            <div key={theme.id} className="border border-border bg-card p-2">
+              <ThemePreview theme={theme} />
+              <div className="flex items-center justify-between gap-3 px-1 pt-3 pb-1">
+                <span className="truncate font-medium">{theme.name}</span>
+                <Badge variant="outline">{theme.appearance}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {videos.length > 0 ? (
         <div className="mb-3 grid gap-3 sm:grid-cols-2">
           {videos.map((video) => (

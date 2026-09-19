@@ -6,9 +6,11 @@ import {
   pluginHealthSchema,
   pluginNpmMetadataSchema,
   pluginNpmSecuritySchema,
+  pluginThemePreviewSchema,
 } from "@/lib/plugin-schema"
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
 import {
+  CATALOG_THEME_MAX_PER_PLUGIN,
   CATALOG_VERSION_MAX_LENGTH,
   isValidCatalogPackage,
 } from "../../plugin/shared/catalog"
@@ -80,6 +82,10 @@ export const directoryPluginSchema = z.object({
     .optional(),
   npmSecurity: pluginNpmSecuritySchema.optional(),
   images: z.array(directoryImageUrlSchema).max(32),
+  themes: z
+    .array(pluginThemePreviewSchema)
+    .max(CATALOG_THEME_MAX_PER_PLUGIN)
+    .default([]),
   readmeText: z.string().max(MAX_API_README_TEXT_LENGTH).optional(),
   scanError: z.string().max(4_000).optional(),
   // Git-only plugins use their catalog listing date. npm-backed plugins carry
@@ -156,6 +162,7 @@ export function projectPluginForDirectory(
     platforms: [],
     caveats: [],
     images: [],
+    themes: [],
     health: plugin.health,
     scannedAt: boundedString(plugin.scannedAt, 100),
     ...(plugin.addedAt ? { addedAt: plugin.addedAt } : {}),
@@ -221,6 +228,10 @@ export function projectPluginForDirectory(
       .filter(isTrustedRemoteImageUrl)
       .slice(0, 32)
       .map((value) => boundedString(value, 2_048))
+  )
+  addIfItFits(
+    "themes",
+    (plugin.themes ?? []).slice(0, CATALOG_THEME_MAX_PER_PLUGIN)
   )
 
   if (plugin.readmeText) {

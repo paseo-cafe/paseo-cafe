@@ -32,6 +32,13 @@ export function SiteHeader() {
             Browse
           </Link>
           <Link
+            to="/themes"
+            className="hover:text-foreground"
+            activeProps={{ className: "text-foreground" }}
+          >
+            Themes
+          </Link>
+          <Link
             to="/submit"
             className="hover:text-foreground"
             activeProps={{ className: "text-foreground" }}

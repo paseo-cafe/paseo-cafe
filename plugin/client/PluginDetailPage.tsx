@@ -34,6 +34,7 @@ import {
   stripHtml,
 } from "../shared/directory"
 import { ExpandableSection } from "./ExpandableSection"
+import { ThemePreviewCard } from "./ThemePreviewCard"
 import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 import { openExternal } from "./web"
 
@@ -311,6 +312,11 @@ export function PluginDetailPage({
         backgroundColor: theme.colors.surface2,
       },
       section: { gap: 6 },
+      themeGrid: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        gap: 12,
+      },
       label: {
         color: theme.colors.foregroundMuted,
         fontFamily: CAFE_MONO_FONT,
@@ -711,6 +717,26 @@ export function PluginDetailPage({
                 <Text style={styles.readmeText}>{limitationsText}</Text>
               </>
             ) : null}
+          </View>
+        ) : null}
+        {entry.themes.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.label}>Included themes</Text>
+            <Text style={styles.alertBody}>
+              Exact seed colors contributed to Paseo. Install this plugin, then
+              select a theme in Settings → Appearance.
+            </Text>
+            <View style={styles.themeGrid}>
+              {entry.themes.map((preview) => (
+                <ThemePreviewCard
+                  key={`${entry.id}-${preview.id}`}
+                  entry={entry}
+                  preview={preview}
+                  theme={theme}
+                  compact={compact}
+                />
+              ))}
+            </View>
           </View>
         ) : null}
 
