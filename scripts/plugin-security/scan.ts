@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import * as semver from "semver"
 import { z } from "zod"
 import {
   extractNpmPackage,
@@ -65,7 +64,9 @@ async function main() {
   if (
     Object.values(results.plugins).some(
       (plugin) =>
-        plugin.blockingFindings > 0 || (plugin.npm?.blockingFindings ?? 0) > 0
+        plugin.blockingFindings > 0 ||
+        (plugin.npm?.blockingFindings ?? 0) > 0 ||
+        (plugin.npmPreview?.blockingFindings ?? 0) > 0
     )
   ) {
     process.exitCode = 1
@@ -136,7 +137,7 @@ async function scanTarget(
     if (
       releases.latest &&
       releases.next &&
-      semver.gt(releases.next.version, releases.latest.version)
+      releases.next.version !== releases.latest.version
     ) {
       git.npmPreview = await scanNpmRelease(target, releases.next, generatedAt)
     }

@@ -24,7 +24,6 @@ import {
   writeFileSync,
 } from "node:fs"
 import { basename, join } from "node:path"
-import * as semver from "semver"
 import { z } from "zod"
 import { CATALOG_DESCRIPTION_MAX_LENGTH } from "../plugin/shared/catalog.ts"
 import { inlineMarkdownToPlainText } from "../plugin/shared/inline-markdown.ts"
@@ -421,7 +420,7 @@ export async function scanOne(
         npmPreviewRelease =
           releases.latest &&
           releases.next &&
-          semver.gt(releases.next.version, releases.latest.version)
+          releases.next.version !== releases.latest.version
             ? releases.next
             : undefined
         if (!npmRelease) throw new Error("latest release is unavailable")

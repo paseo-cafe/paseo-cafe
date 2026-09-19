@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { compareCatalogVersions, isValidCatalogVersion } from "./catalog"
+import { isValidCatalogVersion } from "./catalog"
 import {
   compareDirectoryAddedAt,
   compareDirectoryPopularity,
@@ -385,7 +385,7 @@ describe("plugin install targets", () => {
     )
   })
 
-  it("only offers preview updates that move npm installations forward", () => {
+  it("offers a distinct next-tag release as Preview", () => {
     const installation = installedPluginSchema.parse({
       id: "plugin",
       path: "/plugins/plugin",
@@ -409,7 +409,7 @@ describe("plugin install targets", () => {
     expect(isPreviewUpdateAvailable(installation, entry)).toBe(true)
     expect(
       isPreviewUpdateAvailable(
-        { ...installation, version: "1.3.0-next.3" },
+        { ...installation, version: "1.3.0-next.2" },
         entry
       )
     ).toBe(false)
@@ -458,14 +458,6 @@ describe("plugin install targets", () => {
     expect(isValidCatalogVersion("1.2.3-beta.1+build.7")).toBe(true)
     expect(isValidCatalogVersion("1.2.3-01")).toBe(false)
     expect(isValidCatalogVersion("01.2.3")).toBe(false)
-  })
-
-  it("orders stable and prerelease versions by SemVer precedence", () => {
-    expect(compareCatalogVersions("1.0.0-next.2", "1.0.0-next.1")).toBe(1)
-    expect(compareCatalogVersions("1.0.0", "1.0.0-next.9")).toBe(1)
-    expect(compareCatalogVersions("1.0.0-next.1", "1.0.0")).toBe(-1)
-    expect(compareCatalogVersions("1.0.0+build.2", "1.0.0+build.1")).toBe(0)
-    expect(compareCatalogVersions("invalid", "1.0.0")).toBeUndefined()
   })
 
   it("rejects unsafe targets while parsing an untrusted catalog", () => {

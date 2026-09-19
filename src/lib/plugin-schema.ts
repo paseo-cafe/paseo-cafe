@@ -319,7 +319,6 @@ export const pluginRecordSchema = z
         !plugin.npmPreviewSecurity ||
         plugin.npmPreview.package !== plugin.package ||
         plugin.npmPreview.version === plugin.npm.version ||
-        semver.lte(plugin.npmPreview.version, plugin.npm.version) ||
         plugin.npmPreviewSecurity.status !== "passed" ||
         plugin.npmPreviewSecurity.version !== plugin.npmPreview.version ||
         plugin.npmPreviewSecurity.integrity !== plugin.npmPreview.integrity
@@ -328,7 +327,7 @@ export const pluginRecordSchema = z
           code: z.ZodIssueCode.custom,
           path: ["npmPreview"],
           message:
-            "preview source requires a newer npm release with matching passed security metadata",
+            "preview source requires a distinct npm release with matching passed security metadata",
         })
       }
     }

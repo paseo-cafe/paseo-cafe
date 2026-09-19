@@ -661,8 +661,16 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     installationId: string,
     channel: ReleaseChannel
   ): Promise<boolean> => {
-    if (!settingsValues || settingsRevision === null)
-      return channel === "stable"
+    if (!settingsValues || settingsRevision === null) {
+      if (channel === "stable") return true
+      pendingPreviewPreference.current = {
+        installationId,
+        channel,
+        attempts: 0,
+      }
+      await reloadSettings().catch(() => undefined)
+      return false
+    }
     const previewOptIns = applyPreviewPreference(
       settingsValues.previewOptIns,
       installationId,

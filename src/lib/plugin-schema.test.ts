@@ -141,7 +141,6 @@ describe("pluginRecordSchema", () => {
       }).success
     ).toBe(false)
   })
-
   it("accepts a distinct preview with matching passed artifact security", () => {
     const integrity = `sha512-${"a".repeat(86)}`
     const previewIntegrity = `sha512-${"b".repeat(86)}`

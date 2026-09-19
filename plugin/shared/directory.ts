@@ -21,7 +21,6 @@ import {
   compareCatalogPopularity,
   compareCatalogRecency,
   compareCatalogSource,
-  compareCatalogVersions,
   formatCatalogCompactCount,
   formatCatalogDateForReader,
   formatCatalogDownloads,
@@ -794,8 +793,7 @@ export const directoryEntrySchema = z
         !entry.npmPreviewSecurity ||
         entry.npmPreview.package !== entry.package ||
         !entry.npm ||
-        compareCatalogVersions(entry.npmPreview.version, entry.npm.version) !==
-          1 ||
+        entry.npmPreview.version === entry.npm.version ||
         entry.npmPreviewSecurity.status !== "passed" ||
         entry.npmPreviewSecurity.version !== entry.npmPreview.version ||
         entry.npmPreviewSecurity.integrity !== entry.npmPreview.integrity
@@ -804,7 +802,7 @@ export const directoryEntrySchema = z
           code: z.ZodIssueCode.custom,
           path: ["npmPreview"],
           message:
-            "preview source requires a newer npm release with matching passed security metadata",
+            "preview source requires a distinct npm release with matching passed security metadata",
         })
       }
     }
@@ -1077,12 +1075,11 @@ export function isPreviewUpdateAvailable(
   installation: Pick<InstalledPlugin, "source" | "version">,
   entry: Pick<DirectoryEntry, "npmPreview">
 ): boolean {
-  if (installation.source !== "npm" || !entry.npmPreview) return false
-  return (
-    compareCatalogVersions(
-      entry.npmPreview.version,
-      installation.version ?? ""
-    ) === 1
+  return Boolean(
+    installation.source === "npm" &&
+      installation.version &&
+      entry.npmPreview &&
+      installation.version !== entry.npmPreview.version
   )
 }
 
