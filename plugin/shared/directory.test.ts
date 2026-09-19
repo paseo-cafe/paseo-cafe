@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { isValidCatalogVersion } from "./catalog"
+import { getCatalogGalleryImages, isValidCatalogVersion } from "./catalog"
 import {
   compareDirectoryAddedAt,
   compareDirectoryPopularity,
@@ -58,6 +58,28 @@ const validEntry = {
   images: [],
   scannedAt: new Date().toISOString(),
 }
+
+describe("gallery images", () => {
+  it("excludes owner avatar URLs while preserving plugin screenshots", () => {
+    expect(
+      getCatalogGalleryImages(
+        [
+          "https://example.com/plugin-screenshot.png",
+          "https://avatars.githubusercontent.com/u/639682?size=200",
+          "https://github.com/omercnet.png?size=100",
+          "https://github.com/another-owner.png?size=100",
+        ],
+        {
+          login: "OmerCNet",
+          avatarUrl: "https://avatars.githubusercontent.com/u/639682?v=4",
+        }
+      )
+    ).toEqual([
+      "https://example.com/plugin-screenshot.png",
+      "https://github.com/another-owner.png?size=100",
+    ])
+  })
+})
 
 describe("theme preview records", () => {
   const theme = {

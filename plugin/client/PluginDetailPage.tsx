@@ -8,6 +8,7 @@ import {
 } from "@getpaseo/plugin/client/react-native"
 import { useMemo, useState } from "react"
 import { Image, Pressable, Text, View } from "react-native"
+import { getCatalogGalleryImages } from "../shared/catalog"
 import type {
   DirectoryCategory,
   DirectoryEntry,
@@ -85,6 +86,7 @@ export function PluginDetailPage({
     useState<InstalledPlugin | null>(null)
   const [showFullActionError, setShowFullActionError] = useState(false)
   const [showReadme, setShowReadme] = useState(false)
+  const galleryImages = getCatalogGalleryImages(entry.images, entry.owner)
 
   const manifestText = useMemo(
     () =>
@@ -752,7 +754,7 @@ export function PluginDetailPage({
           </View>
         ) : null}
 
-        {entry.images.length > 0 ? (
+        {galleryImages.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.label}>Screenshots</Text>
             <Pressable
@@ -766,7 +768,7 @@ export function PluginDetailPage({
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.galleryContent}
               >
-                {entry.images.slice(0, 3).map((image) => (
+                {galleryImages.slice(0, 3).map((image) => (
                   <Image
                     key={image}
                     accessible={false}

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { VideoEmbedPlayer } from "@/components/video-embed"
 import type { PluginRecord } from "@/lib/plugin-schema"
+import { getCatalogGalleryImages } from "../../plugin/shared/catalog"
 
 // Circular, semi-transparent controls that read against any screenshot,
 // rather than the themed Button component — these sit directly on top of
@@ -40,9 +41,10 @@ function bentoTileClass(index: number, visibleCount: number): string {
 export function MediaGallery({
   plugin,
 }: {
-  plugin: Pick<PluginRecord, "name" | "images" | "videos" | "themes">
+  plugin: Pick<PluginRecord, "name" | "images" | "videos" | "themes" | "owner">
 }) {
-  const { images, themes = [], videos } = plugin
+  const { themes = [], videos } = plugin
+  const images = getCatalogGalleryImages(plugin.images, plugin.owner)
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null)
 
   // The dialog never closes while stepping between images — only the <img>'s

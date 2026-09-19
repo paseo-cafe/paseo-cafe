@@ -2,6 +2,7 @@ import type { PluginTheme } from "@getpaseo/plugin"
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Pressable, Text, View } from "react-native"
+import { getCatalogGalleryImages } from "../shared/catalog"
 import type { DirectoryEntry } from "../shared/directory"
 import { AspectImage } from "./AspectImage"
 import { CAFE_MONO_FONT } from "./visual"
@@ -20,6 +21,7 @@ export function PluginGalleryPage({
   compact,
   onBack,
 }: PluginGalleryPageProps) {
+  const images = getCatalogGalleryImages(entry.images, entry.owner)
   const styles = useMemo(
     () => ({
       screen: { flex: 1, backgroundColor: theme.colors.surface0 },
@@ -66,7 +68,7 @@ export function PluginGalleryPage({
         </Pressable>
         <Text style={styles.title}>Screenshots</Text>
         <View style={styles.images}>
-          {entry.images.map((image) => (
+          {images.map((image) => (
             <AspectImage
               key={image}
               uri={image}

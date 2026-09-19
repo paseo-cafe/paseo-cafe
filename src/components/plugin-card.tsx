@@ -20,6 +20,7 @@ import type { PluginRecord } from "@/lib/plugin-schema"
 import { formatPluginVersion, PLATFORM_LABELS } from "@/lib/registry-schema"
 import {
   formatCatalogCompactCount,
+  getCatalogGalleryImages,
   hasCompleteCatalogNpmMetrics,
 } from "../../plugin/shared/catalog"
 
@@ -39,14 +40,15 @@ export function PluginCard({
     plugin.health.hasTypecheckScript
   const versionLabel = formatPluginVersion(plugin.version)
   const hasNpmMetrics = hasCompleteCatalogNpmMetrics(plugin)
+  const galleryImage = getCatalogGalleryImages(plugin.images, plugin.owner)[0]
 
   return (
     <Link to="/plugins/$id" params={{ id: plugin.id }} className="block">
       <Card className="h-full pt-0 transition-shadow hover:shadow-md">
         <div className="relative aspect-video w-full shrink-0 overflow-hidden border-border border-b bg-muted">
-          {plugin.images[0] ? (
+          {galleryImage ? (
             <img
-              src={plugin.images[0]}
+              src={galleryImage}
               alt=""
               loading="lazy"
               className="h-full w-full object-cover"

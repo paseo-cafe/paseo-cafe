@@ -84,6 +84,26 @@ export function formatCatalogVersion(
   return version ? `v${version}` : undefined
 }
 
+/** Excludes owner profile images that README extraction can mistake for screenshots. */
+export function getCatalogGalleryImages(
+  images: readonly string[],
+  owner: { login?: string; avatarUrl?: string } | undefined
+): string[] {
+  if (!owner) return [...images]
+
+  const ownerAvatar = owner.avatarUrl
+    ? (owner.avatarUrl.split(/[?#]/, 1)[0] ?? "").toLowerCase()
+    : undefined
+  const githubProfileAvatar = owner.login
+    ? `https://github.com/${owner.login}.png`.toLowerCase()
+    : undefined
+
+  return images.filter((image) => {
+    const identity = (image.split(/[?#]/, 1)[0] ?? "").toLowerCase()
+    return identity !== ownerAvatar && identity !== githubProfileAvatar
+  })
+}
+
 export const CATALOG_PLATFORMS = ["macos", "linux", "windows"] as const
 
 export type CatalogPlatform = (typeof CATALOG_PLATFORMS)[number]
