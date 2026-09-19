@@ -161,10 +161,13 @@ function App() {
 
   const themePlugins = useMemo(
     () =>
-      plugins.filter((plugin) =>
-        plugin.categories.some(
-          (category) => normalizeCategory(category) === "theme"
-        )
+      sortPlugins(
+        plugins.filter((plugin) =>
+          plugin.categories.some(
+            (category) => normalizeCategory(category) === "theme"
+          )
+        ),
+        "popular"
       ),
     [plugins]
   )
