@@ -27,6 +27,7 @@ import {
   getInstallRef,
   getRepositoryUrl,
   getRepositoryUrlAtRef,
+  getSelfUpdateRecoveryState,
   getSiteUrl,
   getUpdateCommand,
   getUpdateReviewDetails,
@@ -802,6 +803,7 @@ describe("directory taxonomy and browse settings", () => {
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
       previewOptIns: [],
+      pendingSelfUpdate: null,
     })
   })
 
@@ -821,6 +823,52 @@ describe("directory taxonomy and browse settings", () => {
       "updates-first"
     )
   })
+})
+
+it("reconciles pending self-updates from installed runtime state", () => {
+  const pending = {
+    installationId: "paseo-cafe",
+    source: "npm" as const,
+    targetRevision: "0.6.0",
+    requestedAt: "2026-09-19T12:00:00.000Z",
+  }
+  const installation = installedPluginSchema.parse({
+    id: "paseo-cafe",
+    path: "/tmp/paseo-cafe",
+    enabled: true,
+    status: "running",
+    source: "npm",
+    version: "0.6.0",
+  })
+
+  expect(
+    getSelfUpdateRecoveryState(
+      pending,
+      [installation],
+      Date.parse("2026-09-19T12:00:30.000Z")
+    )
+  ).toBe("succeeded")
+  expect(
+    getSelfUpdateRecoveryState(
+      pending,
+      [{ ...installation, version: "0.5.0" }],
+      Date.parse("2026-09-19T12:01:00.000Z")
+    )
+  ).toBe("pending")
+  expect(
+    getSelfUpdateRecoveryState(
+      pending,
+      [{ ...installation, version: "0.5.0" }],
+      Date.parse("2026-09-19T12:02:00.000Z")
+    )
+  ).toBe("failed")
+  expect(
+    getSelfUpdateRecoveryState(
+      pending,
+      [{ ...installation, status: "failed" }],
+      Date.parse("2026-09-19T12:00:01.000Z")
+    )
+  ).toBe("failed")
 })
 
 describe("directory attachment sources", () => {

@@ -274,10 +274,21 @@ export function migrateDirectorySettings(
  * Settings are host-scoped so catalog selection, browse state, and explicit
  * per-installation Preview subscriptions survive restarts across clients.
  */
+export const SELF_UPDATE_RECOVERY_TIMEOUT_MS = 2 * 60 * 1_000
+
+const pendingSelfUpdateSchema = z.object({
+  installationId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+  source: z.enum(["npm", "git"]),
+  targetRevision: z.string().min(1).max(128),
+  requestedAt: z.iso.datetime({ offset: true }),
+})
+
+export type PendingSelfUpdate = z.infer<typeof pendingSelfUpdateSchema>
+
 export const directorySettings = defineSettings({
   id: "directory-settings",
   scope: "host",
-  version: 4,
+  version: 5,
   schema: z.object({
     directoryUrl: catalogUrlSchema.default(DEFAULT_DIRECTORY_URL),
     browse: directoryBrowseSettingsSchema.default(
@@ -287,6 +298,7 @@ export const directorySettings = defineSettings({
       .array(z.string().regex(/^[a-z][a-z0-9-]*$/))
       .max(500)
       .default([]),
+    pendingSelfUpdate: pendingSelfUpdateSchema.nullable().default(null),
   }),
   migrate: migrateDirectorySettings,
 })
@@ -869,6 +881,30 @@ export const installedPluginSchema = z.object({
 })
 
 export type InstalledPlugin = z.infer<typeof installedPluginSchema>
+
+export function getSelfUpdateRecoveryState(
+  pending: PendingSelfUpdate,
+  installations: readonly InstalledPlugin[],
+  now = Date.now()
+): "pending" | "succeeded" | "failed" {
+  const installation = installations.find(
+    (candidate) => candidate.id === pending.installationId
+  )
+  if (installation?.status === "failed") return "failed"
+  const currentRevision =
+    pending.source === "npm" ? installation?.version : installation?.commit
+  if (
+    installation?.status === "running" &&
+    installation.source === pending.source &&
+    currentRevision?.toLowerCase() === pending.targetRevision.toLowerCase()
+  ) {
+    return "succeeded"
+  }
+  return now - Date.parse(pending.requestedAt) >=
+    SELF_UPDATE_RECOVERY_TIMEOUT_MS
+    ? "failed"
+    : "pending"
+}
 export function getInstallationStateLabel(
   installation: InstalledPlugin
 ): string {
@@ -1065,7 +1101,19 @@ export const directoryUpdateRpc = defineRpc({
     ok: z.boolean(),
     message: z.string(),
     updated: z.boolean().optional(),
+    selfUpdateToken: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
   }),
+})
+
+export const directoryApplySelfUpdateRpc = defineRpc({
+  name: "directory.apply-self-update",
+  input: z.object({
+    token: z.string().regex(/^[0-9a-f]{64}$/),
+  }),
+  output: z.object({ accepted: z.literal(true) }),
 })
 
 // These aliases keep the plugin API stable while sharing the exact validation
