@@ -55,7 +55,7 @@ async function waitFor(
 
 async function main(): Promise<void> {
   const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
-  const home = await mkdtemp(join(tmpdir(), "paseo-cafe-ci-self-update-"))
+  const home = await mkdtemp(join(tmpdir(), "paseo cafe ci self update-"))
   const binDir = join(home, "bin")
   const originalPath = process.env.PATH
   const originalDirectoryUrl = process.env.PASEO_CAFE_DIRECTORY_URL
@@ -142,9 +142,10 @@ async function main(): Promise<void> {
     process.env.PATH = `${binDir}${delimiter}${originalPath ?? ""}`
     process.env.PASEO_CAFE_DIRECTORY_URL = catalogUrl
 
-    daemon = spawn(shim, ["daemon", "run"], {
+    const isWindows = process.platform === "win32"
+    daemon = spawn(isWindows ? `"${shim}"` : shim, ["daemon", "run"], {
       env: process.env,
-      shell: process.platform === "win32",
+      shell: isWindows,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     })
