@@ -397,6 +397,24 @@ export function hasCompleteCatalogNpmMetrics(
   )
 }
 
+export interface CatalogPopularityMetric {
+  source: "npm" | "git"
+  count: number
+}
+
+/** Selects the popularity signal displayed and ranked on both catalog surfaces. */
+export function getCatalogPopularityMetric(
+  entry: CatalogNpmMetrics
+): CatalogPopularityMetric | undefined {
+  if (hasCompleteCatalogNpmMetrics(entry)) {
+    return { source: "npm", count: entry.npm.downloadsLast30Days }
+  }
+  if (entry.repoMeta?.stars !== undefined) {
+    return { source: "git", count: entry.repoMeta.stars }
+  }
+  return undefined
+}
+
 /** npm-backed entries always precede Git-only entries. */
 export function compareCatalogSource(
   a: CatalogNpmMetrics,

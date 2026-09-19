@@ -1286,6 +1286,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
                           preview={preview}
                           theme={theme}
                           compact={layout.compact}
+                          showPopularity
                           onPress={() => openPlugin(entry)}
                         />
                       ))}

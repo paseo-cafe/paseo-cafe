@@ -21,8 +21,36 @@ import { formatPluginVersion, PLATFORM_LABELS } from "@/lib/registry-schema"
 import {
   formatCatalogCompactCount,
   getCatalogGalleryImages,
+  getCatalogPopularityMetric,
   hasCompleteCatalogNpmMetrics,
 } from "../../plugin/shared/catalog"
+
+export function PluginPopularity({ plugin }: { plugin: PluginRecord }) {
+  const popularity = getCatalogPopularityMetric(plugin)
+  if (!popularity) return null
+  const isNpm = popularity.source === "npm"
+
+  return (
+    <span
+      className="flex shrink-0 items-center gap-1 text-foreground/50 text-xs"
+      title={
+        isNpm
+          ? `${popularity.count} npm downloads in the last 30 days`
+          : `${popularity.count} GitHub stars`
+      }
+    >
+      {isNpm ? (
+        <IconDownload className="size-3.5" />
+      ) : (
+        <IconStar className="size-3.5" />
+      )}
+      <span className="sr-only">
+        {isNpm ? "npm downloads in the last 30 days: " : "GitHub stars: "}
+      </span>
+      {isNpm ? formatCatalogCompactCount(popularity.count) : popularity.count}
+    </span>
+  )
+}
 
 /** Shows the catalog listing date only when the results are ordered by it. */
 export function PluginCard({
@@ -71,23 +99,7 @@ export function PluginCard({
         <CardHeader className="gap-2">
           <div className="flex items-center justify-between gap-2">
             <CardTitle>{plugin.name}</CardTitle>
-            {hasNpmMetrics ? (
-              <span
-                className="flex shrink-0 items-center gap-1 text-foreground/50 text-xs"
-                title={`${plugin.npm.downloadsLast30Days} npm downloads in the last 30 days`}
-              >
-                <IconDownload className="size-3.5" />
-                <span className="sr-only">
-                  npm downloads in the last 30 days:{" "}
-                </span>
-                {formatCatalogCompactCount(plugin.npm.downloadsLast30Days)}
-              </span>
-            ) : plugin.repoMeta ? (
-              <span className="flex shrink-0 items-center gap-1 text-foreground/50 text-xs">
-                <IconStar className="size-3.5" />
-                {plugin.repoMeta.stars}
-              </span>
-            ) : null}
+            <PluginPopularity plugin={plugin} />
           </div>
           <CardDescription className="line-clamp-2">
             {plugin.descriptionNodes.length > 0 ? (

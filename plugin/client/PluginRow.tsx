@@ -11,6 +11,7 @@ import {
   formatDirectoryDownloads,
   formatDirectoryVersion,
   getDirectoryAddedDateBadge,
+  getDirectoryPopularityMetric,
   getDirectoryPublishedDateBadge,
   HEALTH_KEYS,
   hasCompleteDirectoryNpmMetrics,
@@ -35,25 +36,25 @@ interface BadgeTone {
   text: string
   color: BadgeColor
 }
-export function getPluginRowPopularity(
-  entry: DirectoryEntry
-): { source: "npm" | "git"; text: string } | undefined {
-  if (hasCompleteDirectoryNpmMetrics(entry)) {
-    return {
-      source: "npm",
-      text: formatDirectoryDownloads(entry.npm.downloadsLast30Days),
+export function getPluginRowPopularity(entry: DirectoryEntry):
+  | {
+      source: "npm" | "git"
+      text: string
+      accessibilityLabel: string
     }
+  | undefined {
+  const popularity = getDirectoryPopularityMetric(entry)
+  if (!popularity) return undefined
+  const text =
+    popularity.source === "npm"
+      ? formatDirectoryDownloads(popularity.count)
+      : formatDirectoryCompactCount(popularity.count)
+  return {
+    source: popularity.source,
+    text,
+    accessibilityLabel:
+      popularity.source === "npm" ? text : `${popularity.count} GitHub stars`,
   }
-  if (
-    !hasCompleteDirectoryNpmMetrics(entry) &&
-    entry.repoMeta?.stars !== undefined
-  ) {
-    return {
-      source: "git",
-      text: formatDirectoryCompactCount(entry.repoMeta.stars),
-    }
-  }
-  return undefined
 }
 
 export function getHealthBadge(entry: DirectoryEntry): BadgeTone | null {
@@ -231,7 +232,7 @@ export function PluginRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`View details for ${entry.name}${statusLabel ? `, ${statusLabel}` : ""}`}
+      accessibilityLabel={`View details for ${entry.name}${statusLabel ? `, ${statusLabel}` : ""}${popularity ? `, ${popularity.accessibilityLabel}` : ""}`}
       style={styles.row}
       onPress={onPress}
     >
