@@ -33,7 +33,6 @@ import {
   directoryUpdateStatusRpc,
   findInstallations,
   getDirectoryThemeHighlights,
-  getSelfUpdateRecoveryState,
   isDefaultDirectoryBrowseView,
   isDirectoryRecencyKnown,
   normalizeDirectoryCategories,
@@ -43,6 +42,10 @@ import { BrandMark } from "./BrandMark"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
 import { PluginRow } from "./PluginRow"
+import {
+  resolveSelfUpdateRecoveryState,
+  startPreparedSelfUpdate,
+} from "./self-update"
 import { ThemePreviewCard } from "./ThemePreviewCard"
 import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 
@@ -296,13 +299,6 @@ type UpdateResult = {
   selfUpdateToken?: string
 }
 
-function isExpectedSelfUpdateRestart(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message.includes("Plugin stopped: paseo-cafe")
-  )
-}
-
 type SortMode = DirectoryBrowseSettings["sort"]
 
 interface SortOption {
@@ -517,6 +513,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     attempts: number
   } | null>(null)
   const reconcilingSelfUpdate = useRef<string | null>(null)
+  const failedSelfUpdateAttempt = useRef<string | null>(null)
 
   const settingsValues = settings.status === "ready" ? settings.values : null
   const settingsRevision =
@@ -731,7 +728,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     ) {
       return
     }
-    const recoveryState = getSelfUpdateRecoveryState(pending, installations)
+    const recoveryState = resolveSelfUpdateRecoveryState(
+      pending,
+      installations,
+      failedSelfUpdateAttempt.current
+    )
     if (recoveryState === "pending") return
 
     reconcilingSelfUpdate.current = pending.requestedAt
@@ -743,6 +744,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         if (!saved) {
           void reloadSettings()
           return
+        }
+        if (failedSelfUpdateAttempt.current === pending.requestedAt) {
+          failedSelfUpdateAttempt.current = null
         }
         if (recoveryState === "succeeded") {
           toast.show(`Paseo Cafe updated to ${pending.targetRevision}.`, {
@@ -900,6 +904,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         }
       }
       if (result.selfUpdateToken) {
+        if (!pendingSelfUpdate) return
         if (!preferenceSaved) {
           const message = `Couldn't save the ${channel} channel preference.`
           setUpdateFailure({ entryId: entry.id, message })
@@ -908,12 +913,14 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           )
           return
         }
-        const applying = applySelfUpdate({ token: result.selfUpdateToken })
-        toast.show("Paseo Cafe update started. It will reload automatically.", {
-          variant: "success",
-        })
-        void applying.catch((error) => {
-          if (isExpectedSelfUpdateRestart(error)) return
+        try {
+          await startPreparedSelfUpdate(applySelfUpdate, result.selfUpdateToken)
+          toast.show(
+            "Paseo Cafe update started. It will reload automatically.",
+            { variant: "success" }
+          )
+        } catch (error) {
+          failedSelfUpdateAttempt.current = pendingSelfUpdate.requestedAt
           setUpdateFailure({
             entryId: entry.id,
             message:
@@ -922,7 +929,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           toast.error(
             `Couldn't start the ${entry.name} update. See details below.`
           )
-        })
+        }
         return
       }
       if (!preferenceSaved) {
