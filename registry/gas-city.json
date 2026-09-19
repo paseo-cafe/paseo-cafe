@@ -1,6 +1,7 @@
 {
   "repo": "omercnet/paseo-plugins",
   "path": "paseo-gas-city",
+  "package": "@omercnet/paseo-gas-city",
   "categories": ["orchestration", "monitoring", "productivity"],
   "caveats": [
     "Requires Paseo 0.8.x",

@@ -1,6 +1,7 @@
 {
   "repo": "omercnet/paseo-plugins",
   "path": "pr-radar",
+  "package": "@omercnet/paseo-pr-radar",
   "categories": ["monitoring", "productivity", "github"],
   "caveats": [
     "Requires an authenticated gh CLI on the daemon host",
