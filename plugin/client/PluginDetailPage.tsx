@@ -947,7 +947,7 @@ export function PluginDetailPage({
               )
               const previewAvailable = Boolean(
                 previewUpdateCommand &&
-                  isPreviewUpdateAvailable(installation, entry)
+                  isPreviewUpdateAvailable(installation, entry, isPreview)
               )
               return (
                 <View key={installation.id} style={styles.installationCard}>

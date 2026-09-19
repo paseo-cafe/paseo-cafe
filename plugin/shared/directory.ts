@@ -21,6 +21,7 @@ import {
   compareCatalogPopularity,
   compareCatalogRecency,
   compareCatalogSource,
+  compareCatalogVersions,
   formatCatalogCompactCount,
   formatCatalogDateForReader,
   formatCatalogDownloads,
@@ -1073,14 +1074,21 @@ export const isValidRef = isValidCatalogRef
 export const getInstallRef = getCatalogInstallRef
 export function isPreviewUpdateAvailable(
   installation: Pick<InstalledPlugin, "source" | "version">,
-  entry: Pick<DirectoryEntry, "npmPreview">
+  entry: Pick<DirectoryEntry, "npmPreview">,
+  currentlyPreview = false
 ): boolean {
-  return Boolean(
-    installation.source === "npm" &&
-      installation.version &&
-      entry.npmPreview &&
-      installation.version !== entry.npmPreview.version
-  )
+  if (
+    installation.source !== "npm" ||
+    !installation.version ||
+    !entry.npmPreview ||
+    installation.version === entry.npmPreview.version
+  ) {
+    return false
+  }
+  return currentlyPreview
+    ? compareCatalogVersions(entry.npmPreview.version, installation.version) ===
+        1
+    : true
 }
 
 export const getRepositoryOwner = getCatalogRepositoryOwner

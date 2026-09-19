@@ -1232,15 +1232,6 @@ export async function updateDirectoryPlugin(
           message: `${input.installationId} already uses ${input.channel} ${release.version}.`,
         }
       }
-      if (
-        input.channel === "preview" &&
-        (!target.version || !semver.gt(release.version, target.version))
-      ) {
-        return {
-          ok: false,
-          message: "Preview updates must move to a newer version.",
-        }
-      }
       version = release.version
     } else {
       if (input.channel === "preview") {

@@ -409,6 +409,21 @@ describe("plugin install targets", () => {
     expect(isPreviewUpdateAvailable(installation, entry)).toBe(true)
     expect(
       isPreviewUpdateAvailable(
+        { ...installation, version: "1.3.0" },
+        entry,
+        false
+      )
+    ).toBe(true)
+    expect(isPreviewUpdateAvailable(installation, entry, true)).toBe(true)
+    expect(
+      isPreviewUpdateAvailable(
+        { ...installation, version: "1.3.0-next.3" },
+        entry,
+        true
+      )
+    ).toBe(false)
+    expect(
+      isPreviewUpdateAvailable(
         { ...installation, version: "1.3.0-next.2" },
         entry
       )
