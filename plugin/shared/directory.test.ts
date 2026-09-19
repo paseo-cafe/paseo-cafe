@@ -21,6 +21,7 @@ import {
   directoryUpdateStatusRpc,
   formatDirectoryCompactCount,
   getDirectoryAddedDateBadge,
+  getDirectoryThemeHighlights,
   getInstallationStateLabel,
   getInstallCommand,
   getInstallRef,
@@ -76,6 +77,27 @@ describe("theme preview records", () => {
       directoryEntrySchema.parse({ ...validEntry, themes: [theme] }).themes
     ).toEqual([theme])
     expect(directoryEntrySchema.parse(validEntry).themes).toEqual([])
+  })
+
+  it("caps non-virtualized highlights while preserving catalog order", () => {
+    const entry = (id: string) =>
+      directoryEntrySchema.parse({
+        ...validEntry,
+        id,
+        repo: `owner/${id}`,
+        url: `https://github.com/owner/${id}`,
+        themes: Array.from({ length: 4 }, (_, index) => ({
+          ...theme,
+          id: `${id}-${index}`,
+        })),
+      })
+
+    expect(
+      getDirectoryThemeHighlights([entry("first"), entry("second")], 5).map(
+        ({ preview }) => preview.id
+      )
+    ).toEqual(["first-0", "first-1", "first-2", "first-3", "second-0"])
+    expect(getDirectoryThemeHighlights([entry("first")], 0)).toEqual([])
   })
 
   it("rejects a palette that cannot render consistently across clients", () => {

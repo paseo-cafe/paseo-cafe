@@ -60,6 +60,27 @@ describe("extractThemePreviews", () => {
     ])
   })
 
+  it("resolves shadowed palette names from the nearest lexical scope", () => {
+    const result = extractThemePreviews(`
+      function validTheme(client: PluginClientContext) {
+        const palette = ${darkColors}
+        client.addTheme({
+          id: "valid",
+          name: "Valid",
+          appearance: "dark",
+          colors: palette,
+        })
+      }
+
+      function unrelatedHelper() {
+        const palette = buildColors()
+        return palette
+      }
+    `)
+
+    expect(result.map(({ id }) => id)).toEqual(["valid"])
+  })
+
   it("ignores computed or malformed contributions instead of executing them", () => {
     expect(
       extractThemePreviews(`

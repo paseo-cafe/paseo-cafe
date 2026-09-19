@@ -6,6 +6,18 @@ import {
 import { pluginThemePreviewSchema } from "../src/lib/plugin-schema"
 
 type StaticValue = string | StaticValue[] | { [key: string]: StaticValue }
+
+interface StaticBinding {
+  initializer: ts.Expression
+  scope: StaticScope
+}
+
+interface StaticScope {
+  parent?: StaticScope
+  declarations: Map<string, StaticBinding>
+  values: Map<string, StaticValue>
+}
+
 const MAX_THEME_SOURCE_LENGTH = 512 * 1_024
 
 /**
@@ -23,24 +35,34 @@ export function extractThemePreviews(source: string): CatalogThemePreview[] {
     true,
     ts.ScriptKind.TSX
   )
-  const declarations = new Map<string, ts.Expression>()
 
-  function collectDeclarations(node: ts.Node): void {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.initializer
-    ) {
-      declarations.set(node.name.text, node.initializer)
+  function scopeForStatements(
+    statements: ts.NodeArray<ts.Statement>,
+    parent?: StaticScope
+  ): StaticScope {
+    const scope: StaticScope = {
+      parent,
+      declarations: new Map(),
+      values: new Map(),
     }
-    ts.forEachChild(node, collectDeclarations)
+    for (const statement of statements) {
+      if (!ts.isVariableStatement(statement)) continue
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.initializer) {
+          scope.declarations.set(declaration.name.text, {
+            initializer: declaration.initializer,
+            scope,
+          })
+        }
+      }
+    }
+    return scope
   }
-  collectDeclarations(file)
 
   function evaluate(
     node: ts.Expression,
-    scope: ReadonlyMap<string, StaticValue>,
-    resolving = new Set<string>()
+    scope: StaticScope,
+    resolving = new Set<ts.Expression>()
   ): StaticValue | undefined {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       return node.text
@@ -54,13 +76,20 @@ export function extractThemePreviews(source: string): CatalogThemePreview[] {
       return evaluate(node.expression, scope, resolving)
     }
     if (ts.isIdentifier(node)) {
-      const scoped = scope.get(node.text)
-      if (scoped !== undefined) return scoped
-      const initializer = declarations.get(node.text)
-      if (!initializer || resolving.has(node.text)) return undefined
-      const nextResolving = new Set(resolving)
-      nextResolving.add(node.text)
-      return evaluate(initializer, scope, nextResolving)
+      let current: StaticScope | undefined = scope
+      while (current) {
+        const value = current.values.get(node.text)
+        if (value !== undefined) return value
+        const binding = current.declarations.get(node.text)
+        if (binding) {
+          if (resolving.has(binding.initializer)) return undefined
+          const nextResolving = new Set(resolving)
+          nextResolving.add(binding.initializer)
+          return evaluate(binding.initializer, binding.scope, nextResolving)
+        }
+        current = current.parent
+      }
+      return undefined
     }
     if (ts.isArrayLiteralExpression(node)) {
       const values: StaticValue[] = []
@@ -114,7 +143,13 @@ export function extractThemePreviews(source: string): CatalogThemePreview[] {
 
   const previews: CatalogThemePreview[] = []
 
-  function visit(node: ts.Node, scope: ReadonlyMap<string, StaticValue>): void {
+  function visit(node: ts.Node, scope: StaticScope): void {
+    if (ts.isSourceFile(node) || ts.isBlock(node)) {
+      const blockScope = scopeForStatements(node.statements, scope)
+      for (const statement of node.statements) visit(statement, blockScope)
+      return
+    }
+
     if (
       ts.isForOfStatement(node) &&
       ts.isVariableDeclarationList(node.initializer)
@@ -127,8 +162,11 @@ export function extractThemePreviews(source: string): CatalogThemePreview[] {
         Array.isArray(iterable)
       ) {
         for (const item of iterable) {
-          const loopScope = new Map(scope)
-          loopScope.set(declaration.name.text, item)
+          const loopScope: StaticScope = {
+            parent: scope,
+            declarations: new Map(),
+            values: new Map([[declaration.name.text, item]]),
+          }
           visit(node.statement, loopScope)
         }
         return
@@ -148,7 +186,12 @@ export function extractThemePreviews(source: string): CatalogThemePreview[] {
 
     ts.forEachChild(node, (child) => visit(child, scope))
   }
-  visit(file, new Map())
+
+  const rootScope: StaticScope = {
+    declarations: new Map(),
+    values: new Map(),
+  }
+  visit(file, rootScope)
   return Array.from(
     new Map(previews.map((preview) => [preview.id, preview])).values()
   ).slice(0, CATALOG_THEME_MAX_PER_PLUGIN)

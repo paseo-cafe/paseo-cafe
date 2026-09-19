@@ -624,6 +624,20 @@ export const directoryEntrySchema = z
 
 export type DirectoryEntry = z.infer<typeof directoryEntrySchema>
 
+/** Bounds theme cards rendered outside the virtualized directory list. */
+export function getDirectoryThemeHighlights(
+  entries: readonly DirectoryEntry[],
+  limit: number
+): Array<{
+  entry: DirectoryEntry
+  preview: DirectoryEntry["themes"][number]
+}> {
+  if (limit <= 0) return []
+  return entries
+    .flatMap((entry) => entry.themes.map((preview) => ({ entry, preview })))
+    .slice(0, limit)
+}
+
 export const installedPluginSchema = z.object({
   id: z.string(),
   path: z.string(),

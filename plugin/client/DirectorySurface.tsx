@@ -30,6 +30,7 @@ import {
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
   findInstallations,
+  getDirectoryThemeHighlights,
   isDefaultDirectoryBrowseView,
   isDirectoryRecencyKnown,
   normalizeDirectoryCategories,
@@ -906,11 +907,10 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   )
   const themeHighlights = useMemo(
     () =>
-      defaultBrowseState
-        ? plugins.flatMap((entry) =>
-            entry.themes.map((preview) => ({ entry, preview }))
-          )
-        : [],
+      getDirectoryThemeHighlights(
+        plugins,
+        defaultBrowseState ? FEATURED_LIMIT : 0
+      ),
     [defaultBrowseState, plugins]
   )
 
