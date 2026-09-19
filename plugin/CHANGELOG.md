@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.6.0...v0.7.0) (2026-09-19)
+
+
+### Features
+
+* **plugin:** add npm preview release channel ([#171](https://github.com/paseo-cafe/paseo-cafe/issues/171)) ([0a3de4f](https://github.com/paseo-cafe/paseo-cafe/commit/0a3de4f298e7d8366cd7336a69edaffba56ef90a))
+* **plugin:** add theme gallery and previews ([#170](https://github.com/paseo-cafe/paseo-cafe/issues/170)) ([a05bd06](https://github.com/paseo-cafe/paseo-cafe/commit/a05bd0695374c52dce41cf4738ef5623a09d77da))
+* **plugin:** align theme gallery popularity ([#175](https://github.com/paseo-cafe/paseo-cafe/issues/175)) ([815e88e](https://github.com/paseo-cafe/paseo-cafe/commit/815e88e40cc5d78c724622747443b0f8ee59c7b9))
+
+
+### Bug Fixes
+
+* **catalog:** exclude owner avatars from galleries ([#173](https://github.com/paseo-cafe/paseo-cafe/issues/173)) ([00340bb](https://github.com/paseo-cafe/paseo-cafe/commit/00340bb5d2de07066e5c154eef5265ffc0abe46a))
+* **catalog:** render markdown links in plugin descriptions ([#158](https://github.com/paseo-cafe/paseo-cafe/issues/158)) ([6ffbdb9](https://github.com/paseo-cafe/paseo-cafe/commit/6ffbdb9d502bd9bd04f7e121feb8e7f3d0ba66af))
+
 ## [0.6.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.5.0...v0.6.0) (2026-09-19)
 
 
