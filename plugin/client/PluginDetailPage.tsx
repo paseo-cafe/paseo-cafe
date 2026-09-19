@@ -980,83 +980,50 @@ export function PluginDetailPage({
                   {stableAvailable || previewAvailable ? (
                     <View style={styles.actionsRow}>
                       {stableAvailable && stableUpdateCommand ? (
-                        entry.id === "paseo-cafe" ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Copy stable update command for ${installation.id}`}
-                            style={styles.secondaryButton}
-                            onPress={async () => {
-                              await copyText(stableUpdateCommand)
-                              toast.show("Copied stable update command")
-                            }}
-                          >
-                            <Text style={styles.secondaryButtonText}>
-                              Copy stable update command
-                            </Text>
-                          </Pressable>
-                        ) : (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`${isPreview ? "Return" : "Update"} ${entry.name} installation ${installation.id} to stable ${entry.version ?? "version"}`}
-                            accessibilityState={{ disabled: actionPending }}
-                            disabled={actionPending}
-                            style={styles.button}
-                            onPress={() =>
-                              setConfirmingUpdate({
-                                installation,
-                                channel: "stable",
-                              })
-                            }
-                          >
-                            <Text style={styles.buttonText}>
-                              {updatingId === installation.id
-                                ? "Updating…"
-                                : isPreview
-                                  ? `Return to stable ${versionLabel ?? ""}`.trim()
-                                  : `Update to stable ${versionLabel ?? ""}`.trim()}
-                            </Text>
-                          </Pressable>
-                        )
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${isPreview ? "Return" : "Update"} ${entry.name} installation ${installation.id} to stable ${entry.version ?? "version"}`}
+                          accessibilityState={{ disabled: actionPending }}
+                          disabled={actionPending}
+                          style={styles.button}
+                          onPress={() =>
+                            setConfirmingUpdate({
+                              installation,
+                              channel: "stable",
+                            })
+                          }
+                        >
+                          <Text style={styles.buttonText}>
+                            {updatingId === installation.id
+                              ? "Updating…"
+                              : isPreview
+                                ? `Return to stable ${versionLabel ?? ""}`.trim()
+                                : `Update to stable ${versionLabel ?? ""}`.trim()}
+                          </Text>
+                        </Pressable>
                       ) : null}
                       {previewAvailable && entry.npmPreview ? (
-                        entry.id === "paseo-cafe" ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Copy preview update command for ${installation.id}`}
-                            style={styles.secondaryButton}
-                            onPress={async () => {
-                              if (!previewUpdateCommand) return
-                              await copyText(previewUpdateCommand)
-                              toast.show("Copied preview update command")
-                            }}
-                          >
-                            <Text style={styles.secondaryButtonText}>
-                              Copy preview update command
-                            </Text>
-                          </Pressable>
-                        ) : (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Update ${entry.name} installation ${installation.id} to Preview ${entry.npmPreview.version}`}
-                            accessibilityState={{ disabled: actionPending }}
-                            disabled={actionPending}
-                            style={styles.secondaryButton}
-                            onPress={() =>
-                              setConfirmingUpdate({
-                                installation,
-                                channel: "preview",
-                              })
-                            }
-                          >
-                            <Text style={styles.secondaryButtonText}>
-                              {updatingId === installation.id
-                                ? "Updating…"
-                                : isPreview
-                                  ? `Update preview to v${entry.npmPreview.version}`
-                                  : `Use preview v${entry.npmPreview.version}`}
-                            </Text>
-                          </Pressable>
-                        )
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Update ${entry.name} installation ${installation.id} to Preview ${entry.npmPreview.version}`}
+                          accessibilityState={{ disabled: actionPending }}
+                          disabled={actionPending}
+                          style={styles.secondaryButton}
+                          onPress={() =>
+                            setConfirmingUpdate({
+                              installation,
+                              channel: "preview",
+                            })
+                          }
+                        >
+                          <Text style={styles.secondaryButtonText}>
+                            {updatingId === installation.id
+                              ? "Updating…"
+                              : isPreview
+                                ? `Update preview to v${entry.npmPreview.version}`
+                                : `Use preview v${entry.npmPreview.version}`}
+                          </Text>
+                        </Pressable>
                       ) : null}
                     </View>
                   ) : null}
