@@ -1,7 +1,20 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { execFile as executeFile } from "node:child_process"
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
+import { pathToFileURL } from "node:url"
+import { promisify } from "node:util"
 import { afterEach, describe, expect, it, vi } from "vitest"
+
+const executeFileAsync = promisify(executeFile)
+
 import type { InstalledPlugin } from "../shared/directory"
 import {
   DEFAULT_DIRECTORY_URL,
@@ -9,6 +22,7 @@ import {
   installedPluginSchema,
 } from "../shared/directory"
 import {
+  applyDirectorySelfUpdate,
   buildInstallArgs,
   buildPaseoInvocation,
   buildUpdateArgs,
@@ -1039,33 +1053,168 @@ describe("update target validation", () => {
   })
 })
 
-it("refuses to update Paseo Cafe from its own running process", async () => {
+it("prepares and consumes a one-use Paseo Cafe self-update", async () => {
   const catalogUrl = "https://catalog.example.test/self-update"
-  globalThis.fetch = vi.fn(async () =>
-    Response.json({
-      generatedAt: "2026-09-19T00:00:00.000Z",
-      plugins: [
-        plugin({
-          id: "paseo-cafe",
-          repo: "paseo-cafe/paseo-cafe",
-        }),
-      ],
-    })
-  ) as typeof fetch
-
-  const result = await updateDirectoryPlugin(
-    {
-      entryId: "paseo-cafe",
-      installationId: "paseo-cafe",
-      channel: "stable",
-      expectedRepo: "paseo-cafe/paseo-cafe",
-    },
-    catalogUrl
+  const integrity = `sha512-${"a".repeat(86)}`
+  const root = await mkdtemp(join(tmpdir(), "paseo-cafe-self-update-"))
+  const binDir = join(root, "bin")
+  const installationPath = join(root, "installed")
+  const originalPath = process.env.PATH
+  await mkdir(binDir)
+  await mkdir(installationPath)
+  await writeFile(
+    join(installationPath, "package.json"),
+    JSON.stringify({ version: "0.5.0" })
   )
+  const inventory = [
+    {
+      id: "paseo-cafe",
+      path: installationPath,
+      enabled: true,
+      status: "running",
+      installation: {
+        identity: {
+          kind: "npm",
+          packageName: "paseo-cafe",
+          pluginPath: ".",
+        },
+        currentRevision: "0.5.0",
+      },
+    },
+  ]
+  const shim = join(
+    binDir,
+    process.platform === "win32" ? "paseo.cmd" : "paseo"
+  )
+  const shimScript = join(root, "paseo-shim.cjs")
+  const shimProgram = [
+    `const args = process.argv.slice(2)`,
+    `if (JSON.stringify(args) === JSON.stringify(["plugin", "ls", "--json"])) console.log(${JSON.stringify(JSON.stringify(inventory))})`,
+    `else { console.error("unexpected args: " + JSON.stringify(args)); process.exit(2) }`,
+  ].join(";")
 
-  expect(result.ok).toBe(false)
-  expect(result.message).toContain("outside the running plugin")
-})
+  try {
+    await writeFile(shimScript, shimProgram, "utf8")
+    await writeFile(
+      shim,
+      process.platform === "win32"
+        ? `@echo off\r\n"${process.execPath}" "${shimScript}" %*\r\n`
+        : `#!/bin/sh\nexec "${process.execPath}" "${shimScript}" "$@"\n`,
+      "utf8"
+    )
+    if (process.platform !== "win32") await chmod(shim, 0o755)
+    process.env.PATH = `${binDir}${delimiter}${originalPath ?? ""}`
+    globalThis.fetch = vi.fn(async () =>
+      Response.json({
+        generatedAt: "2026-09-19T00:00:00.000Z",
+        plugins: [
+          plugin({
+            id: "paseo-cafe",
+            repo: "paseo-cafe/paseo-cafe",
+            path: "plugin",
+            package: "paseo-cafe",
+            version: "0.6.0",
+            npm: { package: "paseo-cafe", version: "0.6.0", integrity },
+            npmSecurity: {
+              status: "passed",
+              blockingFindings: 0,
+              advisoryFindings: 0,
+              version: "0.6.0",
+              integrity,
+            },
+          }),
+        ],
+      })
+    ) as typeof fetch
+
+    const prepareSelfUpdate = (expectedIntegrity = integrity) =>
+      updateDirectoryPlugin(
+        {
+          entryId: "paseo-cafe",
+          installationId: "paseo-cafe",
+          channel: "stable",
+          expectedRepo: "paseo-cafe/paseo-cafe",
+          expectedPath: "plugin",
+          expectedPackage: "paseo-cafe",
+          expectedVersion: "0.6.0",
+          expectedIntegrity,
+        },
+        catalogUrl
+      )
+    await expect(
+      prepareSelfUpdate(`sha512-${"b".repeat(86)}`)
+    ).resolves.toEqual({
+      ok: false,
+      message: "The catalog release changed. Refresh and review it again.",
+    })
+    const result = await prepareSelfUpdate()
+
+    expect(result).toMatchObject({
+      ok: true,
+      message: "Paseo Cafe update is ready to start.",
+      selfUpdateToken: expect.stringMatching(/^[0-9a-f]{64}$/),
+    })
+    const startUpdate = vi.fn(async () => undefined)
+    const token = result.selfUpdateToken
+    if (!token) throw new Error("missing self-update token")
+    await expect(
+      applyDirectorySelfUpdate({ token }, startUpdate)
+    ).resolves.toEqual({ accepted: true })
+    expect(startUpdate).toHaveBeenCalledWith([
+      "plugin",
+      "update",
+      "paseo-cafe",
+      "--version",
+      "0.6.0",
+      "--json",
+    ])
+    await expect(
+      applyDirectorySelfUpdate({ token }, startUpdate)
+    ).rejects.toThrow("expired")
+
+    const failedLaunch = await prepareSelfUpdate()
+    if (!failedLaunch.selfUpdateToken) {
+      throw new Error("missing failed-launch self-update token")
+    }
+    await expect(prepareSelfUpdate()).resolves.toEqual({
+      ok: true,
+      message: "Paseo Cafe update is ready to start.",
+      selfUpdateToken: failedLaunch.selfUpdateToken,
+    })
+    const rejectStart = vi.fn(async () => {
+      throw new Error("spawn failed")
+    })
+    await expect(
+      applyDirectorySelfUpdate(
+        { token: failedLaunch.selfUpdateToken },
+        rejectStart
+      )
+    ).rejects.toThrow("spawn failed")
+    await expect(
+      applyDirectorySelfUpdate(
+        { token: failedLaunch.selfUpdateToken },
+        startUpdate
+      )
+    ).rejects.toThrow("expired")
+
+    const expired = await prepareSelfUpdate()
+    if (!expired.selfUpdateToken) {
+      throw new Error("missing expiring self-update token")
+    }
+    const createdAt = Date.now()
+    const now = vi.spyOn(Date, "now").mockReturnValue(createdAt + 60_001)
+    const expiredStart = vi.fn(async () => undefined)
+    await expect(
+      applyDirectorySelfUpdate({ token: expired.selfUpdateToken }, expiredStart)
+    ).rejects.toThrow("expired")
+    expect(expiredStart).not.toHaveBeenCalled()
+    now.mockRestore()
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH
+    else process.env.PATH = originalPath
+    await rm(root, { recursive: true, force: true })
+  }
+}, 20_000)
 describe("update command compatibility", () => {
   it("uses each generation's update arguments and response shape", () => {
     expect(buildUpdateArgs("review", "legacy", "git", LATEST)).toEqual([
@@ -1141,12 +1290,12 @@ describe("Paseo CLI invocation", () => {
   })
 
   it("quotes the npm command shim invocation on Windows", () => {
-    // The extra outer pair and the verbatim flag are only correct together:
-    // cmd.exe /s eats that pair, and node would rewrite it as \" without the
-    // flag. Assert both, since no CI runner executes this branch.
+    // The extra outer pair and verbatim flag must travel together because
+    // cmd.exe /s strips that pair before resolving the npm command shim.
     expect(
       buildPaseoInvocation(["plugin", "update", "review", "--json"], "win32", {
         ComSpec: "C:\\Windows\\system32\\cmd.exe",
+        Electron_Run_As_Node: "1",
       })
     ).toEqual({
       executable: "C:\\Windows\\system32\\cmd.exe",
@@ -1186,6 +1335,69 @@ describe("Paseo CLI invocation", () => {
       if (originalPath === undefined) delete process.env.PATH
       else process.env.PATH = originalPath
       await rm(binDir, { recursive: true, force: true })
+    }
+  }, 20_000)
+
+  it("keeps a detached update alive after its plugin process exits", async () => {
+    const root = await mkdtemp(join(tmpdir(), "paseo-detached-update-"))
+    const binDir = join(root, "bin")
+    const marker = join(root, "updated.json")
+    const directoryModule = pathToFileURL(
+      join(process.cwd(), "server", "directory.ts")
+    ).href
+    const parentDone = join(root, "parent-exited")
+    const target = join(root, "target.cjs")
+    const runner = join(root, "runner.ts")
+    const isWindows = process.platform === "win32"
+    const shim = join(binDir, isWindows ? "paseo.cmd" : "paseo")
+    const args = [
+      "plugin",
+      "update",
+      "paseo-cafe",
+      "--version",
+      "0.6.0",
+      "--json",
+    ]
+    await mkdir(binDir)
+    try {
+      await writeFile(
+        target,
+        `const { existsSync, watch, writeFileSync } = require("node:fs"); const { basename, dirname } = require("node:path"); const done = process.env.DETACHED_PARENT_DONE; const finish = () => writeFileSync(process.env.DETACHED_MARKER, JSON.stringify(process.argv.slice(2))); if (existsSync(done)) finish(); else { const watcher = watch(dirname(done), (_event, file) => { if (file !== basename(done) || !existsSync(done)) return; watcher.close(); finish(); }); }`,
+        "utf8"
+      )
+      const node = `"${process.execPath}"`
+      await writeFile(
+        shim,
+        isWindows
+          ? `@echo off\r\n${node} "${target}" %*\r\n`
+          : `#!/bin/sh\nexec ${node} "${target}" "$@"\n`,
+        "utf8"
+      )
+      if (!isWindows) await chmod(shim, 0o755)
+      await writeFile(
+        runner,
+        `import { startDetachedPaseo } from ${JSON.stringify(directoryModule)}; await startDetachedPaseo(${JSON.stringify(args)});`,
+        "utf8"
+      )
+      await executeFileAsync("bun", [runner], {
+        timeout: 10_000,
+        env: {
+          ...process.env,
+          PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+          DETACHED_MARKER: marker,
+          DETACHED_PARENT_DONE: parentDone,
+        },
+      })
+      await expect(readFile(marker, "utf8")).rejects.toThrow()
+      await writeFile(parentDone, "done", "utf8")
+      await vi.waitFor(
+        async () => {
+          expect(JSON.parse(await readFile(marker, "utf8"))).toEqual(args)
+        },
+        { timeout: 5_000, interval: 25 }
+      )
+    } finally {
+      await rm(root, { recursive: true, force: true })
     }
   }, 20_000)
 

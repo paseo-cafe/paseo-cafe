@@ -1,5 +1,5 @@
-import { execFile } from "node:child_process"
-import { createHash } from "node:crypto"
+import { execFile, spawn } from "node:child_process"
+import { createHash, randomBytes } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -15,6 +15,7 @@ import {
 } from "../shared/catalog"
 import type {
   DirectoryEntry,
+  directoryApplySelfUpdateRpc,
   directoryInstallRpc,
   directoryListRpc,
   directoryManifestSearchRpc,
@@ -45,6 +46,10 @@ const execFileAsync = promisify(execFile)
 const CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_INSTALL_ERROR_LENGTH = 32_000
 export const MAX_DIRECTORY_RESPONSE_BYTES = 16 * 1_024 * 1_024
+const SELF_UPDATE_TOKEN_TTL_MS = 60_000
+let pendingSelfUpdate:
+  | { token: string; args: readonly string[]; expiresAt: number }
+  | undefined
 const ANSI_ESCAPE_PATTERN = new RegExp(
   `${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`,
   "g"
@@ -133,7 +138,13 @@ export function buildPaseoInvocation(
   // A plugin subprocess launched by the packaged Electron app inherits this.
   // Passing it back to the AppImage makes Electron treat "plugin" as a Node
   // entrypoint instead of dispatching the Paseo CLI.
-  delete childEnv.ELECTRON_RUN_AS_NODE
+  if (platform === "win32") {
+    for (const key of Object.keys(childEnv)) {
+      if (key.toUpperCase() === "ELECTRON_RUN_AS_NODE") delete childEnv[key]
+    }
+  } else {
+    delete childEnv.ELECTRON_RUN_AS_NODE
+  }
   if (platform !== "win32") {
     return {
       executable: "paseo",
@@ -179,6 +190,38 @@ export async function execPaseo(args: readonly string[], timeout: number) {
     env: invocation.env,
     windowsVerbatimArguments: invocation.windowsVerbatimArguments,
   })
+}
+
+export async function startDetachedPaseo(
+  args: readonly string[]
+): Promise<void> {
+  const invocation = buildPaseoInvocation(args)
+  const child = spawn(invocation.executable, invocation.args, {
+    detached: true,
+    stdio: "ignore",
+    env: invocation.env,
+    windowsVerbatimArguments: invocation.windowsVerbatimArguments,
+    windowsHide: true,
+  })
+  await new Promise<void>((resolve, reject) => {
+    child.once("spawn", resolve)
+    child.once("error", reject)
+  })
+  child.unref()
+}
+
+export async function applyDirectorySelfUpdate(
+  input: RpcInput<typeof directoryApplySelfUpdateRpc>,
+  startUpdate: (args: readonly string[]) => Promise<void> = startDetachedPaseo
+): Promise<RpcOutput<typeof directoryApplySelfUpdateRpc>> {
+  const pending =
+    pendingSelfUpdate?.token === input.token ? pendingSelfUpdate : undefined
+  if (pending) pendingSelfUpdate = undefined
+  if (!pending || pending.expiresAt < Date.now()) {
+    throw new Error("Self-update request expired. Review the update again.")
+  }
+  await startUpdate(pending.args)
+  return { accepted: true }
 }
 export function supportsReviewedPluginManagement(versionText: string): boolean {
   const version = semver.valid(versionText.trim())
@@ -1191,12 +1234,6 @@ export async function updateDirectoryPlugin(
         message: "The catalog source changed. Refresh and review it again.",
       }
     }
-    if (entry.id === "paseo-cafe") {
-      return {
-        ok: false,
-        message: `Update Paseo Cafe outside the running plugin: paseo plugin update ${input.installationId}`,
-      }
-    }
     const installed = await listInstalledPlugins()
     const target = findInstallations(entry, installed).find(
       (installation) =>
@@ -1270,16 +1307,46 @@ export async function updateDirectoryPlugin(
       commit = entry.security.commit
     }
 
-    const { stdout } = await execPaseo(
-      buildUpdateArgs(
-        input.installationId,
-        target.management,
-        target.source,
-        commit,
-        version
-      ),
-      120_000
+    const updateArgs = buildUpdateArgs(
+      input.installationId,
+      target.management,
+      target.source,
+      commit,
+      version
     )
+    if (entry.id === "paseo-cafe") {
+      const now = Date.now()
+      if (pendingSelfUpdate && pendingSelfUpdate.expiresAt >= now) {
+        const sameTarget =
+          pendingSelfUpdate.args.length === updateArgs.length &&
+          pendingSelfUpdate.args.every(
+            (arg, index) => arg === updateArgs[index]
+          )
+        return sameTarget
+          ? {
+              ok: true,
+              message: "Paseo Cafe update is ready to start.",
+              selfUpdateToken: pendingSelfUpdate.token,
+            }
+          : {
+              ok: false,
+              message: "Another Paseo Cafe update is awaiting confirmation.",
+            }
+      }
+      const selfUpdateToken = randomBytes(32).toString("hex")
+      pendingSelfUpdate = {
+        token: selfUpdateToken,
+        args: updateArgs,
+        expiresAt: now + SELF_UPDATE_TOKEN_TTL_MS,
+      }
+      return {
+        ok: true,
+        message: "Paseo Cafe update is ready to start.",
+        selfUpdateToken,
+      }
+    }
+
+    const { stdout } = await execPaseo(updateArgs, 120_000)
     updateStatusCache.clear()
     return parsePluginUpdateResult(
       stdout,

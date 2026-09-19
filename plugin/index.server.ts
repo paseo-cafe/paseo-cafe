@@ -1,5 +1,6 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server"
 import {
+  applyDirectorySelfUpdate,
   installDirectoryPlugin,
   listDirectory,
   listDirectoryUpdateStatus,
@@ -10,6 +11,7 @@ import {
   updateDirectoryPlugin,
 } from "./server/directory"
 import {
+  directoryApplySelfUpdateRpc,
   directoryInstallRpc,
   directoryListRpc,
   directoryManifestSearchRpc,
@@ -65,6 +67,9 @@ export default function contribute(server: PluginServerContext) {
   )
   server.handle(directoryUpdateRpc, async (input) =>
     updateDirectoryPlugin(input, await directoryUrl())
+  )
+  server.handle(directoryApplySelfUpdateRpc, (input) =>
+    applyDirectorySelfUpdate(input)
   )
   return () => {}
 }

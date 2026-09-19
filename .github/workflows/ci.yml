@@ -182,6 +182,12 @@ jobs:
         working-directory: plugin
         run: npm run test
 
+      - name: Install Paseo CLI for self-update integration
+        run: npm install --global @getpaseo/cli@0.9.0-beta.2 --no-audit --no-fund
+
+      - name: Test self-update against an isolated daemon
+        working-directory: plugin
+        run: bun run server/self-update.integration.ts
   plugin-preview:
     name: Publish plugin preview
     needs: [changes, plugin]
