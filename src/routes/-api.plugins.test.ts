@@ -69,6 +69,20 @@ describe("GET /api/plugins", () => {
         version: "1.2.3",
         integrity: `sha512-${"b".repeat(86)}`,
       },
+      npmPreview: {
+        package: "@example/adversarial",
+        version: "1.2.3-next.1",
+        integrity: `sha512-${"p".repeat(40_000)}`,
+        publishedAt: "2026-09-10T12:00:00.000Z",
+        distTag: "next",
+      },
+      npmPreviewSecurity: {
+        status: "passed",
+        blockingFindings: 0,
+        advisoryFindings: 1,
+        version: "1.2.3-next.1",
+        integrity: `sha512-${"p".repeat(40_000)}`,
+      },
       manifest: { payload: "m".repeat(100_000) },
       categories: [],
       platforms: [],
@@ -121,6 +135,8 @@ describe("GET /api/plugins", () => {
       downloadsLast30Days: 1_234,
     })
     expect(projected.npmSecurity).toMatchObject({ status: "passed" })
+    expect(projected).not.toHaveProperty("npmPreview")
+    expect(projected).not.toHaveProperty("npmPreviewSecurity")
     expect(projected.readmeText).toBe(
       readmeText.slice(0, MAX_API_README_TEXT_LENGTH)
     )

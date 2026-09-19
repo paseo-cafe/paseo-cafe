@@ -177,10 +177,6 @@ export function projectPluginForDirectory(
     scannedAt: boundedString(plugin.scannedAt, 100),
     ...(plugin.addedAt ? { addedAt: plugin.addedAt } : {}),
     ...(plugin.npmSecurity ? { npmSecurity: plugin.npmSecurity } : {}),
-    ...(plugin.npmPreview ? { npmPreview: plugin.npmPreview } : {}),
-    ...(plugin.npmPreviewSecurity
-      ? { npmPreviewSecurity: plugin.npmPreviewSecurity }
-      : {}),
     ...(plugin.path ? { path: plugin.path } : {}),
     ...(version !== undefined ? { version } : {}),
     ...(security ? { security } : {}),
@@ -197,6 +193,15 @@ export function projectPluginForDirectory(
     if (previous === undefined) delete projected[key]
     else projected[key] = previous
     return false
+  }
+
+  if (plugin.npmPreview && plugin.npmPreviewSecurity) {
+    projected.npmPreview = plugin.npmPreview
+    projected.npmPreviewSecurity = plugin.npmPreviewSecurity
+    if (serializedBytes(projected) > MAX_API_PLUGIN_BYTES) {
+      delete projected.npmPreview
+      delete projected.npmPreviewSecurity
+    }
   }
 
   addIfItFits("author", plugin.author && boundedString(plugin.author, 200))
