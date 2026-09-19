@@ -1,0 +1,7 @@
+{
+  "repo": "koinzhang/paseo-plugins",
+  "path": "activity",
+  "categories": ["monitoring", "productivity"],
+  "caveats": ["Requires Paseo 0.8.0 or later"],
+  "submittedBy": "koinzhang"
+}
