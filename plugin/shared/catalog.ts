@@ -136,6 +136,59 @@ export function isValidCatalogVersion(version: string): boolean {
     )
 }
 
+function compareNumericIdentifiers(left: string, right: string): number {
+  if (left.length !== right.length) return left.length < right.length ? -1 : 1
+  return left === right ? 0 : left < right ? -1 : 1
+}
+
+/** SemVer precedence without importing a runtime dependency into client bundles. */
+export function compareCatalogVersions(
+  left: string,
+  right: string
+): number | undefined {
+  if (!isValidCatalogVersion(left) || !isValidCatalogVersion(right)) {
+    return undefined
+  }
+  const leftMatch = SEMVER_PATTERN.exec(left)
+  const rightMatch = SEMVER_PATTERN.exec(right)
+  if (!leftMatch || !rightMatch) return undefined
+
+  for (const index of [1, 2, 3] as const) {
+    const comparison = compareNumericIdentifiers(
+      leftMatch[index] ?? "0",
+      rightMatch[index] ?? "0"
+    )
+    if (comparison !== 0) return comparison
+  }
+
+  const leftPrerelease = leftMatch[4]
+  const rightPrerelease = rightMatch[4]
+  if (leftPrerelease === undefined || rightPrerelease === undefined) {
+    if (leftPrerelease === rightPrerelease) return 0
+    return leftPrerelease === undefined ? 1 : -1
+  }
+
+  const leftIdentifiers = leftPrerelease.split(".")
+  const rightIdentifiers = rightPrerelease.split(".")
+  const count = Math.max(leftIdentifiers.length, rightIdentifiers.length)
+  for (let index = 0; index < count; index += 1) {
+    const leftIdentifier = leftIdentifiers[index]
+    const rightIdentifier = rightIdentifiers[index]
+    if (leftIdentifier === undefined || rightIdentifier === undefined) {
+      return leftIdentifier === undefined ? -1 : 1
+    }
+    if (leftIdentifier === rightIdentifier) continue
+    const leftNumeric = /^\d+$/.test(leftIdentifier)
+    const rightNumeric = /^\d+$/.test(rightIdentifier)
+    if (leftNumeric && rightNumeric) {
+      return compareNumericIdentifiers(leftIdentifier, rightIdentifier)
+    }
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1
+    return leftIdentifier < rightIdentifier ? -1 : 1
+  }
+  return 0
+}
+
 export function isValidCatalogRef(ref: string): boolean {
   return (
     GIT_REF_PATTERN.test(ref) &&
@@ -278,6 +331,47 @@ export function getCatalogNpmInstallCommand(
 ): string | undefined {
   const args = getCatalogNpmInstallArgs(packageName, version)
   return args ? ["paseo", "plugin", "add", ...args].join(" ") : undefined
+}
+
+export type CatalogReleaseChannel = "stable" | "preview"
+
+/**
+ * Returns an immutable npm release for the requested channel. Preview is
+ * deliberately optional so old catalog consumers retain stable-only behavior.
+ */
+export function getCatalogNpmRelease(
+  entry: {
+    package?: string
+    npm?: { package: string; version: string; integrity: string }
+    npmPreview?: { package: string; version: string; integrity: string }
+  },
+  channel: CatalogReleaseChannel = "stable"
+): { package: string; version: string; integrity: string } | undefined {
+  const release = channel === "preview" ? entry.npmPreview : entry.npm
+  if (
+    !release ||
+    release.package !== entry.package ||
+    !isValidCatalogPackage(release.package) ||
+    !isValidCatalogVersion(release.version) ||
+    !release.integrity.startsWith("sha512-")
+  ) {
+    return undefined
+  }
+  return release
+}
+
+export function getCatalogNpmInstallCommandForChannel(
+  entry: {
+    package?: string
+    npm?: { package: string; version: string; integrity: string }
+    npmPreview?: { package: string; version: string; integrity: string }
+  },
+  channel: CatalogReleaseChannel = "stable"
+): string | undefined {
+  const release = getCatalogNpmRelease(entry, channel)
+  return release
+    ? getCatalogNpmInstallCommand(release.package, release.version)
+    : undefined
 }
 
 export function getCatalogPreferredInstallCommand(entry: {

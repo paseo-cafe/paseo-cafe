@@ -2,6 +2,7 @@ import type { PluginRecord } from "@/lib/plugin-schema"
 import {
   getCatalogInstallCommand,
   getCatalogNpmInstallCommand,
+  getCatalogNpmInstallCommandForChannel,
 } from "../../plugin/shared/catalog"
 
 /** Returns only immutable catalog install targets; missing scan metadata stays unavailable. */
@@ -30,4 +31,10 @@ export function getInstallCommand(
       : undefined
   }
   return getGitInstallCommand(plugin)
+}
+
+export function getPreviewInstallCommand(
+  plugin: Pick<PluginRecord, "package" | "npm" | "npmPreview">
+): string | undefined {
+  return getCatalogNpmInstallCommandForChannel(plugin, "preview")
 }

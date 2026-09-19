@@ -1,5 +1,9 @@
 import { MAX_API_README_TEXT_LENGTH } from "@/lib/directory-api"
-import { getGitInstallCommand, getInstallCommand } from "@/lib/install-command"
+import {
+  getGitInstallCommand,
+  getInstallCommand,
+  getPreviewInstallCommand,
+} from "@/lib/install-command"
 import type { PluginRecord } from "@/lib/plugin-schema"
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
 
@@ -84,6 +88,7 @@ export function renderPluginMarkdown(
   const pluginName = oneLine(plugin.name, 200)
   const installCommand = getInstallCommand(plugin)
   const gitInstallCommand = getGitInstallCommand(plugin)
+  const previewInstallCommand = getPreviewInstallCommand(plugin)
   const lines = [
     heading(titleLevel, pluginName),
     "",
@@ -129,6 +134,20 @@ export function renderPluginMarkdown(
     "```sh",
     installCommand ?? "Exact install target unavailable",
     "```",
+    ...(previewInstallCommand && plugin.npmPreview
+      ? [
+          "",
+          heading(sectionLevel + 1, "Preview"),
+          "",
+          `Unreleased npm \`next\` release: \`${oneLine(plugin.npmPreview.version, 100)}\`. Stable remains the default.`,
+          "",
+          "```sh",
+          previewInstallCommand,
+          "```",
+          "",
+          `Preview security: ${plugin.npmPreviewSecurity?.status ?? "unknown"}; ${plugin.npmPreviewSecurity?.blockingFindings ?? "unknown"} blocking; ${plugin.npmPreviewSecurity?.advisoryFindings ?? "unknown"} advisory.`,
+        ]
+      : []),
     ...(plugin.package && gitInstallCommand
       ? [
           "",

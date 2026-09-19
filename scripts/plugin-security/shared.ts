@@ -86,6 +86,7 @@ export const securityPluginResultSchema = z
     buildCommands: z.array(z.array(z.string())),
     findings: z.array(securityFindingSchema),
     npm: securityNpmResultSchema.optional(),
+    npmPreview: securityNpmResultSchema.optional(),
   })
   .strict()
   .superRefine((result, ctx) => {

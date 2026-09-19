@@ -21,6 +21,7 @@ import {
   compareCatalogPopularity,
   compareCatalogRecency,
   compareCatalogSource,
+  compareCatalogVersions,
   formatCatalogCompactCount,
   formatCatalogDateForReader,
   formatCatalogDownloads,
@@ -29,6 +30,7 @@ import {
   getCatalogInstallCommand,
   getCatalogInstallRef,
   getCatalogNpmInstallCommand,
+  getCatalogNpmInstallCommandForChannel,
   getCatalogPublishedDateBadge,
   getCatalogRepositoryOwner,
   getCatalogRepositoryUrl,
@@ -242,7 +244,7 @@ export function migrateDirectorySettings(
   fromVersion: number
 ): unknown {
   if (
-    fromVersion >= 3 ||
+    fromVersion >= 4 ||
     typeof values !== "object" ||
     values === null ||
     Array.isArray(values)
@@ -267,19 +269,22 @@ export function migrateDirectorySettings(
 }
 
 /**
- * The SDK currently supports host-scoped settings only. Browse fields are
- * deliberately limited to visible surface state, so search/filter/detail state
- * survives a restart and is shared by clients connected to the same host.
+ * Settings are host-scoped so catalog selection, browse state, and explicit
+ * per-installation Preview subscriptions survive restarts across clients.
  */
 export const directorySettings = defineSettings({
   id: "directory-settings",
   scope: "host",
-  version: 3,
+  version: 4,
   schema: z.object({
     directoryUrl: catalogUrlSchema.default(DEFAULT_DIRECTORY_URL),
     browse: directoryBrowseSettingsSchema.default(
       DEFAULT_DIRECTORY_BROWSE_SETTINGS
     ),
+    previewOptIns: z
+      .array(z.string().regex(/^[a-z][a-z0-9-]*$/))
+      .max(500)
+      .default([]),
   }),
   migrate: migrateDirectorySettings,
 })
@@ -554,6 +559,18 @@ export const directoryEntrySchema = z
         downloadsLast30Days: z.number().int().nonnegative().optional(),
       })
       .optional(),
+    npmPreview: z
+      .object({
+        package: z.string().max(214).refine(isValidCatalogPackage),
+        version: z
+          .string()
+          .max(CATALOG_VERSION_MAX_LENGTH)
+          .refine(isValidCatalogVersion),
+        integrity: z.string().startsWith("sha512-"),
+        distTag: z.literal("next"),
+        publishedAt: z.iso.datetime({ offset: true }),
+      })
+      .optional(),
     url: httpUrlSchema,
     name: z.string().max(200),
     description: z.string().max(4_000).default(""),
@@ -662,6 +679,25 @@ export const directoryEntrySchema = z
           })
         }
       }),
+    npmPreviewSecurity: z
+      .object({
+        status: z.enum(["passed", "failed", "unknown"]),
+        blockingFindings: z.number().int().nonnegative().max(1_000_000),
+        advisoryFindings: z.number().int().nonnegative().max(1_000_000),
+        scannedAt: z.string().max(100).optional(),
+        version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
+        integrity: z.string().startsWith("sha512-").optional(),
+      })
+      .optional()
+      .superRefine((security, ctx) => {
+        if (security?.status === "passed" && security.blockingFindings > 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["blockingFindings"],
+            message: 'status "passed" cannot have blocking findings',
+          })
+        }
+      }),
     owner: z
       .object({
         login: z.string().max(100).optional(),
@@ -752,6 +788,26 @@ export const directoryEntrySchema = z
           "npm source requires matching version, integrity, and passed security scan",
       })
     }
+    if (entry.npmPreview || entry.npmPreviewSecurity) {
+      if (
+        !entry.npmPreview ||
+        !entry.npmPreviewSecurity ||
+        entry.npmPreview.package !== entry.package ||
+        !entry.npm ||
+        compareCatalogVersions(entry.npmPreview.version, entry.npm.version) !==
+          1 ||
+        entry.npmPreviewSecurity.status !== "passed" ||
+        entry.npmPreviewSecurity.version !== entry.npmPreview.version ||
+        entry.npmPreviewSecurity.integrity !== entry.npmPreview.integrity
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["npmPreview"],
+          message:
+            "preview source requires a newer npm release with matching passed security metadata",
+        })
+      }
+    }
   })
 
 export type DirectoryEntry = z.infer<typeof directoryEntrySchema>
@@ -799,6 +855,7 @@ export const installedPluginSchema = z.object({
   ref: z.string().optional(),
   commit: z.string().optional(),
   pluginPath: z.string().optional(),
+  releaseChannel: z.enum(["stable", "preview"]).optional(),
   packageName: z.string().optional(),
   management: z.enum(["legacy", "reviewed"]).default("legacy"),
   version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
@@ -868,7 +925,13 @@ export const directoryListRpc = defineRpc({
 
 export const directoryUpdateStatusRpc = defineRpc({
   name: "directory.update-status",
-  input: z.object({ baseUrl: catalogUrlSchema.optional() }),
+  input: z.object({
+    baseUrl: catalogUrlSchema.optional(),
+    previewOptIns: z
+      .array(z.string().regex(/^[a-z][a-z0-9-]*$/))
+      .max(500)
+      .default([]),
+  }),
   output: z.object({
     installations: z.array(installedPluginSchema).max(500),
   }),
@@ -946,18 +1009,21 @@ export const directorySecurityAttachments = defineAttachmentSource({
 export const directoryInstallRpc = defineRpc({
   name: "directory.install",
   input: z.object({
-    repo: z.string(),
-    package: z
+    entryId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    channel: z.enum(["stable", "preview"]).default("stable"),
+    expectedRepo: z.string().refine(isValidCatalogRepository),
+    expectedPath: z.string().max(500).refine(isValidCatalogPath).optional(),
+    expectedPackage: z
       .string()
       .max(214)
-      .refine(isValidCatalogPackage, "Expected a valid npm package name")
+      .refine(isValidCatalogPackage)
       .optional(),
-    version: z
+    expectedVersion: z
       .string()
       .max(CATALOG_VERSION_MAX_LENGTH)
-      .refine(isValidCatalogVersion, "Expected a semantic version")
+      .refine(isValidCatalogVersion)
       .optional(),
-    path: z.string().optional(),
+    expectedIntegrity: z.string().startsWith("sha512-").optional(),
     expectedCommit: z
       .string()
       .regex(/^[0-9a-f]{40}$/i)
@@ -972,27 +1038,26 @@ export const directoryInstallRpc = defineRpc({
 export const directoryUpdateRpc = defineRpc({
   name: "directory.update",
   input: z.object({
-    pluginId: z.string().regex(/^[a-z][a-z0-9-]*$/),
-    entry: z.object({
-      id: z.string(),
-      repo: z.string(),
-      path: z.string().optional(),
-      ref: z
-        .string()
-        .max(255)
-        .refine(isValidCatalogRef, "Expected a valid Git branch")
-        .optional(),
-      package: z
-        .string()
-        .max(214)
-        .refine(isValidCatalogPackage, "Expected a valid npm package name")
-        .optional(),
-      version: z.string().max(CATALOG_VERSION_MAX_LENGTH).optional(),
-      commit: z
-        .string()
-        .regex(/^[0-9a-f]{40}$/i)
-        .optional(),
-    }),
+    entryId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    installationId: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    channel: z.enum(["stable", "preview"]).default("stable"),
+    expectedRepo: z.string().refine(isValidCatalogRepository),
+    expectedPath: z.string().max(500).refine(isValidCatalogPath).optional(),
+    expectedPackage: z
+      .string()
+      .max(214)
+      .refine(isValidCatalogPackage)
+      .optional(),
+    expectedVersion: z
+      .string()
+      .max(CATALOG_VERSION_MAX_LENGTH)
+      .refine(isValidCatalogVersion)
+      .optional(),
+    expectedIntegrity: z.string().startsWith("sha512-").optional(),
+    expectedCommit: z
+      .string()
+      .regex(/^[0-9a-f]{40}$/i)
+      .optional(),
   }),
   output: z.object({
     ok: z.boolean(),
@@ -1008,15 +1073,33 @@ export const isValidInstallPath = isValidCatalogPath
 export const isValidCommit = isValidCatalogCommit
 export const isValidRef = isValidCatalogRef
 export const getInstallRef = getCatalogInstallRef
+export function isPreviewUpdateAvailable(
+  installation: Pick<InstalledPlugin, "source" | "version">,
+  entry: Pick<DirectoryEntry, "npmPreview">
+): boolean {
+  if (installation.source !== "npm" || !entry.npmPreview) return false
+  return (
+    compareCatalogVersions(
+      entry.npmPreview.version,
+      installation.version ?? ""
+    ) === 1
+  )
+}
 
 export const getRepositoryOwner = getCatalogRepositoryOwner
 export function getInstallCommand(
   entry: Pick<
     DirectoryEntry,
-    "repo" | "path" | "package" | "version" | "security"
+    "repo" | "path" | "package" | "version" | "security" | "npm" | "npmPreview"
   >,
-  npmSupported = false
+  npmSupported = false,
+  channel: "stable" | "preview" = "stable"
 ): string | undefined {
+  if (channel === "preview") {
+    return npmSupported && entry.package
+      ? getCatalogNpmInstallCommandForChannel(entry, "preview")
+      : undefined
+  }
   if (npmSupported && entry.package) {
     return entry.version
       ? getCatalogNpmInstallCommand(entry.package, entry.version)
@@ -1026,8 +1109,26 @@ export function getInstallCommand(
   return getCatalogInstallCommand({
     repo: entry.repo,
     path: entry.path,
-    ref: entry.security?.commit,
+    ref: entry.security.commit,
   })
+}
+
+export function getUpdateCommand(
+  installation: Pick<InstalledPlugin, "id" | "management" | "source">,
+  entry: Pick<DirectoryEntry, "npm" | "npmPreview" | "security">,
+  channel: "stable" | "preview"
+): string | undefined {
+  if (installation.source === "directory") return undefined
+  if (installation.source === "npm") {
+    const release = channel === "preview" ? entry.npmPreview : entry.npm
+    return release
+      ? `paseo plugin update ${installation.id} --version ${release.version}`
+      : undefined
+  }
+  if (channel === "preview") return undefined
+  return installation.management === "reviewed" && entry.security?.commit
+    ? `paseo plugin update ${installation.id} --ref ${entry.security.commit}`
+    : `paseo plugin update ${installation.id}`
 }
 
 export function getRepositoryUrl(

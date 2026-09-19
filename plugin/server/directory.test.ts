@@ -486,18 +486,74 @@ describe("directory attachment searches", () => {
 })
 
 describe("installDirectoryPlugin", () => {
-  it("rejects untrusted repository and path values before spawning Paseo", async () => {
+  it("requires an immutable catalog target before spawning Paseo", () => {
+    expect(() =>
+      buildInstallArgs({
+        repo: "acme/plugin",
+        package: "@acme/plugin",
+        reviewed: true,
+      })
+    ).toThrow("npm installation requires an exact version")
+  })
+
+  it("resolves install targets from the server-selected catalog", async () => {
+    const catalogUrl = "https://catalog.example.test/install-target"
+    globalThis.fetch = vi.fn(async () =>
+      Response.json({
+        generatedAt: "2026-09-19T00:00:00.000Z",
+        plugins: [plugin()],
+      })
+    ) as typeof fetch
+
     await expect(
-      installDirectoryPlugin({ repo: "acme/plugin --ref main" })
+      installDirectoryPlugin(
+        { entryId: "missing", channel: "stable", expectedRepo: "acme/missing" },
+        catalogUrl
+      )
     ).resolves.toEqual({
       ok: false,
-      message: `"acme/plugin --ref main" doesn't look like a GitHub "owner/repo".`,
+      message: "Catalog plugin missing was not found.",
     })
+  })
+
+  it("rejects an npm release that changed after review", async () => {
+    const integrity = `sha512-${"a".repeat(86)}`
+    const catalogUrl = "https://catalog.example.test/changed-install-target"
+    globalThis.fetch = vi.fn(async () =>
+      Response.json({
+        generatedAt: "2026-09-19T00:00:00.000Z",
+        plugins: [
+          plugin({
+            package: "@acme/catalog",
+            version: "1.2.3",
+            npm: { package: "@acme/catalog", version: "1.2.3", integrity },
+            npmSecurity: {
+              status: "passed",
+              blockingFindings: 0,
+              advisoryFindings: 0,
+              version: "1.2.3",
+              integrity,
+            },
+          }),
+        ],
+      })
+    ) as typeof fetch
+
     await expect(
-      installDirectoryPlugin({ repo: "acme/plugin", path: "../outside" })
+      installDirectoryPlugin(
+        {
+          entryId: "catalog",
+          channel: "stable",
+          expectedRepo: "paseo-cafe/catalog",
+          expectedPackage: "@acme/catalog",
+          expectedVersion: "1.2.2",
+          expectedIntegrity: integrity,
+        },
+        catalogUrl
+      )
     ).resolves.toEqual({
       ok: false,
-      message: `"../outside" isn't a valid plugin subpath.`,
+      message: "The catalog release changed. Refresh and review it again.",
     })
   })
 
@@ -937,6 +993,29 @@ describe("update status classification", () => {
     expect(result.updateError).toBeUndefined()
   })
 
+  it("tracks opted-in npm installations against the preview channel", async () => {
+    const installation = installedPluginSchema.parse({
+      id: "review",
+      path: "/tmp/review/node_modules/review",
+      enabled: true,
+      status: "running",
+      source: "npm",
+      packageName: "review",
+      version: "1.3.0-next.1",
+      management: "reviewed",
+    })
+
+    await expect(
+      inspectUpdateStatus(installation, {
+        version: "1.3.0-next.2",
+        channel: "preview",
+      })
+    ).resolves.toMatchObject({
+      releaseChannel: "preview",
+      updateState: "available",
+    })
+  })
+
   it("preserves an explicit unknown state when the remote check fails", async () => {
     const result = await inspectUpdateStatus(
       gitInstallation(),
@@ -952,15 +1031,39 @@ describe("update status classification", () => {
 })
 
 describe("update target validation", () => {
-  it("refuses to update Paseo Cafe from its own running process", async () => {
-    const result = await updateDirectoryPlugin({
-      pluginId: "paseo-cafe",
-      entry: { id: "paseo-cafe", repo: "paseo-cafe/paseo-cafe" },
-    })
-
-    expect(result.ok).toBe(false)
-    expect(result.message).toContain("outside the running plugin")
+  it("requires an exact npm version for reviewed updates", () => {
+    expect(() => buildUpdateArgs("review", "reviewed", "npm")).toThrow(
+      "npm update requires a catalog version"
+    )
   })
+})
+
+it("refuses to update Paseo Cafe from its own running process", async () => {
+  const catalogUrl = "https://catalog.example.test/self-update"
+  globalThis.fetch = vi.fn(async () =>
+    Response.json({
+      generatedAt: "2026-09-19T00:00:00.000Z",
+      plugins: [
+        plugin({
+          id: "paseo-cafe",
+          repo: "paseo-cafe/paseo-cafe",
+        }),
+      ],
+    })
+  ) as typeof fetch
+
+  const result = await updateDirectoryPlugin(
+    {
+      entryId: "paseo-cafe",
+      installationId: "paseo-cafe",
+      channel: "stable",
+      expectedRepo: "paseo-cafe/paseo-cafe",
+    },
+    catalogUrl
+  )
+
+  expect(result.ok).toBe(false)
+  expect(result.message).toContain("outside the running plugin")
 })
 describe("update command compatibility", () => {
   it("uses each generation's update arguments and response shape", () => {
@@ -981,6 +1084,16 @@ describe("update command compatibility", () => {
     expect(
       buildUpdateArgs("review", "reviewed", "npm", undefined, "1.3.0")
     ).toEqual(["plugin", "update", "review", "--version", "1.3.0", "--json"])
+    expect(
+      buildUpdateArgs("review", "legacy", "npm", undefined, "1.3.0-next.1")
+    ).toEqual([
+      "plugin",
+      "update",
+      "review",
+      "--version",
+      "1.3.0-next.1",
+      "--json",
+    ])
     expect(
       parsePluginUpdateResult(
         JSON.stringify([

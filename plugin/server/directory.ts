@@ -11,7 +11,7 @@ import {
   compareCatalogPopularity,
   getCatalogInstallArgs,
   getCatalogNpmInstallArgs,
-  isValidCatalogPackage,
+  getCatalogNpmRelease,
 } from "../shared/catalog"
 import type {
   DirectoryEntry,
@@ -37,8 +37,6 @@ import {
   installedPluginSchema,
   isTrustedCatalogUrl,
   isValidCommit,
-  isValidInstallPath,
-  isValidRepo,
   stripHtml,
 } from "../shared/directory"
 
@@ -225,6 +223,7 @@ interface CatalogUpdateTarget {
   ref?: string
   version?: string
   commit?: string
+  channel?: "stable" | "preview"
 }
 
 /**
@@ -247,6 +246,7 @@ export async function inspectUpdateStatus(
     return {
       ...installation,
       version: installedVersion,
+      releaseChannel: entry.channel ?? "stable",
       updateState: semver.gt(latestVersion, installedVersion)
         ? "available"
         : "current",
@@ -373,7 +373,7 @@ async function cachedUpdateStatus(
   installation: InstalledPlugin,
   entry: CatalogUpdateTarget
 ): Promise<InstalledPlugin> {
-  const key = `${installation.management}\u0000${installation.path}\u0000${installation.ref ?? ""}\u0000${installation.commit ?? ""}\u0000${installation.version ?? ""}\u0000${entry.ref ?? ""}\u0000${entry.version ?? ""}\u0000${entry.commit ?? ""}`
+  const key = `${installation.management}\u0000${installation.path}\u0000${installation.ref ?? ""}\u0000${installation.commit ?? ""}\u0000${installation.version ?? ""}\u0000${entry.ref ?? ""}\u0000${entry.version ?? ""}\u0000${entry.commit ?? ""}\u0000${entry.channel ?? "stable"}`
   const now = Date.now()
   const cached = updateStatusCache.get(key)
   if (cached && cached.expiresAt > now) return cached.value
@@ -412,7 +412,8 @@ export async function mapWithConcurrency<Input, Output>(
 
 async function addUpdateStatus(
   plugins: readonly DirectoryEntry[],
-  installations: readonly InstalledPlugin[]
+  installations: readonly InstalledPlugin[],
+  previewOptIns: ReadonlySet<string> = new Set()
 ): Promise<InstalledPlugin[]> {
   const matched = new Map<
     string,
@@ -421,12 +422,19 @@ async function addUpdateStatus(
   for (const entry of plugins) {
     for (const installation of findInstallations(entry, installations)) {
       if (installation.source !== "directory") {
+        const previewSelected =
+          installation.source === "npm" &&
+          previewOptIns.has(installation.id) &&
+          entry.npmPreview !== undefined
         matched.set(installation.id, {
           installation,
           entry: {
             ref: entry.repoMeta?.defaultBranch,
-            version: entry.version,
+            version: previewSelected
+              ? entry.npmPreview?.version
+              : entry.version,
             commit: entry.security?.commit,
+            channel: previewSelected ? "preview" : "stable",
           },
         })
       }
@@ -695,7 +703,11 @@ export async function listDirectoryUpdateStatus(
     listInstalledPlugins(),
   ])
   return {
-    installations: await addUpdateStatus(directory.plugins, installations),
+    installations: await addUpdateStatus(
+      directory.plugins,
+      installations,
+      new Set(input.previewOptIns)
+    ),
   }
 }
 
@@ -756,6 +768,9 @@ function listingAttachmentText(entry: DirectoryEntry): string {
     entry.package ? `npm package: ${entry.package}` : null,
     entry.package
       ? `Install on Paseo 0.9+: ${getInstallCommand(entry, true)}`
+      : null,
+    entry.npmPreview
+      ? `Preview (npm dist-tag: next, opt-in): ${getInstallCommand(entry, true, "preview")}`
       : null,
     entry.package
       ? `Git install (Paseo 0.8 fallback): ${getInstallCommand(entry) ?? "Unavailable: invalid catalog target"}`
@@ -848,11 +863,22 @@ function securityAttachmentText(entry: DirectoryEntry): string {
         `npm advisory findings: ${npm?.advisoryFindings ?? "unknown"}`,
       ]
     : []
+  const preview = entry.npmPreviewSecurity
+  const previewSummary = entry.npmPreview
+    ? [
+        `npm preview artifact security status: ${preview?.status ?? "unknown"}`,
+        `npm preview version: ${entry.npmPreview.version}`,
+        `npm preview integrity: ${entry.npmPreview.integrity}`,
+        `npm preview blocking findings: ${preview?.blockingFindings ?? "unknown"}`,
+        `npm preview advisory findings: ${preview?.advisoryFindings ?? "unknown"}`,
+      ]
+    : []
   return untrustedAttachmentText(
     [
       `# ${entry.name} security summary`,
       `Repository: ${entry.repo}`,
       ...npmSummary,
+      ...previewSummary,
       ...gitSummary,
       `Directory page: ${getSiteUrl(entry)}`,
     ]
@@ -991,7 +1017,7 @@ export function buildUpdateArgs(
   commit?: string,
   version?: string
 ): string[] {
-  if (management === "reviewed" && source === "npm") {
+  if (source === "npm") {
     const targetVersion = semver.valid(version ?? "")
     if (!targetVersion) throw new Error("npm update requires a catalog version")
     return ["plugin", "update", pluginId, "--version", targetVersion, "--json"]
@@ -1061,109 +1087,204 @@ export function parsePluginUpdateResult(
 }
 
 export async function installDirectoryPlugin(
-  input: RpcInput<typeof directoryInstallRpc>
+  input: RpcInput<typeof directoryInstallRpc>,
+  baseUrl?: string
 ): Promise<RpcOutput<typeof directoryInstallRpc>> {
-  const { repo, package: packageName, version, path, expectedCommit } = input
-
-  // Re-validated here even though the client only ever sends entries straight
-  // from fetchDirectory(): this is the boundary that actually shells out, and
-  // it shouldn't trust the network response (or any other RPC caller) blindly.
-  if (!isValidRepo(repo)) {
-    return {
-      ok: false,
-      message: `"${repo}" doesn't look like a GitHub "owner/repo".`,
-    }
-  }
-  if (path !== undefined && !isValidInstallPath(path)) {
-    return { ok: false, message: `"${path}" isn't a valid plugin subpath.` }
-  }
-  if (packageName !== undefined && !isValidCatalogPackage(packageName)) {
-    return { ok: false, message: `"${packageName}" isn't a valid npm package.` }
-  }
-  if (expectedCommit !== undefined && !isValidCommit(expectedCommit)) {
-    return {
-      ok: false,
-      message: `"${expectedCommit}" isn't a valid scanned commit.`,
-    }
-  }
-
   try {
-    const reviewed = await probeReviewedPluginManagement()
-    const npmInstall = reviewed && packageName !== undefined
-    const args = buildInstallArgs({
-      repo,
-      package: packageName,
-      version,
-      path,
-      commit: expectedCommit,
-      reviewed: npmInstall,
-    })
+    const directory = await fetchDirectory(baseUrl)
+    const entry = directory.plugins.find(
+      (candidate) => candidate.id === input.entryId
+    )
+    if (!entry) {
+      return {
+        ok: false,
+        message: `Catalog plugin ${input.entryId} was not found.`,
+      }
+    }
+    if (
+      input.expectedRepo !== entry.repo ||
+      input.expectedPath !== entry.path
+    ) {
+      return {
+        ok: false,
+        message: "The catalog source changed. Refresh and review it again.",
+      }
+    }
 
-    // Arguments are passed as an array on Unix and strictly quoted through
-    // cmd.exe for npm's paseo.cmd shim on Windows.
+    const reviewed = await probeReviewedPluginManagement()
+    const installFromNpm = reviewed && entry.package !== undefined
+    const release = installFromNpm
+      ? getCatalogNpmRelease(entry, input.channel)
+      : undefined
+    if (installFromNpm) {
+      if (
+        !release ||
+        input.expectedPackage !== release.package ||
+        input.expectedVersion !== release.version ||
+        input.expectedIntegrity !== release.integrity
+      ) {
+        return {
+          ok: false,
+          message: "The catalog release changed. Refresh and review it again.",
+        }
+      }
+    } else {
+      if (input.channel === "preview") {
+        return {
+          ok: false,
+          message: "Preview installation requires Paseo 0.9 or later.",
+        }
+      }
+      if (
+        input.expectedPackage !== undefined ||
+        input.expectedVersion !== undefined ||
+        input.expectedIntegrity !== undefined ||
+        !entry.security?.commit ||
+        input.expectedCommit?.toLowerCase() !== entry.security.commit
+      ) {
+        return {
+          ok: false,
+          message: "The catalog source changed. Refresh and review it again.",
+        }
+      }
+    }
+    const args = buildInstallArgs({
+      repo: entry.repo,
+      package: release?.package,
+      version: release?.version,
+      path: entry.path,
+      commit: entry.security?.commit,
+      reviewed: installFromNpm,
+    })
     const { stdout } = await execPaseo(args, 120_000)
-    const source = npmInstall ? packageName : repo
-    return { ok: true, message: stdout.trim() || `Installed ${source}.` }
+    return {
+      ok: true,
+      message: stdout.trim() || `Installed ${release?.package ?? entry.repo}.`,
+    }
   } catch (error) {
     return { ok: false, message: commandFailureMessage(error) }
   }
 }
 
 export async function updateDirectoryPlugin(
-  input: RpcInput<typeof directoryUpdateRpc>
+  input: RpcInput<typeof directoryUpdateRpc>,
+  baseUrl?: string
 ): Promise<RpcOutput<typeof directoryUpdateRpc>> {
-  const { entry, pluginId } = input
-  if (!isValidRepo(entry.repo)) {
-    return {
-      ok: false,
-      message: `"${entry.repo}" isn't a valid catalog repository.`,
-    }
-  }
-  if (entry.path !== undefined && !isValidInstallPath(entry.path)) {
-    return {
-      ok: false,
-      message: `"${entry.path}" isn't a valid plugin subpath.`,
-    }
-  }
-  if (entry.id === "paseo-cafe") {
-    return {
-      ok: false,
-      message: `Update Paseo Cafe outside the running plugin: paseo plugin update ${pluginId}`,
-    }
-  }
   try {
+    const directory = await fetchDirectory(baseUrl)
+    const entry = directory.plugins.find(
+      (candidate) => candidate.id === input.entryId
+    )
+    if (!entry) {
+      return {
+        ok: false,
+        message: `Catalog plugin ${input.entryId} was not found.`,
+      }
+    }
+    if (
+      input.expectedRepo !== entry.repo ||
+      input.expectedPath !== entry.path
+    ) {
+      return {
+        ok: false,
+        message: "The catalog source changed. Refresh and review it again.",
+      }
+    }
+    if (entry.id === "paseo-cafe") {
+      return {
+        ok: false,
+        message: `Update Paseo Cafe outside the running plugin: paseo plugin update ${input.installationId}`,
+      }
+    }
     const installed = await listInstalledPlugins()
     const target = findInstallations(entry, installed).find(
       (installation) =>
-        installation.id === pluginId && installation.source !== "directory"
+        installation.id === input.installationId &&
+        installation.source !== "directory"
     )
     if (!target) {
       return {
         ok: false,
-        message: `Installed plugin ${pluginId} does not match ${entry.repo}${entry.path ? `/${entry.path}` : ""}.`,
+        message: `Installed plugin ${input.installationId} does not match ${entry.repo}${entry.path ? `/${entry.path}` : ""}.`,
       }
     }
-    const checked = await inspectUpdateStatus(target, {
-      ref: entry.ref,
-      version: entry.version,
-      commit: entry.commit,
-    })
-    if (checked.updateState !== "available") {
-      return {
-        ok: false,
-        message:
-          checked.updateState === "current"
-            ? `${pluginId} is already up to date.`
-            : `Update status for ${pluginId} is ${checked.updateState}.`,
+
+    let version: string | undefined
+    let commit: string | undefined
+    if (target.source === "npm") {
+      const release = getCatalogNpmRelease(entry, input.channel)
+      if (
+        !release ||
+        input.expectedPackage !== release.package ||
+        input.expectedVersion !== release.version ||
+        input.expectedIntegrity !== release.integrity
+      ) {
+        return {
+          ok: false,
+          message: "The catalog release changed. Refresh and review it again.",
+        }
       }
+      if (target.version === release.version) {
+        return {
+          ok: true,
+          updated: false,
+          message: `${input.installationId} already uses ${input.channel} ${release.version}.`,
+        }
+      }
+      if (
+        input.channel === "preview" &&
+        (!target.version || !semver.gt(release.version, target.version))
+      ) {
+        return {
+          ok: false,
+          message: "Preview updates must move to a newer version.",
+        }
+      }
+      version = release.version
+    } else {
+      if (input.channel === "preview") {
+        return {
+          ok: false,
+          message:
+            "Preview updates require an npm installation on Paseo 0.9 or later.",
+        }
+      }
+      if (
+        input.expectedPackage !== undefined ||
+        input.expectedVersion !== undefined ||
+        input.expectedIntegrity !== undefined ||
+        !entry.security?.commit ||
+        input.expectedCommit?.toLowerCase() !== entry.security.commit
+      ) {
+        return {
+          ok: false,
+          message: "The catalog commit changed. Refresh and review it again.",
+        }
+      }
+      const checked = await inspectUpdateStatus(target, {
+        ref: entry.repoMeta?.defaultBranch,
+        version: entry.version,
+        commit: entry.security.commit,
+      })
+      if (checked.updateState !== "available") {
+        return {
+          ok: false,
+          message:
+            checked.updateState === "current"
+              ? `${input.installationId} is already up to date.`
+              : `Update status for ${input.installationId} is ${checked.updateState}.`,
+        }
+      }
+      commit = entry.security.commit
     }
+
     const { stdout } = await execPaseo(
       buildUpdateArgs(
-        pluginId,
+        input.installationId,
         target.management,
         target.source,
-        entry.commit,
-        entry.version
+        commit,
+        version
       ),
       120_000
     )
@@ -1171,8 +1292,8 @@ export async function updateDirectoryPlugin(
     return parsePluginUpdateResult(
       stdout,
       target.management,
-      pluginId,
-      target.source === "npm" ? entry.version : entry.commit?.slice(0, 12)
+      input.installationId,
+      target.source === "npm" ? version : commit?.slice(0, 12)
     )
   } catch (error) {
     return { ok: false, message: commandFailureMessage(error) }

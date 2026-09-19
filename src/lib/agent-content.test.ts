@@ -95,6 +95,20 @@ describe("agent-readable catalog content", () => {
         version: "1.2.3",
         integrity,
       },
+      npmPreview: {
+        package: "@example/paseo-plugin",
+        version: "1.3.0-next.1",
+        integrity: `sha512-${"c".repeat(86)}`,
+        publishedAt: "2026-09-18T12:34:56.000Z",
+        distTag: "next",
+      },
+      npmPreviewSecurity: {
+        status: "passed",
+        blockingFindings: 0,
+        advisoryFindings: 2,
+        version: "1.3.0-next.1",
+        integrity: `sha512-${"c".repeat(86)}`,
+      },
     })
 
     expect(markdown).toContain(
@@ -103,6 +117,13 @@ describe("agent-readable catalog content", () => {
     expect(markdown).toContain("npm artifact security scan")
     expect(markdown).toContain(`- Integrity: ${integrity}`)
     expect(markdown).toContain("Git fallback security scan")
+    expect(markdown).toContain("### Preview")
+    expect(markdown).toContain(
+      "paseo plugin add npm:@example/paseo-plugin@1.3.0-next.1"
+    )
+    expect(markdown).toContain(
+      "Preview security: passed; 0 blocking; 2 advisory"
+    )
   })
 
   it("expands plugin documents into the full catalog", () => {

@@ -135,7 +135,13 @@ export const videoEmbedSchema = z.discriminatedUnion("kind", [
 ])
 export const pluginNpmMetadataSchema = z.object({
   package: z.string().refine(isValidCatalogPackage),
-  version: z.string().max(CATALOG_VERSION_MAX_LENGTH),
+  version: z
+    .string()
+    .max(CATALOG_VERSION_MAX_LENGTH)
+    .refine(
+      (version) => semver.valid(version) !== null,
+      "Invalid semantic version"
+    ),
   integrity: z.string().startsWith("sha512-"),
   publishedAt: z.iso.datetime({ offset: true }).optional(),
   downloadsLast30Days: z.number().int().nonnegative().optional(),
@@ -189,6 +195,11 @@ export const pluginThemePreviewSchema = z.object({
     mutedForeground: themeHexColorSchema,
     ring: themeHexColorSchema,
   }),
+})
+
+export const pluginNpmPreviewMetadataSchema = pluginNpmMetadataSchema.extend({
+  publishedAt: z.iso.datetime({ offset: true }),
+  distTag: z.literal("next"),
 })
 
 export const pluginRecordSchema = z
@@ -247,6 +258,8 @@ export const pluginRecordSchema = z
     limitationsNotesHtml: z.string().optional(),
     security: pluginSecuritySchema.optional(),
     npmSecurity: pluginNpmSecuritySchema.optional(),
+    npmPreview: pluginNpmPreviewMetadataSchema.optional(),
+    npmPreviewSecurity: pluginNpmSecuritySchema.optional(),
     images: z.array(z.string()).default([]),
     themes: z
       .array(pluginThemePreviewSchema)
@@ -297,6 +310,27 @@ export const pluginRecordSchema = z
         path: ["package"],
         message: "npm source requires matching passed security metadata",
       })
+    }
+    if (plugin.npmPreview || plugin.npmPreviewSecurity) {
+      if (
+        !plugin.package ||
+        !plugin.npm ||
+        !plugin.npmPreview ||
+        !plugin.npmPreviewSecurity ||
+        plugin.npmPreview.package !== plugin.package ||
+        plugin.npmPreview.version === plugin.npm.version ||
+        semver.lte(plugin.npmPreview.version, plugin.npm.version) ||
+        plugin.npmPreviewSecurity.status !== "passed" ||
+        plugin.npmPreviewSecurity.version !== plugin.npmPreview.version ||
+        plugin.npmPreviewSecurity.integrity !== plugin.npmPreview.integrity
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["npmPreview"],
+          message:
+            "preview source requires a newer npm release with matching passed security metadata",
+        })
+      }
     }
   })
 

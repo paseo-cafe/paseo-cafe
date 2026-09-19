@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { getGitInstallCommand, getInstallCommand } from "./install-command"
+import {
+  getGitInstallCommand,
+  getInstallCommand,
+  getPreviewInstallCommand,
+} from "./install-command"
 
 const COMMIT = "a".repeat(40)
 const security = {
@@ -42,6 +46,26 @@ describe("getInstallCommand", () => {
     expect(getGitInstallCommand(plugin)).toBe(
       `paseo plugin add someone/their-plugin --ref ${COMMIT}`
     )
+  })
+
+  it("pins an attested preview release instead of the mutable next tag", () => {
+    expect(
+      getPreviewInstallCommand({
+        package: "@someone/paseo-plugin",
+        npm: {
+          package: "@someone/paseo-plugin",
+          version: "1.2.3",
+          integrity: `sha512-${"b".repeat(86)}`,
+        },
+        npmPreview: {
+          package: "@someone/paseo-plugin",
+          version: "1.3.0-next.1",
+          integrity: `sha512-${"c".repeat(86)}`,
+          distTag: "next",
+          publishedAt: "2026-09-18T12:34:56.000Z",
+        },
+      })
+    ).toBe("paseo plugin add npm:@someone/paseo-plugin@1.3.0-next.1")
   })
 
   it("withholds mutable or invalid targets", () => {

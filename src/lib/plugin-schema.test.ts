@@ -142,6 +142,84 @@ describe("pluginRecordSchema", () => {
     ).toBe(false)
   })
 
+  it("accepts a distinct preview with matching passed artifact security", () => {
+    const integrity = `sha512-${"a".repeat(86)}`
+    const previewIntegrity = `sha512-${"b".repeat(86)}`
+    const result = pluginRecordSchema.safeParse({
+      ...validRecordBase,
+      package: "@acme/example",
+      version: "1.2.3",
+      npm: {
+        package: "@acme/example",
+        version: "1.2.3",
+        integrity,
+        publishedAt: "2026-09-17T12:34:56.000Z",
+        downloadsLast30Days: 1,
+      },
+      npmSecurity: {
+        status: "passed",
+        blockingFindings: 0,
+        advisoryFindings: 0,
+        version: "1.2.3",
+        integrity,
+      },
+      npmPreview: {
+        package: "@acme/example",
+        version: "1.2.3-next.1",
+        integrity: previewIntegrity,
+        distTag: "next",
+        publishedAt: "2026-09-18T12:34:56.000Z",
+      },
+      npmPreviewSecurity: {
+        status: "passed",
+        blockingFindings: 0,
+        advisoryFindings: 0,
+        version: "1.2.3-next.1",
+        integrity: previewIntegrity,
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("rejects a Preview identical to Stable", () => {
+    const integrity = `sha512-${"a".repeat(86)}`
+    expect(
+      pluginRecordSchema.safeParse({
+        ...validRecordBase,
+        package: "@acme/example",
+        version: "1.2.3",
+        npm: {
+          package: "@acme/example",
+          version: "1.2.3",
+          integrity,
+          publishedAt: "2026-09-17T12:34:56.000Z",
+          downloadsLast30Days: 1,
+        },
+        npmSecurity: {
+          status: "passed",
+          blockingFindings: 0,
+          advisoryFindings: 0,
+          version: "1.2.3",
+          integrity,
+        },
+        npmPreview: {
+          package: "@acme/example",
+          version: "1.2.3",
+          integrity,
+          distTag: "next",
+          publishedAt: "2026-09-18T12:34:56.000Z",
+        },
+        npmPreviewSecurity: {
+          status: "passed",
+          blockingFindings: 0,
+          advisoryFindings: 0,
+          version: "1.2.3",
+          integrity,
+        },
+      }).success
+    ).toBe(false)
+  })
+
   it("accepts http(s)-only security report URLs", () => {
     for (const reportUrl of [
       "http://example.com/security-report",

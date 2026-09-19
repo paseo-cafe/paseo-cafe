@@ -100,6 +100,11 @@ the `0.0.0` placeholder, and increment it whenever you publish a plugin update. 
 versions remain browsable and installable but report their version as unavailable. The scanner
 flags `0.0.0`, because updates cannot be detected until the maintainer starts incrementing it.
 
+To offer an unreleased build, publish it under npm's `next` dist-tag. Cafe shows it as an
+opt-in Preview only when it is a distinct newer semantic version and its exact tarball passes the
+same security scan as the stable release. Stable remains the default, and generated commands pin
+the resolved version rather than installing the mutable tag.
+
 
 Open a PR adding your `registry/<id>.json`. Once Registry validation and CI pass, it's ready to merge.
 

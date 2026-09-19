@@ -6,9 +6,11 @@ import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard"
 export function CopyCommand({
   command,
   className,
+  copyAriaLabel = "Copy install command",
 }: {
   command: string
   className?: string
+  copyAriaLabel?: string
 }) {
   const { copied, copy } = useCopyToClipboard()
 
@@ -27,7 +29,7 @@ export function CopyCommand({
         size="icon-sm"
         className="shrink-0"
         onClick={() => copy(command)}
-        aria-label="Copy install command"
+        aria-label={copyAriaLabel}
       >
         {copied ? (
           <IconCheck className="size-3.5" />

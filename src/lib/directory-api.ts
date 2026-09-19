@@ -6,6 +6,7 @@ import {
   type PluginRecord,
   pluginHealthSchema,
   pluginNpmMetadataSchema,
+  pluginNpmPreviewMetadataSchema,
   pluginNpmSecuritySchema,
   pluginThemePreviewSchema,
 } from "@/lib/plugin-schema"
@@ -43,6 +44,7 @@ export const directoryPluginSchema = z.object({
     .refine(isValidCatalogPackage, "Invalid npm package name")
     .optional(),
   npm: pluginNpmMetadataSchema.optional(),
+  npmPreview: pluginNpmPreviewMetadataSchema.optional(),
   url: httpUrlSchema.max(2_048),
   name: z.string().max(200),
   description: z.string().max(CATALOG_DESCRIPTION_MAX_LENGTH),
@@ -85,6 +87,7 @@ export const directoryPluginSchema = z.object({
     })
     .optional(),
   npmSecurity: pluginNpmSecuritySchema.optional(),
+  npmPreviewSecurity: pluginNpmSecuritySchema.optional(),
   images: z.array(directoryImageUrlSchema).max(32),
   themes: z
     .array(pluginThemePreviewSchema)
@@ -174,6 +177,10 @@ export function projectPluginForDirectory(
     scannedAt: boundedString(plugin.scannedAt, 100),
     ...(plugin.addedAt ? { addedAt: plugin.addedAt } : {}),
     ...(plugin.npmSecurity ? { npmSecurity: plugin.npmSecurity } : {}),
+    ...(plugin.npmPreview ? { npmPreview: plugin.npmPreview } : {}),
+    ...(plugin.npmPreviewSecurity
+      ? { npmPreviewSecurity: plugin.npmPreviewSecurity }
+      : {}),
     ...(plugin.path ? { path: plugin.path } : {}),
     ...(version !== undefined ? { version } : {}),
     ...(security ? { security } : {}),

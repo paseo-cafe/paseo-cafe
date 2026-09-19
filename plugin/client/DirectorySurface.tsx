@@ -46,6 +46,18 @@ import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 const DIRECTORY_QUERY_KEY = "paseo-cafe-directory"
 const UPDATE_STATUS_QUERY_KEY = "paseo-cafe-update-status"
 
+type ReleaseChannel = "stable" | "preview"
+
+function applyPreviewPreference(
+  current: readonly string[],
+  installationId: string,
+  channel: ReleaseChannel
+): string[] {
+  return channel === "preview"
+    ? Array.from(new Set([...current, installationId]))
+    : current.filter((id) => id !== installationId)
+}
+
 function toggle<T>(set: ReadonlySet<T>, value: T): Set<T> {
   const next = new Set(set)
   if (next.has(value)) next.delete(value)
@@ -487,6 +499,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   )
   const [settingsHydrated, setSettingsHydrated] = useState(false)
   const hasHydratedSettings = useRef(false)
+  const pendingPreviewPreference = useRef<{
+    installationId: string
+    channel: ReleaseChannel
+    attempts: number
+  } | null>(null)
 
   const settingsValues = settings.status === "ready" ? settings.values : null
   const settingsRevision =
@@ -565,14 +582,59 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     storedBrowse,
   ])
 
+  useEffect(() => {
+    const pending = pendingPreviewPreference.current
+    if (
+      !pending ||
+      !settingsValues ||
+      settingsRevision === null ||
+      settingsSaving
+    ) {
+      return
+    }
+    const previewOptIns = applyPreviewPreference(
+      settingsValues.previewOptIns,
+      pending.installationId,
+      pending.channel
+    )
+    void saveSettings(
+      { ...settingsValues, previewOptIns },
+      settingsRevision
+    ).then((saved) => {
+      if (pendingPreviewPreference.current !== pending) return
+      if (saved) {
+        pendingPreviewPreference.current = null
+      } else if (pending.attempts < 1) {
+        pendingPreviewPreference.current = {
+          ...pending,
+          attempts: pending.attempts + 1,
+        }
+        void reloadSettings()
+      } else {
+        pendingPreviewPreference.current = null
+      }
+    })
+  }, [
+    reloadSettings,
+    saveSettings,
+    settingsRevision,
+    settingsSaving,
+    settingsValues,
+  ])
+
   // Undefined until settings are readable: the handler then falls back to
   // PASEO_CAFE_DIRECTORY_URL or the default catalog, so an unreadable or
   // invalid settings document still shows a catalog instead of a blank surface.
   const baseUrl =
     settings.status === "ready" ? settings.values.directoryUrl : undefined
+  const previewOptIns = settingsValues?.previewOptIns ?? []
   const settingsPending = settings.status === "loading"
   const queryKey = [DIRECTORY_QUERY_KEY, baseUrl]
-  const updateStatusQueryKey = [UPDATE_STATUS_QUERY_KEY, baseUrl]
+  const updateStatusQueryKey = [
+    UPDATE_STATUS_QUERY_KEY,
+    baseUrl,
+    previewOptIns.join("\u0000"),
+  ]
 
   const directoryQuery = useQuery<DirectoryListResult>({
     queryKey,
@@ -587,96 +649,147 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const updateStatusQuery = useQuery<UpdateStatusResult>({
     queryKey: updateStatusQueryKey,
     queryFn: async (): Promise<UpdateStatusResult> =>
-      listUpdateStatus({ baseUrl }) as Promise<UpdateStatusResult>,
+      listUpdateStatus({
+        baseUrl,
+        previewOptIns,
+      }) as Promise<UpdateStatusResult>,
     enabled: inventoryAvailable,
     staleTime: 60_000,
   })
 
-  const installMutation = useMutation<InstallResult, unknown, DirectoryEntry>({
-    mutationFn: (entry: DirectoryEntry): Promise<InstallResult> => {
+  const savePreviewOptIn = async (
+    installationId: string,
+    channel: ReleaseChannel
+  ): Promise<boolean> => {
+    if (!settingsValues || settingsRevision === null)
+      return channel === "stable"
+    const previewOptIns = applyPreviewPreference(
+      settingsValues.previewOptIns,
+      installationId,
+      channel
+    )
+    const saved = await saveSettings(
+      { ...settingsValues, previewOptIns },
+      settingsRevision
+    )
+    if (!saved) {
+      pendingPreviewPreference.current = {
+        installationId,
+        channel,
+        attempts: 0,
+      }
+      await reloadSettings()
+    }
+    return saved
+  }
+
+  const installMutation = useMutation<
+    InstallResult,
+    unknown,
+    { entry: DirectoryEntry; channel: "stable" | "preview" }
+  >({
+    mutationFn: ({ entry, channel }): Promise<InstallResult> => {
       setInstallingId(entry.id)
       setInstallFailure(null)
+      const release = channel === "preview" ? entry.npmPreview : entry.npm
+      const npmTarget = npmSupported && entry.package ? release : undefined
       return installPlugin({
-        repo: entry.repo,
-        package: entry.package,
-        version: entry.version,
-        path: entry.path,
-        expectedCommit: entry.security?.commit,
+        entryId: entry.id,
+        channel,
+        expectedRepo: entry.repo,
+        expectedPath: entry.path,
+        expectedPackage: npmTarget?.package,
+        expectedVersion: npmTarget?.version,
+        expectedIntegrity: npmTarget?.integrity,
+        expectedCommit: npmTarget ? undefined : entry.security?.commit,
       }) as Promise<InstallResult>
     },
-    onSuccess: async (result: InstallResult, entry: DirectoryEntry) => {
-      if (result.ok) {
-        setInstallFailure(null)
-        toast.show(`Installed ${entry.name}`, { variant: "success" })
-        await queryClient.invalidateQueries({ queryKey, exact: true })
-        await queryClient.invalidateQueries({
-          queryKey: updateStatusQueryKey,
-          exact: true,
-        })
-      } else {
+    onSuccess: async (result, { entry, channel }) => {
+      if (!result.ok) {
         setInstallFailure({ entryId: entry.id, message: result.message })
         toast.error(`Couldn't install ${entry.name}. See details below.`)
+        return
       }
+      const preferenceSaved = await savePreviewOptIn(entry.id, channel)
+      if (!preferenceSaved) {
+        toast.error(
+          `Installed ${entry.name}; Cafe will retry saving the ${channel} channel preference.`
+        )
+      } else {
+        toast.show(`Installed ${entry.name}`, { variant: "success" })
+      }
+      await queryClient.invalidateQueries({ queryKey, exact: true })
+      await queryClient.invalidateQueries({
+        queryKey: updateStatusQueryKey,
+        exact: true,
+      })
     },
-    onError: (error: unknown, entry: DirectoryEntry) => {
-      const message = error instanceof Error ? error.message : "Install failed"
-      setInstallFailure({ entryId: entry.id, message })
+    onError: (error, { entry }) => {
+      setInstallFailure({
+        entryId: entry.id,
+        message: error instanceof Error ? error.message : "Install failed",
+      })
       toast.error(`Couldn't install ${entry.name}. See details below.`)
     },
-
     onSettled: () => setInstallingId(null),
   })
 
   const updateMutation = useMutation<
     UpdateResult,
     unknown,
-    { entry: DirectoryEntry; installation: InstalledPlugin }
-  >({
-    mutationFn: ({
-      entry,
-      installation,
-    }: {
+    {
       entry: DirectoryEntry
       installation: InstalledPlugin
-    }): Promise<UpdateResult> => {
+      channel: "stable" | "preview"
+    }
+  >({
+    mutationFn: ({ entry, installation, channel }): Promise<UpdateResult> => {
       setUpdatingId(installation.id)
       setUpdateFailure(null)
+      const release = channel === "preview" ? entry.npmPreview : entry.npm
       return updatePlugin({
-        pluginId: installation.id,
-        entry: {
-          id: entry.id,
-          repo: entry.repo,
-          path: entry.path,
-          version: entry.version,
-          ref: entry.repoMeta?.defaultBranch,
-          package: entry.package,
-          commit: entry.security?.commit,
-        },
+        entryId: entry.id,
+        installationId: installation.id,
+        channel,
+        expectedRepo: entry.repo,
+        expectedPath: entry.path,
+        expectedPackage:
+          installation.source === "npm" ? release?.package : undefined,
+        expectedVersion:
+          installation.source === "npm" ? release?.version : undefined,
+        expectedIntegrity:
+          installation.source === "npm" ? release?.integrity : undefined,
+        expectedCommit:
+          installation.source === "git" ? entry.security?.commit : undefined,
       }) as Promise<UpdateResult>
     },
-    onSuccess: async (
-      result: UpdateResult,
-      { entry }: { entry: DirectoryEntry }
-    ) => {
-      if (result.ok) {
-        setUpdateFailure(null)
-        toast.show(result.message, { variant: "success" })
-        await queryClient.invalidateQueries({ queryKey, exact: true })
-        await queryClient.invalidateQueries({
-          queryKey: updateStatusQueryKey,
-          exact: true,
-        })
-      } else {
+    onSuccess: async (result, { entry, installation, channel }) => {
+      if (!result.ok) {
         setUpdateFailure({ entryId: entry.id, message: result.message })
         toast.error(`Couldn't update ${entry.name}. See details below.`)
+        return
       }
+      const preferenceSaved = await savePreviewOptIn(installation.id, channel)
+      if (!preferenceSaved) {
+        toast.error(
+          `Updated ${entry.name}; Cafe will retry saving the ${channel} channel preference.`
+        )
+      } else {
+        toast.show(result.message, { variant: "success" })
+      }
+      await queryClient.invalidateQueries({ queryKey, exact: true })
+      await queryClient.invalidateQueries({
+        queryKey: updateStatusQueryKey,
+        exact: true,
+      })
     },
-    onError: (error: unknown, { entry }: { entry: DirectoryEntry }) => {
-      const message = error instanceof Error ? error.message : "Update failed"
-      setUpdateFailure({ entryId: entry.id, message })
+    onError: (error, { entry }) => {
+      setUpdateFailure({
+        entryId: entry.id,
+        message: error instanceof Error ? error.message : "Update failed",
+      })
       toast.error(`Couldn't update ${entry.name}. See details below.`)
     },
-
     onSettled: () => setUpdatingId(null),
   })
 
@@ -685,12 +798,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     unknown,
     void
   >({
-    // The key travels with the request: switching the Catalog URL while a
-    // refresh is in flight must not file the old catalog under the new key.
-    mutationFn: async (): Promise<{
-      key: readonly [string, string | undefined]
-      result: DirectoryListResult
-    }> => {
+    mutationFn: async () => {
       const key = [DIRECTORY_QUERY_KEY, baseUrl] as const
       return {
         key,
@@ -700,13 +808,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         })) as DirectoryListResult,
       }
     },
-    onSuccess: async ({
-      key,
-      result,
-    }: {
-      key: readonly [string, string | undefined]
-      result: DirectoryListResult
-    }) => {
+    onSuccess: async ({ key, result }) => {
       queryClient.setQueryData(key, result)
       await queryClient.invalidateQueries({
         queryKey: updateStatusQueryKey,
@@ -718,7 +820,6 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       toast.error(error instanceof Error ? error.message : "Refresh failed")
     },
   })
-
   const catalogPlugins = directoryQuery.data?.plugins ?? []
   const plugins = useMemo(
     () =>
@@ -1087,9 +1188,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
             ? updateFailure.message
             : null
         }
-        onInstall={() => installMutation.mutate(detailEntry)}
-        onUpdate={(installation) =>
-          updateMutation.mutate({ entry: detailEntry, installation })
+        onInstall={(channel) =>
+          installMutation.mutate({ entry: detailEntry, channel })
+        }
+        onUpdate={(installation, channel) =>
+          updateMutation.mutate({ entry: detailEntry, installation, channel })
         }
         onOpenGallery={() => setGalleryEntry(detailEntry)}
         onBack={() => {

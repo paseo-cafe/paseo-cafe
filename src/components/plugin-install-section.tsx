@@ -1,10 +1,16 @@
 import { CopyCommand } from "@/components/copy-command"
-import { getGitInstallCommand, getInstallCommand } from "@/lib/install-command"
+import { ExpandableSection } from "@/components/expandable-section"
+import {
+  getGitInstallCommand,
+  getInstallCommand,
+  getPreviewInstallCommand,
+} from "@/lib/install-command"
 import type { PluginRecord } from "@/lib/plugin-schema"
 
 export function PluginInstallSection({ plugin }: { plugin: PluginRecord }) {
   const command = getInstallCommand(plugin)
   const gitCommand = getGitInstallCommand(plugin)
+  const previewCommand = getPreviewInstallCommand(plugin)
   return (
     <div>
       <h2 className="mb-2 font-medium text-foreground/60 text-sm">Install</h2>
@@ -21,6 +27,31 @@ export function PluginInstallSection({ plugin }: { plugin: PluginRecord }) {
           scan.
         </p>
       )}
+      {previewCommand && plugin.npmPreview && plugin.npmPreviewSecurity ? (
+        <div className="mt-3">
+          <ExpandableSection
+            title="Preview"
+            subtitle={`v${plugin.npmPreview.version} · npm dist-tag: next`}
+          >
+            <p className="text-foreground/60 text-xs">
+              Preview releases are unreleased plugin code. Install only if you
+              want to test it; stable remains the default. Published{" "}
+              {plugin.npmPreview.publishedAt.slice(0, 10)}.
+            </p>
+            <p className="mt-1 text-foreground/60 text-xs">
+              Security scan passed ·{" "}
+              {plugin.npmPreviewSecurity?.blockingFindings} blocking ·{" "}
+              {plugin.npmPreviewSecurity?.advisoryFindings} advisory.
+            </p>
+            <div className="mt-2">
+              <CopyCommand
+                command={previewCommand}
+                copyAriaLabel="Copy preview install command"
+              />
+            </div>
+          </ExpandableSection>
+        </div>
+      ) : null}
       {plugin.package && gitCommand ? (
         <div className="mt-3">
           <p className="mb-1 text-foreground/40 text-xs uppercase tracking-wide">

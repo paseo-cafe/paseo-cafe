@@ -24,6 +24,7 @@ import {
   writeFileSync,
 } from "node:fs"
 import { basename, join } from "node:path"
+import * as semver from "semver"
 import { z } from "zod"
 import { CATALOG_DESCRIPTION_MAX_LENGTH } from "../plugin/shared/catalog.ts"
 import { inlineMarkdownToPlainText } from "../plugin/shared/inline-markdown.ts"
@@ -79,8 +80,7 @@ import {
 import {
   type NpmPackageRelease,
   resolveNpmDownloadsLast30Days,
-  resolveNpmPackage,
-  resolveNpmPublishedAt,
+  resolveNpmPackageReleases,
 } from "./npm-registry.ts"
 import { renderOgImage } from "./og-image.tsx"
 import { securityResultsSchema } from "./plugin-security/shared.ts"
@@ -277,6 +277,42 @@ export function loadPublishedNpmSecurityCatalog(
   }
 }
 
+export function loadPublishedNpmPreviewSecurityCatalog(
+  artifactPath = SECURITY_ARTIFACT_PATH
+): Record<string, PluginNpmSecurity & { package: string }> {
+  if (!existsSync(artifactPath)) return {}
+  try {
+    const result = securityResultsSchema.safeParse(
+      JSON.parse(readFileSync(artifactPath, "utf8")) as unknown
+    )
+    if (!result.success) return {}
+    return Object.fromEntries(
+      Object.entries(result.data.plugins).flatMap(([id, security]) => {
+        if (!security.npmPreview) return []
+        const npm = security.npmPreview
+        return [
+          [
+            id,
+            {
+              package: npm.package,
+              ...pluginNpmSecuritySchema.parse({
+                status: npm.status === "unavailable" ? "unknown" : npm.status,
+                blockingFindings: npm.blockingFindings,
+                advisoryFindings: npm.advisoryFindings,
+                scannedAt: npm.scannedAt,
+                version: npm.version,
+                integrity: npm.integrity,
+              }),
+            },
+          ],
+        ]
+      })
+    )
+  } catch {
+    return {}
+  }
+}
+
 const INDEX_PATH = join(ROOT, "data", "plugins.json")
 const PUBLIC_DIR = join(ROOT, "public")
 const OG_DIR = join(PUBLIC_DIR, "og")
@@ -331,6 +367,10 @@ export async function scanOne(
   npmSecurityCatalog: Record<
     string,
     PluginNpmSecurity & { package: string }
+  > = {},
+  npmPreviewSecurityCatalog: Record<
+    string,
+    PluginNpmSecurity & { package: string }
   > = {}
 ): Promise<PluginRecord> {
   const id = registryIdSchema.parse(entryFile.slice(0, -".json".length))
@@ -370,33 +410,31 @@ export async function scanOne(
 
   try {
     let npmRelease: NpmPackageRelease | undefined
+    let npmPreviewRelease: NpmPackageRelease | undefined
     let npmResolutionError: string | undefined
-    let npmPublishedAt: string | undefined
     let npmDownloadsLast30Days: number | undefined
     const npmMetricsErrors: string[] = []
     if (entry.package) {
       try {
-        npmRelease = await resolveNpmPackage(entry.package)
+        const releases = await resolveNpmPackageReleases(entry.package)
+        npmRelease = releases.latest
+        npmPreviewRelease =
+          releases.latest &&
+          releases.next &&
+          semver.gt(releases.next.version, releases.latest.version)
+            ? releases.next
+            : undefined
+        if (!npmRelease) throw new Error("latest release is unavailable")
       } catch (error) {
         npmResolutionError =
           error instanceof Error ? error.message : String(error)
       }
       if (npmRelease) {
-        const [publishedAt, downloads] = await Promise.allSettled([
-          resolveNpmPublishedAt(entry.package, npmRelease.version),
-          resolveNpmDownloadsLast30Days(entry.package),
-        ])
-        if (publishedAt.status === "fulfilled") {
-          npmPublishedAt = publishedAt.value
-        } else {
-          console.warn(
-            `  ! npm publication date unavailable for ${entry.package}`
+        try {
+          npmDownloadsLast30Days = await resolveNpmDownloadsLast30Days(
+            entry.package
           )
-          npmMetricsErrors.push("publication date")
-        }
-        if (downloads.status === "fulfilled") {
-          npmDownloadsLast30Days = downloads.value
-        } else {
+        } catch {
           console.warn(`  ! npm downloads unavailable for ${entry.package}`)
           npmMetricsErrors.push("download count")
         }
@@ -553,9 +591,20 @@ export async function scanOne(
     const npmReady = Boolean(
       npmRelease &&
         npmReleaseIsReady(npmRelease, gitVersion, candidateNpmSecurity, {
-          publishedAt: npmPublishedAt,
+          publishedAt: npmRelease.publishedAt,
           downloadsLast30Days: npmDownloadsLast30Days,
         })
+    )
+    const candidateNpmPreviewSecurity = npmPreviewRelease
+      ? npmPreviewSecurityCatalog[id]
+      : undefined
+    const npmPreviewReady = Boolean(
+      npmReady &&
+        npmPreviewRelease?.publishedAt &&
+        candidateNpmPreviewSecurity?.package === npmPreviewRelease.package &&
+        candidateNpmPreviewSecurity.version === npmPreviewRelease.version &&
+        candidateNpmPreviewSecurity.integrity === npmPreviewRelease.integrity &&
+        candidateNpmPreviewSecurity.status === "passed"
     )
     const version = npmReady ? npmRelease?.version : gitVersion
     // Bounded here, where a third party's text enters the catalog.
@@ -576,11 +625,24 @@ export async function scanOne(
               package: npmRelease.package,
               version: npmRelease.version,
               integrity: npmRelease.integrity,
-              publishedAt: npmPublishedAt,
+              publishedAt: npmRelease.publishedAt,
               downloadsLast30Days: npmDownloadsLast30Days,
             }
           : undefined,
       npmSecurity: npmReady ? candidateNpmSecurity : undefined,
+      npmPreview:
+        npmPreviewReady && npmPreviewRelease?.publishedAt
+          ? {
+              package: npmPreviewRelease.package,
+              version: npmPreviewRelease.version,
+              integrity: npmPreviewRelease.integrity,
+              distTag: "next",
+              publishedAt: npmPreviewRelease.publishedAt,
+            }
+          : undefined,
+      npmPreviewSecurity: npmPreviewReady
+        ? candidateNpmPreviewSecurity
+        : undefined,
       url: repositoryUrl,
       name: id,
       description,
@@ -607,7 +669,8 @@ export async function scanOne(
         hasTypecheckScript: Boolean(pkg?.scripts?.typecheck),
         updatedRecently:
           npmReady && npmRelease
-            ? npmPublishedAt !== undefined && isRecent(npmPublishedAt)
+            ? npmRelease.publishedAt !== undefined &&
+              isRecent(npmRelease.publishedAt)
             : isRecent(repoMeta.pushed_at),
       },
       security: revision
@@ -666,6 +729,11 @@ export async function scanOne(
     } else if (npmRelease && !npmSecurityMatches) {
       scanErrors.push(
         "npm package is waiting for a matching successful security scan"
+      )
+    }
+    if (npmPreviewRelease && !npmPreviewReady) {
+      console.warn(
+        `  ! npm preview ${npmPreviewRelease.version} is waiting for a matching successful security scan`
       )
     }
 
@@ -877,6 +945,7 @@ async function main() {
 
   const securityCatalog = loadPublishedSecurityCatalog()
   const npmSecurityCatalog = loadPublishedNpmSecurityCatalog()
+  const npmPreviewSecurityCatalog = loadPublishedNpmPreviewSecurityCatalog()
   const addedAt = readRegistryAddedAt()
   if (addedAt.size === 0 && files.length > 0) {
     console.warn(
@@ -894,7 +963,8 @@ async function main() {
       REGISTRY_DIR,
       addedAt.get(file),
       offline,
-      npmSecurityCatalog
+      npmSecurityCatalog,
+      npmPreviewSecurityCatalog
     )
     if (record.scanError) console.warn(`  ! ${record.scanError}`)
     scanned.set(record.id, record)

@@ -18,6 +18,10 @@ host's npm configuration. Paseo 0.8 installs the exact security-scanned Git comm
 legacy installs remain pinned until reinstalled or moved to Paseo 0.9. Existing installations
 always update from their installed source using the exact catalog version or commit.
 
+When a package publishes a newer `next` dist-tag, the detail page offers that exact scanned
+version as an opt-in Preview. Stable remains the default. Preview users receive updates from the
+preview channel until they explicitly return to stable.
+
 ## Screenshots
 
 ### Browse and filter the catalog

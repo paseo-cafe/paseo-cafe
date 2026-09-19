@@ -60,7 +60,11 @@ export default function contribute(server: PluginServerContext) {
   server.handle(directorySecuritySearchRpc, async (input) =>
     searchDirectorySecurity(input, await directoryUrl())
   )
-  server.handle(directoryInstallRpc, (input) => installDirectoryPlugin(input))
-  server.handle(directoryUpdateRpc, (input) => updateDirectoryPlugin(input))
+  server.handle(directoryInstallRpc, async (input) =>
+    installDirectoryPlugin(input, await directoryUrl())
+  )
+  server.handle(directoryUpdateRpc, async (input) =>
+    updateDirectoryPlugin(input, await directoryUrl())
+  )
   return () => {}
 }

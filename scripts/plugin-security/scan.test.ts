@@ -121,6 +121,33 @@ describe("security report", () => {
     )
   })
 
+  it("includes preview findings in the security report", () => {
+    const previewFinding = boundaryFinding("preview/index.server.ts")
+    const report = renderReport(
+      securityResults({
+        example: {
+          ...pluginResult([]),
+          npmPreview: {
+            package: "@acme/example",
+            version: "2.0.0-next.1",
+            integrity: `sha512-${"a".repeat(86)}`,
+            scannedAt: "2026-09-19T00:00:00.000Z",
+            status: "failed",
+            blockingFindings: 1,
+            advisoryFindings: 0,
+            coverage: { files: 1, bytes: 100 },
+            buildCommands: [],
+            findings: [previewFinding],
+          },
+        },
+      })
+    )
+
+    expect(report).toContain("npm preview status: failed")
+    expect(report).toContain("npm preview version: 2\\.0\\.0\\-next\\.1")
+    expect(report).toContain("[npm preview/boundary]")
+  })
+
   it("keeps finding data from injecting report markup", () => {
     const attack = [
       "client/file.ts",

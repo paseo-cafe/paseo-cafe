@@ -8,6 +8,7 @@ import {
   extractNpmPackage,
   resolveNpmDownloadsLast30Days,
   resolveNpmPackage,
+  resolveNpmPackageReleases,
   resolveNpmPublishedAt,
 } from "./npm-registry"
 
@@ -92,6 +93,60 @@ describe("npm registry resolution", () => {
       "https://api.npmjs.org/downloads/point/last-month/%40acme%2Fpaseo-plugin",
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
+  })
+
+  it("resolves a distinct next release from the same packument", async () => {
+    vi.mocked(pacote.packument).mockResolvedValue({
+      name: release.package,
+      "dist-tags": { latest: "1.2.3", next: "1.3.0-next.1" },
+      versions: {
+        "1.2.3": {
+          name: release.package,
+          version: "1.2.3",
+          dist: { integrity: release.integrity, tarball: release.resolved },
+        },
+        "1.3.0-next.1": {
+          name: release.package,
+          version: "1.3.0-next.1",
+          dist: {
+            integrity: `sha512-${"b".repeat(86)}`,
+            tarball:
+              "https://registry.npmjs.org/@acme/paseo-plugin/-/paseo-plugin-1.3.0-next.1.tgz",
+          },
+        },
+      },
+      time: {
+        "1.2.3": PUBLISHED_AT,
+        "1.3.0-next.1": "2026-09-18T12:34:56.000Z",
+      },
+    } as never)
+
+    await expect(
+      resolveNpmPackageReleases(release.package)
+    ).resolves.toMatchObject({
+      latest: { version: "1.2.3" },
+      next: { version: "1.3.0-next.1" },
+    })
+  })
+
+  it("omits a malformed next tag without hiding latest", async () => {
+    vi.mocked(pacote.packument).mockResolvedValue({
+      name: release.package,
+      "dist-tags": { latest: release.version, next: "not-semver" },
+      versions: {
+        [release.version]: {
+          name: release.package,
+          version: release.version,
+          dist: { integrity: release.integrity, tarball: release.resolved },
+        },
+      },
+      time: { [release.version]: PUBLISHED_AT },
+    } as never)
+
+    await expect(resolveNpmPackageReleases(release.package)).resolves.toEqual({
+      latest: expect.objectContaining({ version: release.version }),
+      next: undefined,
+    })
   })
 
   it("rejects selectors and tarballs before contacting npm", async () => {

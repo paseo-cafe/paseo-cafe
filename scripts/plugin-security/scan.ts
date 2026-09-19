@@ -3,8 +3,14 @@ import { spawnSync } from "node:child_process"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import * as semver from "semver"
 import { z } from "zod"
-import { extractNpmPackage, resolveNpmPackage } from "../npm-registry.ts"
+import {
+  extractNpmPackage,
+  type NpmPackageRelease,
+  resolveNpmPackage,
+  resolveNpmPackageReleases,
+} from "../npm-registry.ts"
 import {
   REPORT_DETAILS_CLOSE,
   REPORT_DETAILS_OPEN,
@@ -114,7 +120,33 @@ async function scanTarget(
   generatedAt: string
 ): Promise<SecurityPluginResult> {
   const git = scanGitTarget(target, generatedAt)
-  if (target.package) git.npm = await scanNpmTarget(target, generatedAt)
+  if (!target.package) return git
+
+  try {
+    const releases = await resolveNpmPackageReleases(target.package)
+    if (releases.latest) {
+      git.npm = await scanNpmRelease(target, releases.latest, generatedAt)
+    } else {
+      git.npm = unavailableNpmResult(
+        target.package,
+        generatedAt,
+        "npm latest release is unavailable"
+      )
+    }
+    if (
+      releases.latest &&
+      releases.next &&
+      semver.gt(releases.next.version, releases.latest.version)
+    ) {
+      git.npmPreview = await scanNpmRelease(target, releases.next, generatedAt)
+    }
+  } catch (error) {
+    git.npm = unavailableNpmResult(
+      target.package,
+      generatedAt,
+      error instanceof Error ? error.message : String(error)
+    )
+  }
   return git
 }
 
@@ -174,15 +206,54 @@ function scanGitTarget(
     rmSync(temp, { recursive: true, force: true })
   }
 }
+function unavailableNpmResult(
+  packageName: string,
+  generatedAt: string,
+  message: string
+): SecurityNpmResult {
+  return {
+    package: packageName,
+    scannedAt: generatedAt,
+    status: "unavailable",
+    blockingFindings: 1,
+    advisoryFindings: 0,
+    coverage: { files: 0, bytes: 0 },
+    buildCommands: [],
+    findings: [
+      {
+        tool: "scanner",
+        ruleId: "scan-error",
+        severity: "high",
+        blocking: true,
+        path: ".",
+        message,
+      },
+    ],
+  }
+}
+
 export async function scanNpmTarget(
   target: SecurityTarget,
   generatedAt: string
 ): Promise<SecurityNpmResult> {
   const packageName = target.package
   if (!packageName) throw new Error("npm scan requires a package")
+  return scanNpmRelease(
+    target,
+    await resolveNpmPackage(packageName),
+    generatedAt
+  )
+}
+
+async function scanNpmRelease(
+  target: SecurityTarget,
+  release: NpmPackageRelease,
+  generatedAt: string
+): Promise<SecurityNpmResult> {
+  const packageName = target.package
+  if (!packageName) throw new Error("npm scan requires a package")
   const temp = mkdtempSync(join(tmpdir(), "paseo-plugin-npm-security-"))
   try {
-    const release = await resolveNpmPackage(packageName, join(temp, "cache"))
     const packageRoot = join(temp, "package")
     await extractNpmPackage(release, packageRoot, join(temp, "cache"))
     const staticResult = scanStaticFiles({
@@ -208,25 +279,11 @@ export async function scanNpmTarget(
       findings,
     }
   } catch (error) {
-    return {
-      package: packageName,
-      scannedAt: generatedAt,
-      status: "unavailable",
-      blockingFindings: 1,
-      advisoryFindings: 0,
-      coverage: { files: 0, bytes: 0 },
-      buildCommands: [],
-      findings: [
-        {
-          tool: "scanner",
-          ruleId: "scan-error",
-          severity: "high",
-          blocking: true,
-          path: ".",
-          message: (error as Error).message,
-        },
-      ],
-    }
+    return unavailableNpmResult(
+      packageName,
+      generatedAt,
+      error instanceof Error ? error.message : String(error)
+    )
   } finally {
     rmSync(temp, { recursive: true, force: true })
   }
@@ -391,6 +448,7 @@ export function renderReport(results: SecurityResults) {
   const findings = Object.values(results.plugins).flatMap((plugin) => [
     ...plugin.findings,
     ...(plugin.npm?.findings ?? []),
+    ...(plugin.npmPreview?.findings ?? []),
   ])
   const guidance = renderRuleGuidance(findings)
   if (guidance.length > 0) lines.push(...guidance, "")
@@ -423,6 +481,23 @@ export function renderReport(results: SecurityResults) {
         const location = `${finding.path}${finding.line ? `:${finding.line}` : ""}`
         lines.push(
           `- [npm/${escapeReportText(finding.tool)}] ${escapeReportText(finding.ruleId)} ${escapeReportText(location)} ${escapeReportText(finding.message)}`
+        )
+      }
+      lines.push("")
+    }
+    if (plugin.npmPreview) {
+      lines.push(
+        `npm preview package: ${escapeReportText(plugin.npmPreview.package)}`,
+        `npm preview status: ${plugin.npmPreview.status}`,
+        `npm preview version: ${escapeReportText(plugin.npmPreview.version ?? "unavailable")}`,
+        `npm preview blocking findings: ${plugin.npmPreview.blockingFindings}`,
+        `npm preview advisory findings: ${plugin.npmPreview.advisoryFindings}`,
+        ""
+      )
+      for (const finding of plugin.npmPreview.findings) {
+        const location = `${finding.path}${finding.line ? `:${finding.line}` : ""}`
+        lines.push(
+          `- [npm preview/${escapeReportText(finding.tool)}] ${escapeReportText(finding.ruleId)} ${escapeReportText(location)} ${escapeReportText(finding.message)}`
         )
       }
       lines.push("")

@@ -28,11 +28,13 @@ import {
   getRepositoryUrl,
   getRepositoryUrlAtRef,
   getSiteUrl,
+  getUpdateCommand,
   getUpdateReviewDetails,
   HEALTH_KEYS,
   HEALTH_LABELS,
   hasCompleteDirectoryNpmMetrics,
   isOfficialPlugin,
+  isPreviewUpdateAvailable,
   stripHtml,
 } from "../shared/directory"
 import { ExpandableSection } from "./ExpandableSection"
@@ -52,8 +54,11 @@ interface PluginDetailPageProps {
   updatingId: string | null
   installError: string | null
   updateError: string | null
-  onInstall: () => void
-  onUpdate: (installation: InstalledPlugin) => void
+  onInstall: (channel: "stable" | "preview") => void
+  onUpdate: (
+    installation: InstalledPlugin,
+    channel: "stable" | "preview"
+  ) => void
   onOpenGallery: () => void
   onBack: () => void
 }
@@ -80,9 +85,13 @@ export function PluginDetailPage({
   onBack,
 }: PluginDetailPageProps) {
   const toast = useToast()
-  const [confirmingInstall, setConfirmingInstall] = useState(false)
-  const [confirmingUpdate, setConfirmingUpdate] =
-    useState<InstalledPlugin | null>(null)
+  const [confirmingInstall, setConfirmingInstall] = useState<
+    "stable" | "preview" | null
+  >(null)
+  const [confirmingUpdate, setConfirmingUpdate] = useState<{
+    installation: InstalledPlugin
+    channel: "stable" | "preview"
+  } | null>(null)
   const [showFullActionError, setShowFullActionError] = useState(false)
   const [showReadme, setShowReadme] = useState(false)
 
@@ -455,14 +464,20 @@ export function PluginDetailPage({
     }),
     [theme, compact, installing, updatingId]
   )
-
-  const command = getInstallCommand(entry, npmSupported)
+  const command = getInstallCommand(entry, npmSupported, "stable")
+  const previewCommand = getInstallCommand(entry, npmSupported, "preview")
   const repositoryUrl = getRepositoryUrl(entry)
-  const updateRepositoryUrl = confirmingUpdate?.latestCommit
-    ? getRepositoryUrlAtRef(entry, confirmingUpdate.latestCommit)
+  const updateRepositoryUrl = confirmingUpdate?.installation.latestCommit
+    ? getRepositoryUrlAtRef(entry, confirmingUpdate.installation.latestCommit)
     : repositoryUrl
+  const updateTargetVersion =
+    confirmingUpdate?.channel === "preview"
+      ? entry.npmPreview?.version
+      : entry.version
   const updateReview = confirmingUpdate
-    ? getUpdateReviewDetails(confirmingUpdate, entry)
+    ? getUpdateReviewDetails(confirmingUpdate.installation, {
+        version: updateTargetVersion,
+      })
     : null
   const repositoryOwner = getRepositoryOwner(entry.repo)
   const ownerMetadataMatchesRepository =
@@ -509,9 +524,6 @@ export function PluginDetailPage({
       : securityStatus === "failed"
         ? theme.colors.statusDanger
         : theme.colors.statusWarning
-  const securityFindingsSummary = securityAttestation
-    ? `${securityAttestation.blockingFindings} blocking · ${securityAttestation.advisoryFindings} advisory`
-    : undefined
   const healthValues = HEALTH_KEYS.map((key) => health?.[key])
   const knownHealthChecks = healthValues.filter(
     (value) => value !== undefined
@@ -535,6 +547,15 @@ export function PluginDetailPage({
     ? undefined
     : entry.security?.reportUrl
   const securityCommit = installingFromNpm ? undefined : entry.security?.commit
+  const selectedInstallCommand =
+    confirmingInstall === "preview" ? previewCommand : command
+  const selectedInstallVersion =
+    confirmingInstall === "preview" ? entry.npmPreview?.version : entry.version
+  const selectedInstallSecurity =
+    confirmingInstall === "preview" ? entry.npmPreviewSecurity : security
+  const selectedInstallSecuritySummary = selectedInstallSecurity
+    ? `${selectedInstallSecurity.blockingFindings} blocking · ${selectedInstallSecurity.advisoryFindings} advisory`
+    : undefined
   const installable = command !== undefined
   const actionPending = installing || updatingId !== null
   const reportPluginUrl = getReportPluginIssueUrl(entry)
@@ -905,18 +926,43 @@ export function PluginDetailPage({
           <View style={styles.installationList}>
             <Text style={styles.label}>Installations</Text>
             {installations.map((installation) => {
-              const updateCommand = `paseo plugin update ${installation.id}`
+              const isNpm = installation.source === "npm"
+              const isPreview =
+                isNpm &&
+                (installation.releaseChannel === "preview" ||
+                  (!installation.releaseChannel &&
+                    installation.version === entry.npmPreview?.version))
+              const stableAvailable = isNpm
+                ? installation.version !== entry.version
+                : installation.updateState === "available"
+              const stableUpdateCommand = getUpdateCommand(
+                installation,
+                entry,
+                "stable"
+              )
+              const previewUpdateCommand = getUpdateCommand(
+                installation,
+                entry,
+                "preview"
+              )
+              const previewAvailable = Boolean(
+                previewUpdateCommand &&
+                  isPreviewUpdateAvailable(installation, entry)
+              )
               return (
                 <View key={installation.id} style={styles.installationCard}>
                   <Text style={styles.installationTitle}>
-                    {getInstallationStateLabel(installation)} ·{" "}
-                    {installation.id}
+                    {isPreview
+                      ? "Installed from npm (preview)"
+                      : getInstallationStateLabel(installation)}{" "}
+                    · {installation.id}
                   </Text>
                   <Text selectable style={styles.metaText}>
                     {installation.remote ??
                       installation.packageName ??
                       installation.path}
                     {installation.ref ? ` · ${installation.ref}` : ""}
+                    {installation.version ? ` · ${installation.version}` : ""}
                     {installation.commit
                       ? ` · ${installation.commit.slice(0, 12)}`
                       : ""}
@@ -929,37 +975,88 @@ export function PluginDetailPage({
                       {installation.updateError}
                     </Text>
                   ) : null}
-                  {installation.updateState === "available" ? (
-                    entry.id === "paseo-cafe" ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Copy update command for ${installation.id}`}
-                        style={styles.secondaryButton}
-                        onPress={async () => {
-                          await copyText(updateCommand)
-                          toast.show("Copied update command")
-                        }}
-                      >
-                        <Text style={styles.secondaryButtonText}>
-                          Copy update command
-                        </Text>
-                      </Pressable>
-                    ) : (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Update ${entry.name} installation ${installation.id}`}
-                        accessibilityState={{ disabled: actionPending }}
-                        style={styles.button}
-                        disabled={actionPending}
-                        onPress={() => setConfirmingUpdate(installation)}
-                      >
-                        <Text style={styles.buttonText}>
-                          {updatingId === installation.id
-                            ? "Updating…"
-                            : "Update"}
-                        </Text>
-                      </Pressable>
-                    )
+                  {stableAvailable || previewAvailable ? (
+                    <View style={styles.actionsRow}>
+                      {stableAvailable && stableUpdateCommand ? (
+                        entry.id === "paseo-cafe" ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Copy stable update command for ${installation.id}`}
+                            style={styles.secondaryButton}
+                            onPress={async () => {
+                              await copyText(stableUpdateCommand)
+                              toast.show("Copied stable update command")
+                            }}
+                          >
+                            <Text style={styles.secondaryButtonText}>
+                              Copy stable update command
+                            </Text>
+                          </Pressable>
+                        ) : (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`${isPreview ? "Return" : "Update"} ${entry.name} installation ${installation.id} to stable ${entry.version ?? "version"}`}
+                            accessibilityState={{ disabled: actionPending }}
+                            disabled={actionPending}
+                            style={styles.button}
+                            onPress={() =>
+                              setConfirmingUpdate({
+                                installation,
+                                channel: "stable",
+                              })
+                            }
+                          >
+                            <Text style={styles.buttonText}>
+                              {updatingId === installation.id
+                                ? "Updating…"
+                                : isPreview
+                                  ? `Return to stable ${versionLabel ?? ""}`.trim()
+                                  : `Update to stable ${versionLabel ?? ""}`.trim()}
+                            </Text>
+                          </Pressable>
+                        )
+                      ) : null}
+                      {previewAvailable && entry.npmPreview ? (
+                        entry.id === "paseo-cafe" ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Copy preview update command for ${installation.id}`}
+                            style={styles.secondaryButton}
+                            onPress={async () => {
+                              if (!previewUpdateCommand) return
+                              await copyText(previewUpdateCommand)
+                              toast.show("Copied preview update command")
+                            }}
+                          >
+                            <Text style={styles.secondaryButtonText}>
+                              Copy preview update command
+                            </Text>
+                          </Pressable>
+                        ) : (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Update ${entry.name} installation ${installation.id} to Preview ${entry.npmPreview.version}`}
+                            accessibilityState={{ disabled: actionPending }}
+                            disabled={actionPending}
+                            style={styles.secondaryButton}
+                            onPress={() =>
+                              setConfirmingUpdate({
+                                installation,
+                                channel: "preview",
+                              })
+                            }
+                          >
+                            <Text style={styles.secondaryButtonText}>
+                              {updatingId === installation.id
+                                ? "Updating…"
+                                : isPreview
+                                  ? `Update preview to v${entry.npmPreview.version}`
+                                  : `Use preview v${entry.npmPreview.version}`}
+                            </Text>
+                          </Pressable>
+                        )
+                      ) : null}
+                    </View>
                   ) : null}
                 </View>
               )
@@ -969,18 +1066,32 @@ export function PluginDetailPage({
 
         <View style={styles.actionsRow}>
           {inventoryAvailable && installations.length === 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Review ${entry.name} before installing`}
-              accessibilityState={{ disabled: actionPending || !installable }}
-              style={[styles.button, !installable ? { opacity: 0.5 } : null]}
-              disabled={actionPending || !installable}
-              onPress={() => setConfirmingInstall(true)}
-            >
-              <Text style={styles.buttonText}>
-                {installing ? "Installing…" : "Review & install"}
-              </Text>
-            </Pressable>
+            <>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Review stable ${entry.name} before installing`}
+                accessibilityState={{ disabled: actionPending || !installable }}
+                style={[styles.button, !installable ? { opacity: 0.5 } : null]}
+                disabled={actionPending || !installable}
+                onPress={() => setConfirmingInstall("stable")}
+              >
+                <Text style={styles.buttonText}>
+                  {installing ? "Installing…" : "Review & install"}
+                </Text>
+              </Pressable>
+              {previewCommand ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Review Preview ${entry.npmPreview?.version ?? "version"} of ${entry.name} before installing`}
+                  accessibilityState={{ disabled: actionPending }}
+                  disabled={actionPending}
+                  style={styles.secondaryButton}
+                  onPress={() => setConfirmingInstall("preview")}
+                >
+                  <Text style={styles.secondaryButtonText}>Try preview</Text>
+                </Pressable>
+              ) : null}
+            </>
           ) : null}
           <Pressable
             accessibilityRole="link"
@@ -1167,10 +1278,12 @@ export function PluginDetailPage({
         ) : null}
       </ScrollView>
       <Modal
-        title={`Review ${entry.name} installation`}
+        title={`Review ${entry.name} ${confirmingInstall === "preview" ? "Preview" : "stable"} installation`}
         icon={<Icon name="Download" size={18} color={theme.colors.accent} />}
-        open={confirmingInstall}
-        onOpenChange={setConfirmingInstall}
+        open={confirmingInstall !== null}
+        onOpenChange={(open: boolean) => {
+          if (!open) setConfirmingInstall(null)
+        }}
       >
         <Modal.Content contentContainerStyle={styles.modalBody}>
           <View style={styles.section}>
@@ -1183,16 +1296,22 @@ export function PluginDetailPage({
             <Text style={styles.label}>Install command</Text>
             <View style={styles.commandRow}>
               <Text selectable style={styles.command}>
-                {command ?? "Unavailable: invalid catalog target"}
+                {selectedInstallCommand ??
+                  "Unavailable: invalid catalog target"}
               </Text>
             </View>
           </View>
           <View style={styles.section}>
             <Text style={styles.label}>Catalog status</Text>
-            {installingFromNpm ? (
+            {confirmingInstall === "preview" ? (
               <Text style={styles.modalText}>
-                Catalog package: {entry.package}@{entry.version}. Paseo resolves
-                it through this host&apos;s npm configuration.
+                Preview {entry.package}@{selectedInstallVersion} comes from npm
+                dist-tag: next and may contain unreleased changes.
+              </Text>
+            ) : installingFromNpm ? (
+              <Text style={styles.modalText}>
+                Stable package: {entry.package}@{selectedInstallVersion}. Paseo
+                resolves it through this host&apos;s npm configuration.
               </Text>
             ) : null}
             {!installingFromNpm && securityCommit ? (
@@ -1207,9 +1326,10 @@ export function PluginDetailPage({
               </Text>
             ) : null}
             <Text style={styles.modalText}>Health: {healthSummary}</Text>
-            {securityFindingsSummary ? (
+            {selectedInstallSecuritySummary ? (
               <Text style={styles.modalText}>
-                Security: {securityStatusLabel} · {securityFindingsSummary}
+                Security: {selectedInstallSecurity?.status ?? "unknown"} ·{" "}
+                {selectedInstallSecuritySummary}
               </Text>
             ) : (
               <Text style={styles.modalText}>
@@ -1274,31 +1394,46 @@ export function PluginDetailPage({
               accessibilityRole="button"
               accessibilityLabel="Cancel installation"
               style={styles.secondaryButton}
-              onPress={() => setConfirmingInstall(false)}
+              onPress={() => setConfirmingInstall(null)}
             >
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Confirm installation of ${entry.name}`}
-              accessibilityState={{ disabled: actionPending || !installable }}
-              style={[styles.button, !installable ? { opacity: 0.5 } : null]}
-              disabled={actionPending || !installable}
+              accessibilityLabel={`Confirm ${confirmingInstall ?? "stable"} installation of ${entry.name}`}
+              accessibilityState={{
+                disabled: actionPending || selectedInstallCommand === undefined,
+              }}
+              style={[
+                styles.button,
+                selectedInstallCommand === undefined ? { opacity: 0.5 } : null,
+              ]}
+              disabled={actionPending || selectedInstallCommand === undefined}
               onPress={() => {
-                if (actionPending || !installable) return
-                setConfirmingInstall(false)
-                onInstall()
+                if (
+                  actionPending ||
+                  !confirmingInstall ||
+                  !selectedInstallCommand
+                )
+                  return
+                const channel = confirmingInstall
+                setConfirmingInstall(null)
+                onInstall(channel)
               }}
             >
               <Text style={styles.buttonText}>
-                {installing ? "Installing…" : "Install"}
+                {installing
+                  ? "Installing…"
+                  : confirmingInstall === "preview"
+                    ? "Install preview"
+                    : "Install stable"}
               </Text>
             </Pressable>
           </View>
         </Modal.Content>
       </Modal>
       <Modal
-        title={`Update ${entry.name}?`}
+        title={`${confirmingUpdate?.channel === "preview" ? "Use Preview for" : "Use stable for"} ${entry.name}?`}
         icon={<Icon name="RefreshCw" size={18} color={theme.colors.accent} />}
         open={confirmingUpdate !== null}
         onOpenChange={(open: boolean) => {
@@ -1306,12 +1441,23 @@ export function PluginDetailPage({
         }}
       >
         <Modal.Content contentContainerStyle={styles.modalBody}>
-          <Text style={styles.modalTitle}>{confirmingUpdate?.id}</Text>
+          <Text style={styles.modalTitle}>
+            {confirmingUpdate?.installation.id}
+          </Text>
           <Text selectable style={styles.modalText}>
             {updateReview?.identity}
           </Text>
           <Text selectable style={styles.modalText}>
             {updateReview?.revision}
+          </Text>
+          <Text style={styles.modalText}>
+            {confirmingUpdate?.channel === "preview"
+              ? `This installs the scanned Preview from npm dist-tag: next.`
+              : confirmingUpdate?.installation.releaseChannel === "preview" ||
+                  confirmingUpdate?.installation.version ===
+                    entry.npmPreview?.version
+                ? "This leaves the Preview channel. An older stable version may not read state written by Preview."
+                : "This installs the current stable release."}
           </Text>
           <Text style={styles.modalText}>
             Updating replaces trusted, unsandboxed plugin code on this Paseo
@@ -1331,6 +1477,7 @@ export function PluginDetailPage({
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Cancel update"
               style={styles.secondaryButton}
               onPress={() => setConfirmingUpdate(null)}
             >
@@ -1338,13 +1485,23 @@ export function PluginDetailPage({
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={`Confirm ${confirmingUpdate?.channel ?? "stable"} update of ${entry.name}`}
+              accessibilityState={{ disabled: actionPending }}
+              disabled={actionPending}
               style={styles.button}
               onPress={() => {
-                if (confirmingUpdate) onUpdate(confirmingUpdate)
+                if (confirmingUpdate) {
+                  onUpdate(
+                    confirmingUpdate.installation,
+                    confirmingUpdate.channel
+                  )
+                }
                 setConfirmingUpdate(null)
               }}
             >
-              <Text style={styles.buttonText}>Update</Text>
+              <Text style={styles.buttonText}>
+                {updatingId ? "Updating…" : "Update"}
+              </Text>
             </Pressable>
           </View>
         </Modal.Content>

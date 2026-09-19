@@ -18,6 +18,7 @@ export interface NpmPackageRelease {
   version: string
   integrity: string
   resolved: string
+  publishedAt?: string
   description?: string
   license?: string
   repository?: { type?: string; url?: string; directory?: string }
@@ -148,6 +149,62 @@ export async function resolveNpmPackage(
       typeof manifest.license === "string" ? manifest.license : undefined,
     repository: manifest.repository,
   }
+}
+export async function resolveNpmPackageReleases(
+  packageName: string,
+  cache?: string
+): Promise<{ latest?: NpmPackageRelease; next?: NpmPackageRelease }> {
+  if (!isValidCatalogPackage(packageName)) {
+    throw new Error(`Invalid npm package name: ${packageName}`)
+  }
+  const packument = await pacote.packument(
+    packageName,
+    pacoteOptions(cache) as pacote.Options & { fullMetadata: true }
+  )
+  if (packument.name !== packageName) {
+    throw new Error(`npm returned package ${packument.name} for ${packageName}`)
+  }
+  const releaseFor = (
+    tag: "latest" | "next"
+  ): NpmPackageRelease | undefined => {
+    const taggedVersion = packument["dist-tags"]?.[tag]
+    const manifest = taggedVersion
+      ? packument.versions?.[taggedVersion]
+      : undefined
+    const version = semver.valid(taggedVersion)
+    const publishedAt = version ? packument.time?.[version] : undefined
+    if (
+      !version ||
+      version === "0.0.0" ||
+      !manifest ||
+      manifest.name !== packageName ||
+      semver.valid(manifest.version) !== version ||
+      !publishedAt ||
+      !Number.isFinite(Date.parse(publishedAt)) ||
+      !manifest.dist?.integrity?.startsWith("sha512-") ||
+      !manifest.dist?.tarball ||
+      !trustedTarballUrl(manifest.dist.tarball) ||
+      (manifest.dist.fileCount ?? 0) > MAX_PACKAGE_FILES ||
+      (manifest.dist.unpackedSize ?? 0) > MAX_PACKAGE_BYTES
+    ) {
+      return undefined
+    }
+    return {
+      package: packageName,
+      version,
+      integrity: manifest.dist.integrity,
+      resolved: manifest.dist.tarball,
+      publishedAt,
+      description:
+        typeof manifest.description === "string"
+          ? manifest.description
+          : undefined,
+      license:
+        typeof manifest.license === "string" ? manifest.license : undefined,
+      repository: manifest.repository,
+    }
+  }
+  return { latest: releaseFor("latest"), next: releaseFor("next") }
 }
 
 export async function extractNpmPackage(
