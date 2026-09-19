@@ -1,5 +1,7 @@
 {
   "repo": "gpambrozio/paseo-plugins",
   "path": "skills",
-  "categories": ["productivity"]
+  "package": "@gpambrozio/paseo-skills",
+  "categories": ["productivity"],
+  "submittedBy": "gpambrozio"
 }

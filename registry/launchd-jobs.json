@@ -1,9 +1,11 @@
 {
   "repo": "gpambrozio/paseo-plugins",
   "path": "launchd-jobs",
+  "package": "@gpambrozio/paseo-launchd-jobs",
   "categories": ["automation"],
   "platforms": ["macos"],
   "caveats": [
     "Requires an active login session — won't run from a headless SSH-only daemon"
-  ]
+  ],
+  "submittedBy": "gpambrozio"
 }

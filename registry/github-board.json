@@ -1,6 +1,7 @@
 {
   "repo": "gpambrozio/paseo-plugins",
   "path": "github-board",
+  "package": "@gpambrozio/paseo-github-board",
   "categories": ["github", "productivity", "monitoring"],
   "caveats": [
     "Requires gh installed and authenticated on the daemon machine, not the device running the app",
