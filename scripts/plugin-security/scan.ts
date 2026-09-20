@@ -11,6 +11,13 @@ import {
   resolveNpmPackageReleases,
 } from "../npm-registry.ts"
 import {
+  assertScanPlanIntegrity,
+  type CandidateScanResults,
+  candidateScanResultsSchema,
+  type ScanPlan,
+  scanPlanSchema,
+} from "../scan-plan.ts"
+import {
   REPORT_DETAILS_CLOSE,
   REPORT_DETAILS_OPEN,
   REPORT_SUMMARY_CLOSE,
@@ -27,9 +34,20 @@ const CLONE_TIMEOUT_MS = 60_000
 
 async function main() {
   const args = process.argv.slice(2)
+  const planPath = valueFor(args, "--plan")
   const targetsPath = valueFor(args, "--targets")
   const reportPath = valueFor(args, "--report")
   const jsonPath = valueFor(args, "--json")
+
+  if (planPath) {
+    if (!jsonPath) throw new Error("planned scans require --json")
+    const plan = scanPlanSchema.parse(
+      JSON.parse(readFileSync(planPath, "utf8"))
+    )
+    const results = await scanPlannedTargets(plan)
+    writeFileSync(jsonPath, `${JSON.stringify(results, null, 2)}\n`)
+    return
+  }
 
   if (!targetsPath || !reportPath) {
     throw new Error("missing --targets or --report")
@@ -71,6 +89,48 @@ async function main() {
   ) {
     process.exitCode = 1
   }
+}
+
+export async function scanPlannedTargets(
+  plan: ScanPlan,
+  generatedAt = new Date().toISOString()
+): Promise<CandidateScanResults> {
+  assertScanPlanIntegrity(plan)
+  const plugins: CandidateScanResults["plugins"] = {}
+  for (const entry of plan.entries) {
+    const target: SecurityTarget = {
+      id: entry.registry.id,
+      repo: entry.registry.repo,
+      path: entry.registry.path,
+      package: entry.registry.package,
+      ref: entry.gitTarget?.commit ?? entry.observedGit?.commit ?? "",
+      commit: entry.gitTarget?.commit ?? entry.observedGit?.commit ?? "",
+    }
+    const candidate: CandidateScanResults["plugins"][string] = {}
+    if (entry.gitTarget) {
+      candidate.git = {
+        targetKey: entry.gitTarget.targetKey,
+        result: scanGitTarget(target, generatedAt),
+      }
+    }
+    for (const npmTarget of entry.npmTargets) {
+      const scanned = {
+        targetKey: npmTarget.targetKey,
+        result: await scanNpmRelease(target, npmTarget.release, generatedAt),
+      }
+      if (npmTarget.channel === "latest") candidate.npmLatest = scanned
+      else candidate.npmPreview = scanned
+    }
+    if (candidate.git || candidate.npmLatest || candidate.npmPreview) {
+      plugins[entry.registry.id] = candidate
+    }
+  }
+  return candidateScanResultsSchema.parse({
+    version: 1,
+    planId: plan.planId,
+    generatedAt,
+    plugins,
+  })
 }
 function runGit(
   args: string[],

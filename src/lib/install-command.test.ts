@@ -91,5 +91,11 @@ describe("getInstallCommand", () => {
         security,
       })
     ).toBeUndefined()
+    expect(
+      getGitInstallCommand({
+        repo: "someone/their-plugin",
+        security: { ...security, status: "failed", blockingFindings: 1 },
+      })
+    ).toBeUndefined()
   })
 })

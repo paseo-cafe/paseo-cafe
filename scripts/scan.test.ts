@@ -129,7 +129,7 @@ describe("npm release promotion", () => {
     downloadsLast30Days: 1_234,
   }
 
-  it("requires Git, npm, security, and complete ranking metadata", () => {
+  it("requires Git, npm, security, and publication metadata", () => {
     expect(npmReleaseIsReady(release, "1.2.3", security, metrics)).toBe(true)
     expect(npmReleaseIsReady(release, "1.2.2", security, metrics)).toBe(false)
     expect(
@@ -153,7 +153,7 @@ describe("npm release promotion", () => {
       npmReleaseIsReady(release, "1.2.3", security, {
         publishedAt: metrics.publishedAt,
       })
-    ).toBe(false)
+    ).toBe(true)
     expect(
       npmReleaseIsReady(release, "1.2.3", security, {
         downloadsLast30Days: metrics.downloadsLast30Days,

@@ -9,7 +9,11 @@ import {
 export function getGitInstallCommand(
   plugin: Pick<PluginRecord, "repo" | "path" | "security">
 ): string | undefined {
-  if ((plugin.path?.length ?? 0) > 500 || !plugin.security?.commit) {
+  if (
+    (plugin.path?.length ?? 0) > 500 ||
+    plugin.security?.status !== "passed" ||
+    !plugin.security.commit
+  ) {
     return undefined
   }
   return getCatalogInstallCommand({

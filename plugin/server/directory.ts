@@ -1199,6 +1199,7 @@ export async function installDirectoryPlugin(
         input.expectedPackage !== undefined ||
         input.expectedVersion !== undefined ||
         input.expectedIntegrity !== undefined ||
+        entry.security?.status !== "passed" ||
         !entry.security?.commit ||
         input.expectedCommit?.toLowerCase() !== entry.security.commit
       ) {
@@ -1298,6 +1299,7 @@ export async function updateDirectoryPlugin(
         input.expectedPackage !== undefined ||
         input.expectedVersion !== undefined ||
         input.expectedIntegrity !== undefined ||
+        entry.security?.status !== "passed" ||
         !entry.security?.commit ||
         input.expectedCommit?.toLowerCase() !== entry.security.commit
       ) {

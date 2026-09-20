@@ -6,7 +6,9 @@ on:
     types: [completed]
     branches: [main]
   schedule:
-    - cron: "17 */6 * * *"
+    # npm releases are cheap to poll; Git fallback repositories refresh separately.
+    - cron: "7,22,37,52 * * * *"
+    - cron: "13 */6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -14,46 +16,35 @@ permissions:
 
 concurrency:
   group: github-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     name: Enrich and build static site
-    runs-on: ubuntu-latest
-    # Forks inherit the schedule above, where it does something nobody asked
-    # for: it rebuilds main every six hours and republishes it over whatever
-    # the fork owner actually deployed, spending their Actions minutes and
-    # GitHub API quota to do it. Pushes and manual runs still work everywhere;
-    # a fork that does want the periodic refresh can run it from the Actions
-    # tab, or drop this condition.
     if: >-
       (github.event_name != 'workflow_run' ||
-       github.event.workflow_run.conclusion == 'success') &&
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.head_branch == github.event.repository.default_branch)) &&
       (github.event_name != 'schedule' ||
        github.repository == 'paseo-cafe/paseo-cafe')
-    timeout-minutes: 35
+    timeout-minutes: 60
     permissions:
+      actions: read
       contents: read
-      # configure-pages below reads this repo's Pages settings.
       pages: read
+    outputs:
+      deploy: ${{ steps.decision.outputs.deploy }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
-          # Full history: scripts/scan.ts derives each plugin's addedAt from
-          # the commit that first added its registry entry, and a shallow
-          # clone has no such history to read.
+          # Full history is still required for the registry addedAt dates.
           fetch-depth: 0
 
-      # Where this deployment actually lives. The canonical site has a custom
-      # domain and is served from the root; a fork's project site is served
-      # from https://<owner>.github.io/<repo>/. Everything that bakes a URL or
-      # a path into the output reads these two outputs — see src/lib/site.ts.
-      # Requires Pages to be turned on for the repo with "GitHub Actions" as the
-      # source — a one-time click, since creating a Pages site needs repo admin
-      # and GITHUB_TOKEN does not have it.
       - name: Resolve this deployment's URL and base path
         id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -66,72 +57,107 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Select full-registry security targets
-        run: >-
-          bun run security:targets
-          --output "$RUNNER_TEMP/plugin-security-targets.json"
+      - name: Find last deployed registry state
+        id: prior
+        run: bun run scripts/find-scan-state.ts
         env:
           GITHUB_TOKEN: ${{ github.token }}
-
-      # Scans every registry entry's current default-branch commit and
-      # writes the results the site/plugin read as trust data (see
-      # loadPublishedSecurityCatalog in scripts/scan.ts). continue-on-error
-      # and a bounded timeout keep a scanner failure/hang from blocking the
-      # catalog deploy — an absent or partial artifact degrades every
-      # affected plugin's security panel to "unknown", never to a false
-      # attestation.
-      - name: Scan full plugin registry
+          GITHUB_DEFAULT_BRANCH: main
+      - name: Restore last deployed registry state
         continue-on-error: true
-        timeout-minutes: 15
-        run: >-
-          mkdir -p data &&
-          bun run security:scan
-          --targets "$RUNNER_TEMP/plugin-security-targets.json"
-          --report "$RUNNER_TEMP/plugin-security-report.md"
-          --json data/plugin-security-results.json
+        if: steps.prior.outputs.found == 'true'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: registry-scan-state-v1
+          path: data
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.prior.outputs.run_id }}
 
-      - name: Scan registry
-        run: bun run registry:scan
+      - name: Build pinned registry plan
+        id: plan
+        run: >-
+          bun run registry:plan
+          --mode "$SCAN_MODE"
+          --output "$RUNNER_TEMP/registry-scan-plan.json"
+        env:
+          SCAN_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '7,22,37,52 * * * *' && 'npm' || 'full' }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CATALOG_IMPLEMENTATION_DIGEST: ${{ hashFiles('scripts/scan.ts', 'scripts/scan-plan.ts', 'scripts/npm-registry.ts', 'scripts/github.ts', 'scripts/og-image.tsx', 'scripts/theme-previews.ts', 'src/lib/**/*.ts', 'plugin/shared/**/*.ts', 'package.json', 'bun.lock') }}
+          SECURITY_IMPLEMENTATION_DIGEST: ${{ hashFiles('scripts/plugin-security/**/*.ts', 'scripts/npm-registry.ts', 'src/lib/plugin-schema.ts', 'src/lib/registry-schema.ts', 'plugin/shared/catalog.ts', 'package.json', 'bun.lock') }}
+
+      - name: Scan changed plugin releases
+        if: steps.plan.outputs.scan_count != '0'
+        timeout-minutes: 25
+        run: >-
+          bun run security:scan
+          --plan "$RUNNER_TEMP/registry-scan-plan.json"
+          --json "$RUNNER_TEMP/plugin-security-candidates.json"
+
+      - name: Reject stale scan completions
+        if: steps.plan.outputs.scan_count != '0'
+        run: >-
+          bun run registry:plan
+          --verify "$RUNNER_TEMP/registry-scan-plan.json"
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
-          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+
+      - name: Decide whether to deploy
+        id: decision
+        run: echo "deploy=$DEPLOY" >> "$GITHUB_OUTPUT"
+        env:
+          DEPLOY: ${{ github.event_name != 'schedule' || steps.plan.outputs.assemble == 'true' }}
+
+      - name: Assemble registry from active and candidate releases
+        if: steps.decision.outputs.deploy == 'true'
+        id: catalog
+        run: >-
+          bun run registry:scan
+          --plan "$RUNNER_TEMP/registry-scan-plan.json"
+          --candidates "$RUNNER_TEMP/plugin-security-candidates.json"
 
       - name: Build generated site
+        if: steps.decision.outputs.deploy == 'true'
         run: bun run build:generated
         env:
           VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
-      # Nitro prerenders each route to its full path, so under a base path the
-      # HTML lands in .output/public/<base>/ while public assets stay at the
-      # artifact root. Copy the prerendered files into that root because Pages
-      # already mounts the artifact at <base>. Keep the source directory: a
-      # valid repository name such as "assets" can collide with files that
-      # must remain nested in the deployed artifact.
       - name: Merge prerendered pages into the artifact root
-        if: steps.pages.outputs.base_path != ''
+        if: steps.decision.outputs.deploy == 'true' && steps.pages.outputs.base_path != ''
         run: bun run scripts/merge-pages-artifact.ts
         env:
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Verify final GitHub Pages artifact
+        if: steps.decision.outputs.deploy == 'true'
         run: bun run scripts/verify-pages-entrypoint.ts --artifact-root
         env:
           VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
+      - name: Upload candidate registry state
+        if: steps.decision.outputs.deploy == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: registry-scan-candidate-${{ github.run_id }}
+          path: data/registry-scan-state.json
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Upload GitHub Pages artifact
+        if: steps.decision.outputs.deploy == 'true'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: .output/public
 
   deploy:
-    name: Deploy GitHub Pages
+    name: Deploy to GitHub Pages
     needs: build
+    if: needs.build.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read
       pages: write
       id-token: write
     environment:
@@ -141,3 +167,19 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      - name: Download deployed registry state
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: registry-scan-candidate-${{ github.run_id }}
+          path: data
+
+      # This artifact exists only after Pages accepted the matching catalog.
+      # Future runs therefore never trust state from a failed deployment.
+      - name: Publish deployed registry state
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: registry-scan-state-v1
+          path: data/registry-scan-state.json
+          if-no-files-found: error
+          retention-days: 90

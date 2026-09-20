@@ -7,7 +7,8 @@ from the plugin's own repo — authors don't fill out a form, they just point us
 
 ```
 registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
-                         →  scripts/scan.ts              (build, dev, deployment, nightly)
+                         →  scripts/scan-plan.ts         (pinned incremental plan)
+                         →  targeted security + enrichment scans
                          →  ignored data/plugins/*.json + public assets
                          →  Nitro prerender              (.output/public)
 ```
@@ -21,19 +22,22 @@ registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
    aggregate `All checks passed` result. App checks cover formatting, lint, types, tests, and the
    production build; plugin checks cover formatting, lint, types, and tests. See
    `.github/workflows/ci.yml` and `.github/workflows/validate.yml`.
-3. **`scripts/scan.ts`** ("plumb for paseo") generates data on demand before local development
-   and production builds, then refreshes it during deployment on merges to `main` and every six
-   hours. It reads plugin documentation and source metadata from GitHub. For npm-backed plugins it
-   also resolves the exact npmjs version, publication date, integrity, and last-30-day downloads;
-   GitHub stars and activity remain discovery signals only for Git-only plugins. Generated records
-   and public assets are ignored and never hand-edited. See `.github/workflows/deploy-pages.yml`.
+3. **`scripts/scan-plan.ts`** resolves each repository head and npm dist-tag once, compares those
+   pinned identities with the last successfully deployed scan state, and selects only new plugin
+   releases. Git repositories use each plugin path's normalized `package.json.version` as the
+   change detector, so unrelated monorepo commits do not move the published plugin commit. npm
+   releases use their exact package, version, and SHA-512 integrity. `scripts/scan.ts` enriches only
+   promoted candidates and retains the complete prior record when a candidate fails. A lightweight
+   npm-only check runs every 15 minutes; Git release checks continue every six hours. Unchanged
+   scheduled runs stop after planning. Missing or invalid prior state safely causes a full scan.
 4. The build imports the generated `data/plugins.json` via `src/lib/plugins-data.ts`, prerenders
    every public page, and emits the catalog's machine interfaces: `/llms.txt`, `/llms-full.txt`,
    per-plugin Markdown at `/plugins/<id>.md`, OpenAPI at `/openapi.json`, the full JSON catalog at
    `/api/plugins`, and focused JSON records at `/api/plugin/<id>.json`.
-5. **`.github/workflows/deploy-pages.yml`** refreshes and verifies the generated data and assets,
-   builds `.output/public`, and publishes that artifact to GitHub Pages. The deployed site has no
-   application server or runtime GitHub API access.
+5. **`.github/workflows/deploy-pages.yml`** restores scan state produced only after a successful
+   Pages deployment, builds and verifies the static site when the plan changes, publishes it, and
+   then records the matching state for the next run. The deployed site has no application server
+   or runtime GitHub API access.
 
 ## Agent and API access
 

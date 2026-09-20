@@ -83,6 +83,17 @@ import {
 } from "./npm-registry.ts"
 import { renderOgImage } from "./og-image.tsx"
 import { securityResultsSchema } from "./plugin-security/shared.ts"
+import {
+  assertScanPlanIntegrity,
+  type CandidateScanResults,
+  candidateScanResultsSchema,
+  type RegistryScanState,
+  readScanState,
+  registryScanStateSchema,
+  type ScanPlan,
+  type ScanPlanEntry,
+  scanPlanSchema,
+} from "./scan-plan.ts"
 import { extractThemePreviews } from "./theme-previews.ts"
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
@@ -340,6 +351,12 @@ interface NpmCatalogMetrics {
   downloadsLast30Days?: number
 }
 
+export interface PinnedScanSource {
+  commit?: string
+  npmLatest?: NpmPackageRelease
+  npmPreview?: NpmPackageRelease
+}
+
 export function npmReleaseIsReady(
   release: NpmPackageRelease,
   gitVersion: string | undefined,
@@ -348,7 +365,6 @@ export function npmReleaseIsReady(
 ): boolean {
   return (
     metrics.publishedAt !== undefined &&
-    metrics.downloadsLast30Days !== undefined &&
     gitVersion === release.version &&
     security?.package === release.package &&
     security.version === release.version &&
@@ -370,7 +386,8 @@ export async function scanOne(
   npmPreviewSecurityCatalog: Record<
     string,
     PluginNpmSecurity & { package: string }
-  > = {}
+  > = {},
+  pinned?: PinnedScanSource
 ): Promise<PluginRecord> {
   const id = registryIdSchema.parse(entryFile.slice(0, -".json".length))
   const raw = JSON.parse(readFileSync(join(registryDir, entryFile), "utf8"))
@@ -414,19 +431,24 @@ export async function scanOne(
     let npmDownloadsLast30Days: number | undefined
     const npmMetricsErrors: string[] = []
     if (entry.package) {
-      try {
-        const releases = await resolveNpmPackageReleases(entry.package)
-        npmRelease = releases.latest
-        npmPreviewRelease =
-          releases.latest &&
-          releases.next &&
-          releases.next.version !== releases.latest.version
-            ? releases.next
-            : undefined
-        if (!npmRelease) throw new Error("latest release is unavailable")
-      } catch (error) {
-        npmResolutionError =
-          error instanceof Error ? error.message : String(error)
+      if (pinned) {
+        npmRelease = pinned.npmLatest
+        npmPreviewRelease = pinned.npmPreview
+      } else {
+        try {
+          const releases = await resolveNpmPackageReleases(entry.package)
+          npmRelease = releases.latest
+          npmPreviewRelease =
+            releases.latest &&
+            releases.next &&
+            releases.next.version !== releases.latest.version
+              ? releases.next
+              : undefined
+          if (!npmRelease) throw new Error("latest release is unavailable")
+        } catch (error) {
+          npmResolutionError =
+            error instanceof Error ? error.message : String(error)
+        }
       }
       if (npmRelease) {
         try {
@@ -446,18 +468,24 @@ export async function scanOne(
       : `https://github.com/${entry.repo}`
     let revision: string | undefined
     let revisionError: string | undefined
-    try {
-      revision = REPOSITORY_COMMIT_SCHEMA.parse(
-        await ghApi<unknown>(
-          `/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`
+    if (pinned) {
+      revision = pinned.commit
+    } else {
+      try {
+        revision = REPOSITORY_COMMIT_SCHEMA.parse(
+          await ghApi<unknown>(
+            `/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`
+          )
+        ).sha
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error)
+        console.warn(
+          `  ! commit resolution failed for ${entry.repo}: ${reason}`
         )
-      ).sha
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error)
-      console.warn(`  ! commit resolution failed for ${entry.repo}: ${reason}`)
-      revisionError =
-        `default branch commit unavailable; scanned ${branch} without security ` +
-        "attestation or repository-hosted images"
+        revisionError =
+          `default branch commit unavailable; scanned ${branch} without security ` +
+          "attestation or repository-hosted images"
+      }
     }
 
     const contentRef = revision ?? branch
@@ -882,6 +910,344 @@ function readCachedRecord(
     return undefined
   }
 }
+function pluginSecurityFromCandidate(
+  candidate: CandidateScanResults["plugins"][string]["git"]
+): PluginSecurity | undefined {
+  if (!candidate) return undefined
+  return pluginSecuritySchema.parse({
+    status:
+      candidate.result.status === "unavailable"
+        ? "unknown"
+        : candidate.result.status,
+    blockingFindings: candidate.result.blockingFindings,
+    advisoryFindings: candidate.result.advisoryFindings,
+    scannedAt: candidate.result.scannedAt,
+    commit: candidate.result.commit,
+  })
+}
+
+function npmSecurityFromCandidate(
+  candidate:
+    | CandidateScanResults["plugins"][string]["npmLatest"]
+    | CandidateScanResults["plugins"][string]["npmPreview"]
+): (PluginNpmSecurity & { package: string }) | undefined {
+  if (!candidate) return undefined
+  return {
+    package: candidate.result.package,
+    ...pluginNpmSecuritySchema.parse({
+      status:
+        candidate.result.status === "unavailable"
+          ? "unknown"
+          : candidate.result.status,
+      blockingFindings: candidate.result.blockingFindings,
+      advisoryFindings: candidate.result.advisoryFindings,
+      scannedAt: candidate.result.scannedAt,
+      version: candidate.result.version,
+      integrity: candidate.result.integrity,
+    }),
+  }
+}
+
+function candidatePassed(
+  candidate:
+    | CandidateScanResults["plugins"][string]["git"]
+    | CandidateScanResults["plugins"][string]["npmLatest"]
+    | CandidateScanResults["plugins"][string]["npmPreview"],
+  targetKey: string | undefined
+): boolean {
+  return Boolean(
+    candidate &&
+      targetKey &&
+      candidate.targetKey === targetKey &&
+      candidate.result.status === "passed" &&
+      candidate.result.blockingFindings === 0
+  )
+}
+
+function overlayRegistryFields(
+  record: PluginRecord,
+  entry: ScanPlanEntry["registry"]
+): PluginRecord {
+  return pluginRecordSchema.parse({
+    ...record,
+    categories: entry.categories,
+    platforms: entry.platforms,
+    caveats: entry.caveats,
+    caveatNodes: entry.caveats.map(parseInlineMarkdown),
+  })
+}
+function npmRecordMatches(
+  record: PluginRecord | undefined,
+  release: NpmPackageRelease | undefined,
+  preview = false
+): boolean {
+  const published = preview ? record?.npmPreview : record?.npm
+  const security = preview ? record?.npmPreviewSecurity : record?.npmSecurity
+  return Boolean(
+    release &&
+      published?.package === release.package &&
+      published.version === release.version &&
+      published.integrity === release.integrity &&
+      security?.status === "passed" &&
+      security.version === release.version &&
+      security.integrity === release.integrity
+  )
+}
+
+export async function assembleIncrementalCatalog(options: {
+  plan: ScanPlan
+  candidates: CandidateScanResults
+  previousState?: RegistryScanState
+  registryDir?: string
+  outputDir?: string
+  ogDir?: string
+  statePath?: string
+  indexPath?: string
+  writeDeploymentFiles?: boolean
+}): Promise<{ records: PluginRecord[]; publishedCount: number }> {
+  const {
+    plan,
+    candidates,
+    previousState,
+    registryDir = REGISTRY_DIR,
+    outputDir = OUTPUT_DIR,
+    ogDir = OG_DIR,
+    statePath = join(ROOT, "data", "registry-scan-state.json"),
+    indexPath = INDEX_PATH,
+    writeDeploymentFiles = true,
+  } = options
+  assertScanPlanIntegrity(plan)
+  if (candidates.planId !== plan.planId) {
+    throw new Error("candidate scan results do not match the pinned plan")
+  }
+
+  mkdirSync(outputDir, { recursive: true })
+  mkdirSync(ogDir, { recursive: true })
+  const addedAt = readRegistryAddedAt(registryDir)
+  const records: PluginRecord[] = []
+  const nextEntries: RegistryScanState["entries"] = {}
+  let publishedCount = 0
+
+  for (const entry of plan.entries) {
+    const id = entry.registry.id
+    const previous = previousState?.entries[id]
+    const sourceChanged = previous?.sourceKey !== entry.sourceKey
+    const active =
+      plan.reusedState && !sourceChanged ? previous?.active : undefined
+    const candidate = candidates.plugins[id]
+    const latestTarget = entry.npmTargets.find(
+      (target) => target.channel === "latest"
+    )
+    const previewTarget = entry.npmTargets.find(
+      (target) => target.channel === "next"
+    )
+    if (
+      (candidate?.git &&
+        (candidate.git.targetKey !== entry.gitTarget?.targetKey ||
+          candidate.git.result.commit !== entry.gitTarget.commit)) ||
+      (candidate?.npmLatest &&
+        (candidate.npmLatest.targetKey !== latestTarget?.targetKey ||
+          candidate.npmLatest.result.package !== latestTarget.release.package ||
+          candidate.npmLatest.result.version !== latestTarget.release.version ||
+          candidate.npmLatest.result.integrity !==
+            latestTarget.release.integrity)) ||
+      (candidate?.npmPreview &&
+        (candidate.npmPreview.targetKey !== previewTarget?.targetKey ||
+          candidate.npmPreview.result.package !==
+            previewTarget.release.package ||
+          candidate.npmPreview.result.version !==
+            previewTarget.release.version ||
+          candidate.npmPreview.result.integrity !==
+            previewTarget.release.integrity))
+    ) {
+      throw new Error(`candidate target mismatch for ${id}`)
+    }
+    const storedGitCandidate = previous?.lastAttempt?.git
+    const priorGitCandidate =
+      storedGitCandidate &&
+      entry.observedGit &&
+      storedGitCandidate.targetKey === entry.observedGit.targetKey &&
+      storedGitCandidate.result.commit === entry.observedGit.commit
+        ? storedGitCandidate
+        : undefined
+    const storedNpmLatest = previous?.lastAttempt?.npmLatest
+    const priorNpmLatest =
+      storedNpmLatest &&
+      entry.observedNpmLatest &&
+      storedNpmLatest.targetKey === entry.observedNpmLatestKey &&
+      storedNpmLatest.result.package === entry.observedNpmLatest.package &&
+      storedNpmLatest.result.version === entry.observedNpmLatest.version &&
+      storedNpmLatest.result.integrity === entry.observedNpmLatest.integrity
+        ? storedNpmLatest
+        : undefined
+    const storedNpmPreview = previous?.lastAttempt?.npmPreview
+    const priorNpmPreview =
+      storedNpmPreview &&
+      entry.observedNpmPreview &&
+      storedNpmPreview.targetKey === entry.observedNpmPreviewKey &&
+      storedNpmPreview.result.package === entry.observedNpmPreview.package &&
+      storedNpmPreview.result.version === entry.observedNpmPreview.version &&
+      storedNpmPreview.result.integrity === entry.observedNpmPreview.integrity
+        ? storedNpmPreview
+        : undefined
+    const gitEvidence = candidate?.git ?? priorGitCandidate
+    const npmLatestEvidence = candidate?.npmLatest ?? priorNpmLatest
+    const npmPreviewEvidence = candidate?.npmPreview ?? priorNpmPreview
+    const gitPassed = candidatePassed(gitEvidence, entry.observedGit?.targetKey)
+    const npmLatestPassed = candidatePassed(
+      npmLatestEvidence,
+      entry.observedNpmLatestKey
+    )
+    const npmPreviewPassed = candidatePassed(
+      npmPreviewEvidence,
+      entry.observedNpmPreviewKey
+    )
+    const registryChanged = previous?.registryKey !== entry.registryKey
+    const shouldPromoteGit = Boolean(
+      !entry.registry.package &&
+        gitPassed &&
+        entry.observedGit &&
+        active?.security?.commit !== entry.observedGit.commit
+    )
+    const shouldPromoteNpm = Boolean(
+      entry.registry.package &&
+        npmLatestPassed &&
+        !npmRecordMatches(active, entry.observedNpmLatest)
+    )
+    const shouldGenerate =
+      !active || sourceChanged || shouldPromoteGit || shouldPromoteNpm
+
+    let record = active
+    if (shouldGenerate) {
+      const candidateGitSecurity = pluginSecurityFromCandidate(gitEvidence)
+      const gitSecurity =
+        candidateGitSecurity?.status === "passed"
+          ? candidateGitSecurity
+          : (active?.security ?? candidateGitSecurity)
+      const npmSecurity = npmSecurityFromCandidate(npmLatestEvidence)
+      const previewSecurity = npmSecurityFromCandidate(npmPreviewEvidence)
+      const commit = gitSecurity?.commit ?? entry.observedGit?.commit
+      const generated = await scanOne(
+        `${id}.json`,
+        gitSecurity ? { [id]: gitSecurity } : {},
+        registryDir,
+        addedAt.get(`${id}.json`),
+        commit === undefined,
+        npmSecurity ? { [id]: npmSecurity } : {},
+        previewSecurity ? { [id]: previewSecurity } : {},
+        {
+          commit,
+          npmLatest: entry.observedNpmLatest,
+          npmPreview: entry.observedNpmPreview,
+        }
+      )
+      const promotionSucceeded =
+        (!shouldPromoteGit ||
+          (generated.security?.status === "passed" &&
+            generated.security.commit === entry.gitTarget?.commit)) &&
+        (!shouldPromoteNpm ||
+          npmRecordMatches(generated, entry.observedNpmLatest))
+      record = active && !promotionSucceeded ? active : generated
+    } else if (record && npmPreviewPassed) {
+      const gitSecurity = record.security
+      const latestSecurity = record.npmSecurity
+        ? { package: record.package as string, ...record.npmSecurity }
+        : undefined
+      const previewSecurity = npmSecurityFromCandidate(npmPreviewEvidence)
+      const generated = await scanOne(
+        `${id}.json`,
+        gitSecurity ? { [id]: gitSecurity } : {},
+        registryDir,
+        addedAt.get(`${id}.json`),
+        false,
+        latestSecurity ? { [id]: latestSecurity } : {},
+        previewSecurity ? { [id]: previewSecurity } : {},
+        {
+          commit: record.security?.commit ?? entry.observedGit?.commit,
+          npmLatest: entry.observedNpmLatest,
+          npmPreview: entry.observedNpmPreview,
+        }
+      )
+      if (npmRecordMatches(generated, entry.observedNpmPreview, true)) {
+        record = generated
+      }
+    }
+
+    if (record && registryChanged) {
+      record = overlayRegistryFields(record, entry.registry)
+    }
+    if (
+      record &&
+      entry.npmResolved &&
+      !entry.observedNpmPreview &&
+      record.npmPreview
+    ) {
+      const withoutPreview = { ...record }
+      delete withoutPreview.npmPreview
+      delete withoutPreview.npmPreviewSecurity
+      record = pluginRecordSchema.parse(withoutPreview)
+    }
+
+    if (!record) continue
+    record = pluginRecordSchema.parse(record)
+    records.push(record)
+    const oldSerialized = active ? JSON.stringify(active) : undefined
+    if (JSON.stringify(record) !== oldSerialized) publishedCount += 1
+    writeFileSync(
+      join(outputDir, `${id}.json`),
+      `${JSON.stringify(record, null, 2)}\n`
+    )
+    if (
+      JSON.stringify(record) !== oldSerialized ||
+      !existsSync(join(ogDir, `${id}.png`))
+    ) {
+      await writeOgImage(id, {
+        title: record.name,
+        description: inlineMarkdownToPlainText(record.descriptionNodes),
+        badges: [
+          ...record.platforms.map((platform) => PLATFORM_LABELS[platform]),
+          ...record.categories,
+          ...(record.license ? [record.license] : []),
+        ],
+      })
+    }
+
+    const lastAttempt = {
+      ...(plan.reusedState && !sourceChanged ? previous?.lastAttempt : {}),
+      ...(candidate?.git ? { git: candidate.git } : {}),
+      ...(candidate?.npmLatest ? { npmLatest: candidate.npmLatest } : {}),
+      ...(candidate?.npmPreview ? { npmPreview: candidate.npmPreview } : {}),
+    }
+    nextEntries[id] = {
+      sourceKey: entry.sourceKey,
+      registryKey: entry.registryKey,
+      active: record,
+      ...(Object.keys(lastAttempt).length > 0 ? { lastAttempt } : {}),
+    }
+  }
+
+  records.sort((left, right) => left.name.localeCompare(right.name))
+  writeFileSync(indexPath, `${JSON.stringify(records, null, 2)}\n`)
+  if (writeDeploymentFiles) {
+    await writeOgImage("default", {
+      title: SITE_NAME,
+      description: SITE_DESCRIPTION,
+    })
+    writeSitemap(records)
+    writePluginsRedirect()
+  }
+  const state = registryScanStateSchema.parse({
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    registryDigest: plan.registryDigest,
+    catalogDigest: plan.catalogDigest,
+    securityDigest: plan.securityDigest,
+    securityPolicyVersion: plan.securityPolicyVersion,
+    entries: nextEntries,
+  })
+  writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`)
+  return { records, publishedCount }
+}
 
 /**
  * `--limit N`: cap how many registry entries this run scans, for a fast
@@ -902,7 +1268,51 @@ function parseLimitArg(): number | undefined {
   return value
 }
 
+function valueFor(argv: string[], flag: string): string | undefined {
+  const index = argv.indexOf(flag)
+  return index >= 0 ? argv[index + 1] : undefined
+}
+
 async function main() {
+  const planPath = valueFor(process.argv, "--plan")
+  if (planPath) {
+    const candidatesPath = valueFor(process.argv, "--candidates")
+    const statePath =
+      valueFor(process.argv, "--state") ??
+      join(ROOT, "data", "registry-scan-state.json")
+    const plan = scanPlanSchema.parse(
+      JSON.parse(readFileSync(planPath, "utf8"))
+    )
+    const candidates =
+      candidatesPath && existsSync(candidatesPath)
+        ? candidateScanResultsSchema.parse(
+            JSON.parse(readFileSync(candidatesPath, "utf8"))
+          )
+        : candidateScanResultsSchema.parse({
+            version: 1,
+            planId: plan.planId,
+            generatedAt: new Date().toISOString(),
+            plugins: {},
+          })
+    const previousState = readScanState(statePath)
+    const result = await assembleIncrementalCatalog({
+      plan,
+      candidates,
+      previousState,
+      statePath,
+    })
+    if (process.env.GITHUB_OUTPUT) {
+      writeFileSync(
+        process.env.GITHUB_OUTPUT,
+        `published_count=${result.publishedCount}\n`,
+        { flag: "a" }
+      )
+    }
+    console.log(
+      `Published ${result.publishedCount} changed record(s); catalog contains ${result.records.length} plugin(s).`
+    )
+    return
+  }
   if (process.argv.includes("--deployment-files-only")) {
     const records = pluginRecordSchema
       .array()

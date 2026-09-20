@@ -18,6 +18,7 @@
     "check:plugin": "biome check --error-on-warnings plugin",
     "typecheck": "bun run registry:ensure && tsc --noEmit",
     "registry:validate": "bun run scripts/validate-registry.ts",
+    "registry:plan": "bun run scripts/scan-plan.ts",
     "registry:scan": "bun run scripts/scan.ts",
     "registry:scan:offline": "bun run scripts/scan.ts --offline",
     "registry:ensure": "bun run scripts/scan.ts --if-missing",
