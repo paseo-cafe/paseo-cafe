@@ -29,6 +29,7 @@ jobs:
         github.event.workflow_run.head_branch == github.event.repository.default_branch)) &&
       (github.event_name != 'schedule' ||
        github.repository == 'paseo-cafe/paseo-cafe')
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       actions: read
@@ -62,7 +63,7 @@ jobs:
         run: bun run scripts/find-scan-state.ts
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_DEFAULT_BRANCH: main
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       - name: Restore last deployed registry state
         continue-on-error: true
         if: steps.prior.outputs.found == 'true'

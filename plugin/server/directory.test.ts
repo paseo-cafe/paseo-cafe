@@ -1229,13 +1229,13 @@ it("prepares and idempotently applies a Paseo Cafe self-update", async () => {
   }
 }, 20_000)
 describe("update command compatibility", () => {
-  it("uses each generation's update arguments and response shape", () => {
-    expect(buildUpdateArgs("review", "legacy", "git", LATEST)).toEqual([
-      "plugin",
-      "update",
-      "review",
-      "--json",
-    ])
+  it("blocks legacy Git updates that cannot pin the scanned commit", () => {
+    expect(() => buildUpdateArgs("review", "legacy", "git", LATEST)).toThrow(
+      "cannot be pinned"
+    )
+  })
+
+  it("uses exact update arguments and generation-specific results", () => {
     expect(buildUpdateArgs("review", "reviewed", "git", LATEST)).toEqual([
       "plugin",
       "update",

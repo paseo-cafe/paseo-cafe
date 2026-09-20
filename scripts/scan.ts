@@ -1144,7 +1144,7 @@ export async function assembleIncrementalCatalog(options: {
       const promotionSucceeded =
         (!shouldPromoteGit ||
           (generated.security?.status === "passed" &&
-            generated.security.commit === entry.gitTarget?.commit)) &&
+            generated.security.commit === entry.observedGit?.commit)) &&
         (!shouldPromoteNpm ||
           npmRecordMatches(generated, entry.observedNpmLatest))
       record = active && !promotionSucceeded ? active : generated

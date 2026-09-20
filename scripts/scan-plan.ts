@@ -694,7 +694,10 @@ export function assertScanPlanIntegrity(plan: ScanPlan): void {
     }
     if (
       entry.gitTarget &&
-      entry.gitTarget.targetKey !== entry.observedGit?.targetKey
+      (entry.gitTarget.targetKey !== entry.observedGit?.targetKey ||
+        entry.gitTarget.commit !== entry.observedGit.commit ||
+        entry.gitTarget.repo !== entry.registry.repo ||
+        entry.gitTarget.path !== entry.registry.path)
     ) {
       throw new Error(
         `scan plan Git target is invalid for ${entry.registry.id}`

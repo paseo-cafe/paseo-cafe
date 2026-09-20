@@ -35,6 +35,7 @@ const REGISTRY_ENTRY: RegistryEntryWithId = {
 const SOURCE_KEY = sourceKey(REGISTRY_ENTRY)
 const REGISTRY_KEY = registryKey(REGISTRY_ENTRY)
 const REGISTRY_DIGEST = registryDigestForEntries([REGISTRY_ENTRY])
+const originalFetch = globalThis.fetch
 const SCANNED_AT = "2026-09-20T00:00:00.000Z"
 const roots: string[] = []
 
@@ -42,6 +43,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) {
     rmSync(root, { recursive: true, force: true })
   }
+  globalThis.fetch = originalFetch
 })
 
 function activeRecord(): PluginRecord {
@@ -239,6 +241,117 @@ describe("incremental catalog assembly", () => {
         writeDeploymentFiles: false,
       })
     ).rejects.toThrow("candidate target mismatch")
+  })
+
+  it("promotes a stored passing Git candidate after enrichment retries", async () => {
+    const root = mkdtempSync(join(tmpdir(), "paseo-incremental-catalog-"))
+    roots.push(root)
+    const registryDir = join(root, "registry")
+    const outputDir = join(root, "data", "plugins")
+    const ogDir = join(root, "public", "og")
+    const statePath = join(root, "data", "registry-scan-state.json")
+    const indexPath = join(root, "data", "plugins.json")
+    mkdirSync(registryDir, { recursive: true })
+    mkdirSync(ogDir, { recursive: true })
+    writeFileSync(
+      join(registryDir, "example.json"),
+      JSON.stringify({ repo: "acme/example" })
+    )
+    writeFileSync(join(ogDir, "example.png"), "existing")
+
+    const commit = "2".repeat(40)
+    const targetKey = gitTargetKey(REGISTRY_ENTRY, commit, DIGEST)
+    const basePlan = unchangedPlan()
+    const { planId: ignoredPlanId, ...planBody } = basePlan
+    void ignoredPlanId
+    const plan = sealScanPlan({
+      ...planBody,
+      needsAssembly: true,
+      entries: [
+        {
+          ...basePlan.entries[0],
+          observedGit: { targetKey, commit, version: "1.1.0" },
+          needsAssembly: true,
+        },
+      ],
+    })
+    const prior = previousState()
+    prior.entries.example.lastAttempt = {
+      git: {
+        targetKey,
+        result: {
+          commit,
+          scannedAt: SCANNED_AT,
+          status: "passed",
+          blockingFindings: 0,
+          advisoryFindings: 0,
+          coverage: { files: 2, bytes: 100 },
+          buildCommands: [],
+          findings: [],
+        },
+      },
+    }
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "https://api.github.com/repos/acme/example") {
+        return Response.json({
+          full_name: "acme/example",
+          description: "Example",
+          default_branch: "main",
+          stargazers_count: 1,
+          open_issues_count: 0,
+          pushed_at: SCANNED_AT,
+          archived: false,
+          topics: [],
+          license: null,
+          html_url: "https://github.com/acme/example",
+          owner: {
+            login: "acme",
+            avatar_url: "https://avatars.githubusercontent.com/u/1",
+            html_url: "https://github.com/acme",
+          },
+        })
+      }
+      if (
+        url ===
+        `https://api.github.com/repos/acme/example/contents?ref=${commit}`
+      ) {
+        return Response.json([
+          {
+            name: "paseo-plugin.json",
+            path: "paseo-plugin.json",
+            type: "file",
+          },
+          { name: "package.json", path: "package.json", type: "file" },
+        ])
+      }
+      if (url.endsWith("/paseo-plugin.json")) {
+        return Response.json({ id: "example" })
+      }
+      if (url.endsWith("/package.json")) {
+        return Response.json({
+          version: "1.1.0",
+          description: "Released plugin",
+        })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    }) as typeof fetch
+
+    const result = await assembleIncrementalCatalog({
+      plan,
+      candidates: emptyCandidates(plan.planId),
+      previousState: registryScanStateSchema.parse(prior),
+      registryDir,
+      outputDir,
+      ogDir,
+      statePath,
+      indexPath,
+      writeDeploymentFiles: false,
+    })
+
+    expect(result.records[0]?.version).toBe("1.1.0")
+    expect(result.records[0]?.security?.commit).toBe(commit)
+    expect(result.publishedCount).toBe(1)
   })
 
   it("retains the active release when a newer Git candidate fails", async () => {

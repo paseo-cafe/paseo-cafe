@@ -18,6 +18,7 @@ type Workflow = {
   jobs: {
     build: {
       if: string
+      "runs-on": string
       permissions: Record<string, string>
       outputs: Record<string, string>
       steps: WorkflowStep[]
@@ -45,6 +46,7 @@ describe("incremental Pages deployment", () => {
   })
 
   it("accepts workflow_run deployments only from a default-branch push", () => {
+    expect(workflow.jobs.build["runs-on"]).toBe("ubuntu-latest")
     expect(workflow.jobs.build.if).toContain(
       "github.event.workflow_run.event == 'push'"
     )
@@ -76,6 +78,9 @@ describe("incremental Pages deployment", () => {
       (step) => step.name === "Restore last deployed registry state"
     )
     expect(find?.run).toBe("bun run scripts/find-scan-state.ts")
+    expect(find?.env?.GITHUB_DEFAULT_BRANCH).toBe(
+      expression("github.event.repository.default_branch")
+    )
     expect(restore).toMatchObject({
       if: "steps.prior.outputs.found == 'true'",
       with: {
