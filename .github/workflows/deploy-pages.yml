@@ -7,8 +7,8 @@ on:
     branches: [main]
   schedule:
     # npm releases are cheap to poll; Git fallback repositories refresh separately.
-    - cron: "7,22,37,52 * * * *"
-    - cron: "13 */6 * * *"
+    - cron: "7/15 * * * *"
+    - cron: "3 * * * *"
   workflow_dispatch:
     inputs:
       state_run_id:
