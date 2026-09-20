@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/paseo-cafe/paseo-cafe/compare/v0.7.0...v0.7.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* **plugin:** make Cafe self-updates restart-safe ([#182](https://github.com/paseo-cafe/paseo-cafe/issues/182)) ([9849097](https://github.com/paseo-cafe/paseo-cafe/commit/9849097ad9266448443a3d78b082906f0b791db0))
+
 ## [0.7.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.6.0...v0.7.0) (2026-09-19)
 
 
