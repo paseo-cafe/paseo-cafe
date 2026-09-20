@@ -1,6 +1,6 @@
 {
   "repo": "breathi3552/paseo-kanban",
-  "package": "@breathi/paseo-kanban",
+  "package": "paseo-kanban",
   "categories": ["productivity", "orchestration"],
   "platforms": ["windows"],
   "caveats": [],
