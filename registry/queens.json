@@ -1,0 +1,11 @@
+{
+  "repo": "omercnet/paseo-plugins",
+  "path": "queens",
+  "package": "@omercnet/paseo-queens",
+  "categories": ["productivity", "other"],
+  "platforms": [],
+  "caveats": [
+    "Opening each board size and difficulty for the first time requires network access to gist.githubusercontent.com."
+  ],
+  "submittedBy": "omercnet"
+}
