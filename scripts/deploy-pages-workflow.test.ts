@@ -113,6 +113,11 @@ describe("incremental Pages deployment", () => {
     expect(buildSteps[scanIndex]?.if).toBe(
       "steps.plan.outputs.scan_count != '0'"
     )
+    expect(buildSteps[assembleIndex]?.env).toEqual({
+      GITHUB_TOKEN: expression("github.token"),
+      VITE_SITE_URL: expression("steps.pages.outputs.base_url"),
+      VITE_BASE_PATH: expression("steps.pages.outputs.base_path"),
+    })
   })
 
   it("publishes trusted state only after Pages deployment succeeds", () => {

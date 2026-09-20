@@ -115,6 +115,10 @@ jobs:
           bun run registry:scan
           --plan "$RUNNER_TEMP/registry-scan-plan.json"
           --candidates "$RUNNER_TEMP/plugin-security-candidates.json"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Build generated site
         if: steps.decision.outputs.deploy == 'true'
