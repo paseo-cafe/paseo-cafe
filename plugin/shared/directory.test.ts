@@ -767,6 +767,7 @@ describe("directory taxonomy and browse settings", () => {
         directoryUrl: "https://catalog.internal/api/plugins",
       }).browse
     ).toEqual(DEFAULT_DIRECTORY_BROWSE_SETTINGS)
+    expect(directorySettings.version).toBe(4)
   })
 
   it("treats reordered category selections as the same persisted state", () => {
@@ -861,7 +862,7 @@ it("reconciles pending self-updates from installed runtime state", () => {
       [{ ...installation, version: "0.5.0" }],
       Date.parse("2026-09-19T12:02:00.000Z")
     )
-  ).toBe("failed")
+  ).toBe("unknown")
   expect(
     getSelfUpdateRecoveryState(
       pending,

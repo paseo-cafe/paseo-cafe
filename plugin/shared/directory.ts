@@ -288,7 +288,9 @@ export type PendingSelfUpdate = z.infer<typeof pendingSelfUpdateSchema>
 export const directorySettings = defineSettings({
   id: "directory-settings",
   scope: "host",
-  version: 5,
+  // Keep v4: the optional evidence field is backward-compatible, so Preview
+  // users can still return to an older stable build that reads the v4 envelope.
+  version: 4,
   schema: z.object({
     directoryUrl: catalogUrlSchema.default(DEFAULT_DIRECTORY_URL),
     browse: directoryBrowseSettingsSchema.default(
@@ -886,7 +888,7 @@ export function getSelfUpdateRecoveryState(
   pending: PendingSelfUpdate,
   installations: readonly InstalledPlugin[],
   now = Date.now()
-): "pending" | "succeeded" | "failed" {
+): "pending" | "succeeded" | "failed" | "unknown" {
   const installation = installations.find(
     (candidate) => candidate.id === pending.installationId
   )
@@ -902,7 +904,7 @@ export function getSelfUpdateRecoveryState(
   }
   return now - Date.parse(pending.requestedAt) >=
     SELF_UPDATE_RECOVERY_TIMEOUT_MS
-    ? "failed"
+    ? "unknown"
     : "pending"
 }
 export function getInstallationStateLabel(
@@ -1105,6 +1107,7 @@ export const directoryUpdateRpc = defineRpc({
       .string()
       .regex(/^[0-9a-f]{64}$/)
       .optional(),
+    selfUpdateRequestedAt: z.iso.datetime({ offset: true }).optional(),
   }),
 })
 

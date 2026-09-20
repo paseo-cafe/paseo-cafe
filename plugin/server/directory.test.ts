@@ -1053,7 +1053,7 @@ describe("update target validation", () => {
   })
 })
 
-it("prepares and consumes a one-use Paseo Cafe self-update", async () => {
+it("prepares and idempotently applies a Paseo Cafe self-update", async () => {
   const catalogUrl = "https://catalog.example.test/self-update"
   const integrity = `sha512-${"a".repeat(86)}`
   const root = await mkdtemp(join(tmpdir(), "paseo-cafe-self-update-"))
@@ -1153,6 +1153,7 @@ it("prepares and consumes a one-use Paseo Cafe self-update", async () => {
       ok: true,
       message: "Paseo Cafe update is ready to start.",
       selfUpdateToken: expect.stringMatching(/^[0-9a-f]{64}$/),
+      selfUpdateRequestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     })
     const startUpdate = vi.fn(async () => undefined)
     const token = result.selfUpdateToken
@@ -1170,9 +1171,20 @@ it("prepares and consumes a one-use Paseo Cafe self-update", async () => {
     ])
     await expect(
       applyDirectorySelfUpdate({ token }, startUpdate)
-    ).rejects.toThrow("expired")
+    ).resolves.toEqual({ accepted: true })
+    expect(startUpdate).toHaveBeenCalledTimes(1)
+    await expect(prepareSelfUpdate()).resolves.toEqual({
+      ok: true,
+      updated: false,
+      message: "Paseo Cafe update is already in progress.",
+    })
 
+    const applyingExpiredAt = Date.now() + 5 * 60_000 + 1
+    const applyingClock = vi
+      .spyOn(Date, "now")
+      .mockReturnValue(applyingExpiredAt)
     const failedLaunch = await prepareSelfUpdate()
+    applyingClock.mockRestore()
     if (!failedLaunch.selfUpdateToken) {
       throw new Error("missing failed-launch self-update token")
     }
@@ -1180,6 +1192,7 @@ it("prepares and consumes a one-use Paseo Cafe self-update", async () => {
       ok: true,
       message: "Paseo Cafe update is ready to start.",
       selfUpdateToken: failedLaunch.selfUpdateToken,
+      selfUpdateRequestedAt: failedLaunch.selfUpdateRequestedAt,
     })
     const rejectStart = vi.fn(async () => {
       throw new Error("spawn failed")

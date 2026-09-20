@@ -47,8 +47,15 @@ const CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_INSTALL_ERROR_LENGTH = 32_000
 export const MAX_DIRECTORY_RESPONSE_BYTES = 16 * 1_024 * 1_024
 const SELF_UPDATE_TOKEN_TTL_MS = 60_000
+const SELF_UPDATE_APPLY_TTL_MS = 5 * 60_000
 let pendingSelfUpdate:
-  | { token: string; args: readonly string[]; expiresAt: number }
+  | {
+      token: string
+      args: readonly string[]
+      requestedAt: string
+      expiresAt: number
+      phase: "prepared" | "applying"
+    }
   | undefined
 const ANSI_ESCAPE_PATTERN = new RegExp(
   `${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`,
@@ -216,11 +223,20 @@ export async function applyDirectorySelfUpdate(
 ): Promise<RpcOutput<typeof directoryApplySelfUpdateRpc>> {
   const pending =
     pendingSelfUpdate?.token === input.token ? pendingSelfUpdate : undefined
-  if (pending) pendingSelfUpdate = undefined
   if (!pending || pending.expiresAt < Date.now()) {
+    if (pending) pendingSelfUpdate = undefined
     throw new Error("Self-update request expired. Review the update again.")
   }
-  await startUpdate(pending.args)
+  if (pending.phase === "applying") return { accepted: true }
+
+  pending.phase = "applying"
+  pending.expiresAt = Date.now() + SELF_UPDATE_APPLY_TTL_MS
+  try {
+    await startUpdate(pending.args)
+  } catch (error) {
+    if (pendingSelfUpdate === pending) pendingSelfUpdate = undefined
+    throw error
+  }
   return { accepted: true }
 }
 export function supportsReviewedPluginManagement(versionText: string): boolean {
@@ -1316,33 +1332,49 @@ export async function updateDirectoryPlugin(
     )
     if (entry.id === "paseo-cafe") {
       const now = Date.now()
-      if (pendingSelfUpdate && pendingSelfUpdate.expiresAt >= now) {
+      if (pendingSelfUpdate && pendingSelfUpdate.expiresAt < now) {
+        pendingSelfUpdate = undefined
+      }
+      if (pendingSelfUpdate) {
         const sameTarget =
           pendingSelfUpdate.args.length === updateArgs.length &&
           pendingSelfUpdate.args.every(
             (arg, index) => arg === updateArgs[index]
           )
-        return sameTarget
-          ? {
-              ok: true,
-              message: "Paseo Cafe update is ready to start.",
-              selfUpdateToken: pendingSelfUpdate.token,
-            }
-          : {
-              ok: false,
-              message: "Another Paseo Cafe update is awaiting confirmation.",
-            }
+        if (!sameTarget) {
+          return {
+            ok: false,
+            message: "Another Paseo Cafe update is already in progress.",
+          }
+        }
+        if (pendingSelfUpdate.phase === "applying") {
+          return {
+            ok: true,
+            updated: false,
+            message: "Paseo Cafe update is already in progress.",
+          }
+        }
+        return {
+          ok: true,
+          message: "Paseo Cafe update is ready to start.",
+          selfUpdateToken: pendingSelfUpdate.token,
+          selfUpdateRequestedAt: pendingSelfUpdate.requestedAt,
+        }
       }
       const selfUpdateToken = randomBytes(32).toString("hex")
+      const selfUpdateRequestedAt = new Date(now).toISOString()
       pendingSelfUpdate = {
         token: selfUpdateToken,
         args: updateArgs,
+        requestedAt: selfUpdateRequestedAt,
         expiresAt: now + SELF_UPDATE_TOKEN_TTL_MS,
+        phase: "prepared",
       }
       return {
         ok: true,
         message: "Paseo Cafe update is ready to start.",
         selfUpdateToken,
+        selfUpdateRequestedAt,
       }
     }
 

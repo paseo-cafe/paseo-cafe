@@ -297,6 +297,7 @@ type UpdateResult = {
   message: string
   updated?: boolean
   selfUpdateToken?: string
+  selfUpdateRequestedAt?: string
 }
 
 type SortMode = DirectoryBrowseSettings["sort"]
@@ -513,7 +514,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     attempts: number
   } | null>(null)
   const reconcilingSelfUpdate = useRef<string | null>(null)
-  const failedSelfUpdateAttempt = useRef<string | null>(null)
+  const unknownSelfUpdateNotice = useRef<string | null>(null)
+  const [failedSelfUpdateAttempt, setFailedSelfUpdateAttempt] = useState<
+    string | null
+  >(null)
+  const [pollSelfUpdate, setPollSelfUpdate] = useState(true)
 
   const settingsValues = settings.status === "ready" ? settings.values : null
   const settingsRevision =
@@ -654,7 +659,8 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     // and then immediately replaced by the configured one.
     enabled: !settingsPending,
     staleTime: 60_000,
-    refetchInterval: settingsValues?.pendingSelfUpdate ? 2_000 : false,
+    refetchInterval:
+      settingsValues?.pendingSelfUpdate && pollSelfUpdate ? 2_000 : false,
   })
   const inventoryAvailable = directoryQuery.data?.installations !== undefined
   const updateStatusQuery = useQuery<UpdateStatusResult>({
@@ -717,11 +723,20 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   }
 
   useEffect(() => {
+    const requestId = settingsValues?.pendingSelfUpdate?.requestedAt
+    if (!requestId) return
+    unknownSelfUpdateNotice.current = null
+    setPollSelfUpdate(true)
+  }, [settingsValues?.pendingSelfUpdate?.requestedAt])
+
+  useEffect(() => {
     const pending = settingsValues?.pendingSelfUpdate
-    const installations = directoryQuery.data?.installations
+    const installations = directoryQuery.data?.installations ?? []
+    const checkedAt =
+      Math.max(directoryQuery.dataUpdatedAt, directoryQuery.errorUpdatedAt) ||
+      Date.now()
     if (
       !pending ||
-      !installations ||
       settingsRevision === null ||
       settingsSaving ||
       reconcilingSelfUpdate.current === pending.requestedAt
@@ -731,9 +746,19 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     const recoveryState = resolveSelfUpdateRecoveryState(
       pending,
       installations,
-      failedSelfUpdateAttempt.current
+      failedSelfUpdateAttempt,
+      checkedAt
     )
     if (recoveryState === "pending") return
+    if (recoveryState === "unknown") {
+      if (unknownSelfUpdateNotice.current === pending.requestedAt) return
+      unknownSelfUpdateNotice.current = pending.requestedAt
+      setPollSelfUpdate(false)
+      const message = `Paseo Cafe has not reached ${pending.targetRevision} yet. The outcome is unconfirmed; reopen Cafe later or review the plugin logs.`
+      setUpdateFailure({ entryId: "paseo-cafe", message })
+      toast.error(message)
+      return
+    }
 
     reconcilingSelfUpdate.current = pending.requestedAt
     void saveSettings(
@@ -745,8 +770,8 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           void reloadSettings()
           return
         }
-        if (failedSelfUpdateAttempt.current === pending.requestedAt) {
-          failedSelfUpdateAttempt.current = null
+        if (failedSelfUpdateAttempt === pending.requestedAt) {
+          setFailedSelfUpdateAttempt(null)
         }
         if (recoveryState === "succeeded") {
           toast.show(`Paseo Cafe updated to ${pending.targetRevision}.`, {
@@ -764,6 +789,9 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         }
       })
   }, [
+    directoryQuery.dataUpdatedAt,
+    directoryQuery.errorUpdatedAt,
+    failedSelfUpdateAttempt,
     directoryQuery.data?.installations,
     reloadSettings,
     saveSettings,
@@ -866,13 +894,14 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           : entry.security?.commit
       const pendingSelfUpdate =
         result.selfUpdateToken &&
+        result.selfUpdateRequestedAt &&
         targetRevision &&
         installation.source !== "directory"
           ? {
               installationId: installation.id,
               source: installation.source,
               targetRevision,
-              requestedAt: new Date().toISOString(),
+              requestedAt: result.selfUpdateRequestedAt,
             }
           : undefined
       if (result.selfUpdateToken && !pendingSelfUpdate) {
@@ -914,13 +943,18 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           return
         }
         try {
-          await startPreparedSelfUpdate(applySelfUpdate, result.selfUpdateToken)
+          const handoff = await startPreparedSelfUpdate(
+            applySelfUpdate,
+            result.selfUpdateToken
+          )
           toast.show(
-            "Paseo Cafe update started. It will reload automatically.",
+            handoff === "accepted"
+              ? "Paseo Cafe update started. It will reload automatically."
+              : "Paseo Cafe update is already being reconciled.",
             { variant: "success" }
           )
         } catch (error) {
-          failedSelfUpdateAttempt.current = pendingSelfUpdate.requestedAt
+          setFailedSelfUpdateAttempt(pendingSelfUpdate.requestedAt)
           setUpdateFailure({
             entryId: entry.id,
             message:

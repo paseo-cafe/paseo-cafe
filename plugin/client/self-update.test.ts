@@ -36,7 +36,7 @@ describe("self-update client handoff", () => {
     await Promise.resolve()
     expect(settled).toBe(false)
     resolveApply({ accepted: true })
-    await expect(started).resolves.toBeUndefined()
+    await expect(started).resolves.toBe("accepted")
     expect(apply).toHaveBeenCalledWith({ token: "token" })
   })
 
@@ -45,7 +45,15 @@ describe("self-update client handoff", () => {
       startPreparedSelfUpdate(async () => {
         throw new Error("Request failed: Plugin stopped: paseo-cafe")
       }, "token")
-    ).resolves.toBeUndefined()
+    ).resolves.toBe("accepted")
+  })
+
+  it("keeps recovery pending when another client consumed the token", async () => {
+    await expect(
+      startPreparedSelfUpdate(async () => {
+        throw new Error("Self-update request expired. Review the update again.")
+      }, "token")
+    ).resolves.toBe("uncertain")
   })
 
   it("surfaces other apply failures", async () => {

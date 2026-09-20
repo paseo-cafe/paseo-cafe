@@ -17,10 +17,11 @@ import {
 import { execPaseo } from "./directory"
 
 const execFileAsync = promisify(execFile)
-const PREVIOUS_VERSION = "0.5.0"
-const TARGET_VERSION = "0.6.0"
+const PREVIOUS_VERSION = "0.6.0"
+const TARGET_VERSION = "0.7.0"
 const TARGET_INTEGRITY =
-  "sha512-l+AGCB6NOLsIvTDJ97aAWWQcDZ4f7rL2cH5GnpX1cevy8iOC7ueo94xehG9JZX0xc7wzZuzaZ/R2IghkbmDc5w=="
+  // biome-ignore lint/security/noSecrets: Public npm package integrity, not a credential.
+  "sha512-FpXJo2Dlu+CA4oSG3AWjfUH7GY8dHp2Vctd66JWGdU5goWcK2WGEsAG4yzRX9xmGPeTYSmm063C2IGQibgsytg=="
 
 interface PluginListItem {
   id: string
@@ -193,6 +194,25 @@ async function main(): Promise<void> {
       reconnect: { enabled: false },
     })
     await client.connect()
+    const initialSettings = (await client.invokePluginRpc(
+      "paseo-cafe",
+      "settings.directory-settings.read",
+      {}
+    )) as {
+      status: "ready"
+      revision: string
+      values: Record<string, unknown>
+    }
+    assert.equal(initialSettings.status, "ready")
+    const configuredCatalog = (await client.invokePluginRpc(
+      "paseo-cafe",
+      "settings.directory-settings.write",
+      {
+        revision: initialSettings.revision,
+        values: { ...initialSettings.values, directoryUrl: catalogUrl },
+      }
+    )) as { status: string }
+    assert.equal(configuredCatalog.status, "saved")
     const prepared = (await client.invokePluginRpc(
       "paseo-cafe",
       "directory.update",
@@ -206,14 +226,20 @@ async function main(): Promise<void> {
         expectedVersion: TARGET_VERSION,
         expectedIntegrity: TARGET_INTEGRITY,
       }
-    )) as { ok: boolean; selfUpdateToken?: string }
-    assert.equal(prepared.ok, true)
+    )) as {
+      ok: boolean
+      message: string
+      selfUpdateToken?: string
+      selfUpdateRequestedAt?: string
+    }
+    assert.equal(prepared.ok, true, prepared.message)
     assert.match(prepared.selfUpdateToken ?? "", /^[0-9a-f]{64}$/)
+    assert.match(prepared.selfUpdateRequestedAt ?? "", /^\d{4}-\d{2}-\d{2}T/)
     const pendingSelfUpdate: PendingSelfUpdate = {
       installationId: "paseo-cafe",
       source: "npm",
       targetRevision: TARGET_VERSION,
-      requestedAt: new Date().toISOString(),
+      requestedAt: prepared.selfUpdateRequestedAt ?? "",
     }
     const settingsBefore = (await client.invokePluginRpc(
       "paseo-cafe",
