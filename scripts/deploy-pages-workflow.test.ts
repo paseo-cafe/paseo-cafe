@@ -13,7 +13,12 @@ type WorkflowStep = {
 }
 
 type Workflow = {
-  on: { schedule?: Array<{ cron: string }> }
+  on: {
+    schedule?: Array<{ cron: string }>
+    workflow_dispatch: {
+      inputs: { state_run_id: { required: boolean; type: string } }
+    }
+  }
   concurrency: { group: string; "cancel-in-progress": boolean }
   jobs: {
     build: {
@@ -82,7 +87,7 @@ describe("incremental Pages deployment", () => {
       expression("github.event.repository.default_branch")
     )
     expect(restore).toMatchObject({
-      if: "steps.prior.outputs.found == 'true'",
+      if: "inputs.state_run_id == '' && steps.prior.outputs.found == 'true'",
       with: {
         name: "registry-scan-state-v1",
         path: "data",
@@ -90,6 +95,29 @@ describe("incremental Pages deployment", () => {
         "run-id": expression("steps.prior.outputs.run_id"),
       },
     })
+  })
+
+  it("can restore candidate state without deploying it", () => {
+    expect(workflow.on.workflow_dispatch.inputs.state_run_id).toMatchObject({
+      required: false,
+      type: "string",
+    })
+    const restore = buildSteps.find(
+      (step) => step.name === "Restore candidate state for plan-only testing"
+    )
+    const decision = buildSteps.find(
+      (step) => step.name === "Decide whether to deploy"
+    )
+    expect(restore).toMatchObject({
+      if: "github.event_name == 'workflow_dispatch' && inputs.state_run_id != ''",
+      with: {
+        name: `registry-scan-candidate-${expression("inputs.state_run_id")}`,
+        path: "data",
+        "github-token": expression("github.token"),
+        "run-id": expression("inputs.state_run_id"),
+      },
+    })
+    expect(decision?.env?.DEPLOY).toContain("inputs.state_run_id == ''")
   })
 
   it("pins once, scans candidates, and verifies the plan before assembly", () => {

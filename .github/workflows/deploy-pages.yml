@@ -10,6 +10,11 @@ on:
     - cron: "7,22,37,52 * * * *"
     - cron: "13 */6 * * *"
   workflow_dispatch:
+    inputs:
+      state_run_id:
+        description: "Candidate-state run ID for a plan-only branch test"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -59,6 +64,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Find last deployed registry state
+        if: inputs.state_run_id == ''
         id: prior
         run: bun run scripts/find-scan-state.ts
         env:
@@ -66,13 +72,22 @@ jobs:
           GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       - name: Restore last deployed registry state
         continue-on-error: true
-        if: steps.prior.outputs.found == 'true'
+        if: inputs.state_run_id == '' && steps.prior.outputs.found == 'true'
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: registry-scan-state-v1
           path: data
           github-token: ${{ github.token }}
           run-id: ${{ steps.prior.outputs.run_id }}
+
+      - name: Restore candidate state for plan-only testing
+        if: github.event_name == 'workflow_dispatch' && inputs.state_run_id != ''
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: registry-scan-candidate-${{ inputs.state_run_id }}
+          path: data
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.state_run_id }}
 
       - name: Build pinned registry plan
         id: plan
@@ -106,7 +121,7 @@ jobs:
         id: decision
         run: echo "deploy=$DEPLOY" >> "$GITHUB_OUTPUT"
         env:
-          DEPLOY: ${{ github.event_name != 'schedule' || steps.plan.outputs.assemble == 'true' }}
+          DEPLOY: ${{ inputs.state_run_id == '' && (github.event_name != 'schedule' || steps.plan.outputs.assemble == 'true') }}
 
       - name: Assemble registry from active and candidate releases
         if: steps.decision.outputs.deploy == 'true'
