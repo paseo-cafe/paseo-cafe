@@ -3,7 +3,7 @@
   "categories": ["provider"],
   "platforms": ["macos", "linux", "windows"],
   "caveats": [
-    "Requires the official Google Antigravity ACP binary on PATH or ~/.local/share/antigravity-acp.",
+    "Requires the Antigravity ACP binary on PATH or ~/.local/share/antigravity-acp.",
     "Google OAuth credentials from Antigravity CLI ('agy') or IDE are automatically shared."
   ],
   "submittedBy": "simonepri"
