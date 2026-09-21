@@ -24,13 +24,21 @@ preview channel until they explicitly return to stable.
 
 ## Screenshots
 
-### Browse and filter the catalog
+### Browse the Catppuccin theme cards
 
-![Paseo Cafe catalog with search, sort, installation-state, category, and platform filters](images/catalog-browse.webp)
+![Paseo Cafe catalog filtered to the Catppuccin theme card, with search, sort, installation-state, category, and platform filters](images/catalog-browse.webp)
 
 ### Review a plugin before installation
 
 ![Paseo Cafe installation review dialog showing the source repository, install command, freshness, health, security status, and caveats](images/install-review.webp)
+
+### Inspect plugin details and theme previews
+
+![Paseo Cafe plugin detail page showing metadata, trust guidance, caveats, and included theme previews](images/plugin-detail.webp)
+
+### Browse a plugin's screenshot gallery
+
+![Paseo Cafe screenshot gallery showing a single app screenshot inside the gallery view](images/screenshot-gallery.webp)
 
 ## Install
 
