@@ -63,10 +63,10 @@ describe("incremental Pages deployment", () => {
     )
   })
 
-  it("polls npm every fifteen minutes without cancelling full scans", () => {
+  it("runs the updated schedules without cancelling full scans", () => {
     expect(workflow.on.schedule).toEqual([
-      { cron: "7,22,37,52 * * * *" },
-      { cron: "13 */6 * * *" },
+      { cron: "7/15 * * * *" },
+      { cron: "3 * * * *" },
     ])
     expect(workflow.concurrency).toEqual({
       group: "github-pages",
