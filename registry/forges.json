@@ -1,6 +1,7 @@
 {
   "repo": "xpufx/paseo",
   "path": "plugins/forges",
+  "package": "@xpufx/paseo-forges",
   "categories": ["productivity", "git", "orchestration"],
   "platforms": [],
   "caveats": [

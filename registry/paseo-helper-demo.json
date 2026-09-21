@@ -1,6 +1,7 @@
 {
   "repo": "xpufx/paseo",
   "path": "plugins/demo",
+  "package": "@xpufx/paseo-helper-demo",
   "categories": ["other"],
   "platforms": ["linux"],
   "caveats": ["Tested on Linux only."],

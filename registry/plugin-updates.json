@@ -1,6 +1,7 @@
 {
   "repo": "xpufx/paseo",
   "path": "plugins/plugin-updates",
+  "package": "@xpufx/paseo-plugin-updates",
   "categories": ["other"],
   "platforms": [],
   "caveats": [],

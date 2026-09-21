@@ -1,6 +1,7 @@
 {
   "repo": "xpufx/paseo",
   "path": "plugins/mcp-tools",
+  "package": "@xpufx/paseo-mcp-tools",
   "categories": ["automation", "monitoring", "productivity"],
   "platforms": [],
   "caveats": [],

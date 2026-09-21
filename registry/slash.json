@@ -1,6 +1,7 @@
 {
   "repo": "xpufx/paseo",
   "path": "plugins/slash",
+  "package": "@xpufx/paseo-slash",
   "categories": ["automation", "productivity"],
   "platforms": ["linux", "windows", "macos"],
   "caveats": [],

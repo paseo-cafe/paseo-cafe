@@ -1,6 +1,7 @@
 {
   "repo": "xpufx/paseo",
   "path": "plugins/top",
+  "package": "@xpufx/paseo-top",
   "categories": ["monitoring"],
   "submittedBy": "xpufx"
 }
