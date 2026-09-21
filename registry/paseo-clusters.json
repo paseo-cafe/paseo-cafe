@@ -1,0 +1,12 @@
+{
+  "repo": "thisjrodriguez/paseo-plugin-clusters",
+  "package": "@thisjrodriguez/paseo-plugin-clusters",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "The sidebar circles only appear in the desktop app; iOS and Android get the Clusters screen instead.",
+    "It hooks into Paseo's sidebar through its data-testid attributes, so a Paseo UI update may break it.",
+    "Clusters are stored per daemon and shared by every client connected to that daemon."
+  ],
+  "submittedBy": "thisjrodriguez"
+}
