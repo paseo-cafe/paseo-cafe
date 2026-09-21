@@ -23,6 +23,7 @@
     "registry:scan:offline": "bun run scripts/scan.ts --offline",
     "registry:ensure": "bun run scripts/scan.ts --if-missing",
     "icons:build": "bun run scripts/build-icons.ts",
+    "tokens:build": "bun run scripts/build-design-tokens.ts",
     "deployment:generate": "bun run scripts/scan.ts --deployment-files-only",
     "build:generated": "bun run deployment:generate && vite build && bun run scripts/verify-pages-entrypoint.ts",
     "security:targets": "bun run scripts/plugin-security/targets.ts",

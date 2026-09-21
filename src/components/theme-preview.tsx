@@ -27,7 +27,7 @@ export function ThemePreview({ theme }: { theme: CatalogThemePreview }) {
               borderColor: theme.colors.border,
             }}
           >
-            <div className="mb-[18%] flex items-center gap-1.5">
+            <div className="mb-[18%] flex items-center gap-chip">
               <span className="size-2" style={{ backgroundColor: accent }} />
               <span
                 className="h-1.5 w-3/5"
@@ -44,7 +44,7 @@ export function ThemePreview({ theme }: { theme: CatalogThemePreview }) {
                 }}
               />
             ))}
-            <div className="mt-auto flex gap-1">
+            <div className="mt-auto flex gap-inline">
               {[
                 ["accent", accent],
                 ["ring", theme.colors.ring],
@@ -105,17 +105,17 @@ export function ThemePreview({ theme }: { theme: CatalogThemePreview }) {
           return (
             <div
               key={key}
-              className="flex min-w-0 items-center gap-1.5 border-border border-r px-2 py-1.5 last:border-r-0"
+              className="flex min-w-0 items-center gap-chip border-border border-r px-2 py-1.5 last:border-r-0"
             >
               <span
                 className="size-2.5 shrink-0 border border-black/20"
                 style={{ backgroundColor: color, forcedColorAdjust: "none" }}
               />
               <div className="min-w-0 leading-none">
-                <dt className="truncate text-[9px] text-foreground/45 uppercase">
+                <dt className="truncate text-[9px] text-muted-foreground uppercase">
                   {CATALOG_THEME_COLOR_LABELS[key]}
                 </dt>
-                <dd className="truncate text-[10px] text-foreground/70">
+                <dd className="truncate text-[10px] text-muted-foreground">
                   {theme.colors[key] ?? "inherited"}
                 </dd>
               </div>

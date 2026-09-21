@@ -1,5 +1,6 @@
 import { IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react"
 import { useCallback, useEffect, useState } from "react"
+import { SectionHeader } from "@/components/section-header"
 import { ThemePreview } from "@/components/theme-preview"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -89,15 +90,18 @@ export function MediaGallery({
   const hiddenImageCount = images.length - visibleImages.length
 
   return (
-    <div>
-      <h2 className="mb-2 font-medium text-foreground/60 text-sm">Gallery</h2>
+    <section
+      className="flex flex-col gap-base"
+      aria-labelledby="gallery-heading"
+    >
+      <SectionHeader id="gallery-heading" title="Gallery" />
       {themes.length > 0 ? (
-        <div className="mb-3 grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-base sm:grid-cols-2">
           {themes.map((theme) => (
-            <div key={theme.id} className="border border-border bg-card p-2">
+            <div key={theme.id} className="surface-panel p-group">
               <ThemePreview theme={theme} />
-              <div className="flex items-center justify-between gap-3 px-1 pt-3 pb-1">
-                <span className="truncate font-medium">{theme.name}</span>
+              <div className="flex items-center justify-between gap-stack px-inline pt-stack pb-inline">
+                <span className="type-label truncate">{theme.name}</span>
                 <Badge variant="outline">{theme.appearance}</Badge>
               </div>
             </div>
@@ -105,11 +109,11 @@ export function MediaGallery({
         </div>
       ) : null}
       {videos.length > 0 ? (
-        <div className="mb-3 grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-base sm:grid-cols-2">
           {videos.map((video) => (
             <div
               key={video.kind === "file" ? video.url : video.embedUrl}
-              className="ring-1 ring-foreground/10"
+              className="border border-border"
             >
               <VideoEmbedPlayer video={video} />
             </div>
@@ -126,12 +130,12 @@ export function MediaGallery({
           <img
             src={visibleImages[0]}
             alt={`${plugin.name} screenshot`}
-            className="w-full rounded-none ring-1 ring-foreground/10"
+            className="w-full rounded-none border border-border"
           />
         </button>
       ) : null}
       {visibleImages.length > 1 ? (
-        <div className="grid h-72 grid-cols-4 grid-rows-2 gap-2 sm:h-96">
+        <div className="grid h-72 grid-cols-4 grid-rows-2 gap-group sm:h-96">
           {visibleImages.map((src, index) => {
             const isLastTile = index === visibleImages.length - 1
             const moreCount = isLastTile ? hiddenImageCount : 0
@@ -150,10 +154,10 @@ export function MediaGallery({
                 <img
                   src={src}
                   alt={`${plugin.name} screenshot`}
-                  className="size-full rounded-none object-cover ring-1 ring-foreground/10"
+                  className="size-full rounded-none border border-border object-cover"
                 />
                 {moreCount > 0 ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-background/70 font-medium text-foreground text-xl">
+                  <div className="type-heading absolute inset-0 flex items-center justify-center bg-background/70">
                     +{moreCount}
                   </div>
                 ) : null}
@@ -219,6 +223,6 @@ export function MediaGallery({
           </DialogPopup>
         </DialogPortal>
       </Dialog>
-    </div>
+    </section>
   )
 }

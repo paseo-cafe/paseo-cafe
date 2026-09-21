@@ -32,7 +32,7 @@ export function PluginPopularity({ plugin }: { plugin: PluginRecord }) {
 
   return (
     <span
-      className="flex shrink-0 items-center gap-1 text-foreground/50 text-xs"
+      className="type-meta flex shrink-0 items-center gap-inline text-muted-foreground"
       title={
         isNpm
           ? `${popularity.count} npm downloads in the last 30 days`
@@ -40,9 +40,9 @@ export function PluginPopularity({ plugin }: { plugin: PluginRecord }) {
       }
     >
       {isNpm ? (
-        <IconDownload className="size-3.5" />
+        <IconDownload className="size-icon-sm" />
       ) : (
-        <IconStar className="size-3.5" />
+        <IconStar className="size-icon-sm" />
       )}
       <span className="sr-only">
         {isNpm ? "npm downloads in the last 30 days: " : "GitHub stars: "}
@@ -72,8 +72,11 @@ export function PluginCard({
 
   return (
     <Link to="/plugins/$id" params={{ id: plugin.id }} className="block">
-      <Card className="h-full pt-0 transition-shadow hover:shadow-md">
-        <div className="relative aspect-video w-full shrink-0 overflow-hidden border-border border-b bg-muted">
+      <Card className="surface-interactive h-full">
+        <div
+          data-slot="card-media"
+          className="relative aspect-video w-full shrink-0 overflow-hidden border-border border-b bg-muted"
+        >
           {galleryImage ? (
             <img
               src={galleryImage}
@@ -83,7 +86,7 @@ export function PluginCard({
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
-              <IconPhotoOff className="size-6 text-foreground/20" />
+              <IconPhotoOff className="size-icon-lg text-muted-foreground/60" />
             </div>
           )}
           {plugin.videos.length > 0 ? (
@@ -92,12 +95,12 @@ export function PluginCard({
               role="img"
               aria-label="Has a demo video"
             >
-              <IconPlayerPlayFilled className="size-8 text-white drop-shadow" />
+              <IconPlayerPlayFilled className="size-icon-xl text-white drop-shadow" />
             </div>
           ) : null}
         </div>
-        <CardHeader className="gap-2">
-          <div className="flex items-center justify-between gap-2">
+        <CardHeader className="gap-group">
+          <div className="flex items-center justify-between gap-group">
             <CardTitle>{plugin.name}</CardTitle>
             <PluginPopularity plugin={plugin} />
           </div>
@@ -108,14 +111,14 @@ export function PluginCard({
               "No description available."
             )}
           </CardDescription>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-chip">
             <span className="sr-only">Version and health</span>
             {plugin.owner ? (
-              <span className="flex items-center gap-1.5 text-foreground/50 text-xs">
+              <span className="type-meta flex items-center gap-chip text-muted-foreground">
                 <img
                   src={plugin.owner.avatarUrl}
                   alt=""
-                  className="size-4 rounded-full"
+                  className="size-icon-md rounded-full"
                 />
                 {plugin.owner.login}
               </span>
@@ -139,7 +142,7 @@ export function PluginCard({
             ) : null}
           </div>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-1.5">
+        <CardContent className="flex flex-wrap gap-chip">
           {versionLabel ? (
             <Badge variant="outline">{versionLabel}</Badge>
           ) : null}

@@ -48,14 +48,14 @@ export const Route = createRootRoute({
     ],
   }),
   notFoundComponent: () => (
-    <main className="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-24 text-center">
-      <p className="font-mono font-semibold text-6xl text-foreground/20">404</p>
-      <h1 className="font-semibold text-2xl tracking-tight">Page not found</h1>
-      <p className="text-foreground/60 text-sm">
+    <main className="not-found-page mx-auto flex max-w-md flex-col items-center gap-base px-base text-center">
+      <p className="font-semibold text-6xl text-muted-foreground/60">404</p>
+      <h1 className="type-title">Page not found</h1>
+      <p className="type-body text-muted-foreground">
         The page you're looking for doesn't exist, or the plugin may have been
         removed from the registry.
       </p>
-      <div className="mt-2 flex gap-3">
+      <div className="flex gap-stack">
         <Button
           nativeButton={false}
           render={<Link to="/" search={HOME_SEARCH_DEFAULT} />}

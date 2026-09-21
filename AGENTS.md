@@ -69,8 +69,9 @@ the other by hand**:
    monospace everywhere (`src/styles.css`), `rounded-none` flat-bordered
    controls and badges (`src/components/ui/{button,badge,card}.tsx`),
    uppercase tracked section labels — is the canonical brand identity.
-   Changing the website's fonts, radii, spacing scale, or color roles
-   without a matching pass over the plugin's React Native surfaces
+   Spacing, type, icon, and surface rules are in "Design system" below and
+   are shared as tokens. Changing the website's fonts, radii, spacing scale,
+   or color roles without a matching pass over the plugin's React Native surfaces
    (`plugin/client/DirectorySurface.tsx`, `PluginRow.tsx`,
    `PluginDetailPage.tsx`, `PluginGalleryPage.tsx`, using the shared tokens
    in `plugin/client/visual.ts` plus Paseo's `theme.colors`/
@@ -112,6 +113,49 @@ the other by hand**:
 bun run check                                  # website: biome + tsc
 (cd plugin && npm run typecheck && npm test)   # plugin: tsc + vitest
 ```
+
+## Design system
+
+The website and the plugin share one set of design tokens, so a change to the
+look is made once. The source of truth is `plugin/shared/design-tokens.ts`
+(dependency-free, like `catalog.ts`). The website receives it as generated CSS
+(`src/design-tokens.css` — edit the module, run `bun run tokens:build`, commit
+both; `scripts/design-tokens.test.ts` fails on drift) and the plugin imports
+the numbers, mostly through `plugin/client/visual.ts` (`typeStyle`,
+`panelStyle`, `insetStyle`, `chipStyle`). `/style-guide` renders every token
+and primitive live.
+
+- **Spacing is named by job**, not size: `inline` (icon↔text), `chip`
+  (between chips/badges), `group` (a label and what it labels), `stack`
+  (sibling controls; compact-surface padding), `base` (surface padding;
+  blocks in a section), `section` (between page sections). Web: `gap-chip`,
+  `p-base`, `mt-section`; plugin: `SPACE.chip`. Don't write `gap-3` or
+  `gap: 10`.
+- **Type is a role**: `type-display / title / heading / subheading / lead /
+  body / label / meta / eyebrow` (web) and `typeStyle("…")` (plugin). Only
+  the color is chosen separately, and there are just two: `foreground` and
+  `text-muted-foreground` / `foregroundMuted`. No `text-foreground/60`.
+- **A surface is a hairline border on a flat background.** Use
+  `surface-panel` (cards, tiles, callouts, form groups), `surface-inset`
+  (code, commands, previews) and `surface-interactive` (adds the hover for a
+  tile that navigates); the plugin equivalents are `panelStyle` and
+  `insetStyle`. Layout containers — sidebars (`sidebar-column`), columns,
+  sections — are neither bordered nor filled. No shadows, no radii.
+- **Icons** are `sm` 14 / `md` 16 / `lg` 24 / `xl` 32 (`size-icon-*`). An icon
+  with no size class is `md`.
+- **Pages** use `page-body` (shared width, gutters, and vertical rhythm;
+  header and footer use `page-shell` so their edges line up) and
+  `SectionHeader` for every section title.
+- **Filtering never scrolls the page.** Catalog filter, sort, and search
+  changes go through `applyFilters` in `src/routes/index.tsx`, which passes
+  `resetScroll: false` and holds the results list in place
+  (`useScrollAnchor`). Anything a filter click can add or remove must live
+  inside the results column, not above the sidebar row.
+
+`src/design-system.test.ts` (website) and `plugin/client/design-tokens.test.ts`
+(plugin) fail on raw spacing, type, muted-text, and icon values, so drift is
+caught in CI. If a real need isn't covered by a token, add the token — don't
+work around the test.
 
 ## Prefer a plugin-submission issue over a hand-written registry PR
 

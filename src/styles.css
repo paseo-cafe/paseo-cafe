@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/jetbrains-mono";
+@import "./design-tokens.css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -132,4 +133,64 @@
   html {
     @apply font-mono;
   }
+  /* Tabler icons default to 24px; an icon with no size class follows the icon
+     scale so it never falls out of step with the text beside it. */
+  .tabler-icon:not([class*="size-"]) {
+    width: var(--spacing-icon-md);
+    height: var(--spacing-icon-md);
+  }
+}
+
+/*
+ * Surfaces. A surface is a hairline border on a flat background; layout
+ * containers (sidebars, columns, page sections) are neither. Tiles that
+ * navigate add `surface-interactive`. See AGENTS.md → "Design system".
+ */
+@utility surface-panel {
+  @apply border border-border bg-card text-card-foreground;
+}
+
+/* Code, commands, previews, and empty states: a well set into the page. */
+@utility surface-inset {
+  @apply border border-border bg-muted;
+}
+
+@utility surface-interactive {
+  @apply transition-colors hover:bg-muted;
+}
+
+/* Named structural offsets keep component markup on design-system roles. */
+@utility copy-block-label {
+  @apply pr-10;
+}
+
+@utility section-anchor {
+  @apply scroll-mt-24;
+}
+
+@utility not-found-page {
+  @apply py-24;
+}
+
+/* One horizontal shell shared by the header, footer, and every page, so their
+   edges always line up. */
+@utility page-shell {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+}
+
+/* The right-hand column beside a page's main content: plain (no background or
+   border — its children are the surfaces) and pinned under the header. */
+@utility sidebar-column {
+  @apply flex flex-col gap-base lg:sticky lg:top-20 lg:w-1/3 lg:shrink-0 lg:self-start;
+}
+
+/* A page's outer shell: the shared width plus the vertical rhythm every page
+   uses — sections `section` apart, generous room at the bottom. */
+@utility page-body {
+  @apply mx-auto flex w-full max-w-6xl flex-col gap-section px-4 pt-12 pb-20 sm:px-6;
+}
+
+/* Nothing to show yet: a dashed well, the same on every page. */
+@utility empty-state {
+  @apply flex min-h-36 items-center justify-center border border-dashed border-border bg-muted/30 px-base py-section text-center text-muted-foreground text-sm;
 }

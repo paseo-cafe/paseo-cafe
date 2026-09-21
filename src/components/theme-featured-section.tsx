@@ -1,5 +1,6 @@
 import { IconArrowRight } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
+import { SectionHeader } from "@/components/section-header"
 import type { PluginRecord } from "@/lib/plugin-schema"
 
 export function ThemeFeaturedSection({ plugins }: { plugins: PluginRecord[] }) {
@@ -12,33 +13,30 @@ export function ThemeFeaturedSection({ plugins }: { plugins: PluginRecord[] }) {
   if (previews.length === 0) return null
 
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="themes-heading">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h2
-            id="themes-heading"
-            className="font-medium text-lg tracking-tight"
+    <section
+      className="flex flex-col gap-base"
+      aria-labelledby="themes-heading"
+    >
+      <SectionHeader
+        id="themes-heading"
+        title="Themes"
+        description="Compare exact contributed palettes before installing."
+        action={
+          <Link
+            to="/themes"
+            className="type-body flex shrink-0 items-center gap-inline underline underline-offset-4"
           >
-            Themes
-          </h2>
-          <p className="text-foreground/50 text-sm">
-            Compare exact contributed palettes before installing.
-          </p>
-        </div>
-        <Link
-          to="/themes"
-          className="flex shrink-0 items-center gap-1 text-sm underline underline-offset-4"
-        >
-          View gallery <IconArrowRight className="size-4" />
-        </Link>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+            View gallery <IconArrowRight />
+          </Link>
+        }
+      />
+      <div className="grid gap-base sm:grid-cols-2">
         {previews.map(({ plugin, theme }) => (
           <Link
             key={`${plugin.id}-${theme.id}`}
             to="/plugins/$id"
             params={{ id: plugin.id }}
-            className="flex min-w-0 items-center gap-3 border border-border bg-card p-2 transition-colors hover:bg-muted"
+            className="surface-panel surface-interactive flex min-w-0 items-center gap-stack p-group"
           >
             <span
               className="grid size-10 shrink-0 grid-cols-2 overflow-hidden border"
@@ -55,10 +53,8 @@ export function ThemeFeaturedSection({ plugins }: { plugins: PluginRecord[] }) {
               ))}
             </span>
             <span className="min-w-0">
-              <span className="block truncate font-medium text-sm">
-                {theme.name}
-              </span>
-              <span className="block truncate text-foreground/50 text-xs">
+              <span className="type-label block truncate">{theme.name}</span>
+              <span className="type-meta block truncate text-muted-foreground">
                 {plugin.name} · {theme.appearance}
               </span>
             </span>

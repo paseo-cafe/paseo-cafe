@@ -1,6 +1,7 @@
 import { IconArrowRight, IconPalette } from "@tabler/icons-react"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { PluginPopularity } from "@/components/plugin-card"
+import { SectionHeader } from "@/components/section-header"
 import { ThemePreview } from "@/components/theme-preview"
 import { Badge } from "@/components/ui/badge"
 import { HOME_SEARCH_DEFAULT, sortPlugins } from "@/lib/catalog-search"
@@ -36,16 +37,14 @@ function ThemesPage() {
   )
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12 pb-20 sm:px-6">
-      <header className="grid gap-6 border-border border-b pb-10 md:grid-cols-[1fr_auto] md:items-end">
-        <div className="max-w-3xl">
-          <div className="mb-4 flex items-center gap-2 font-medium text-foreground/50 text-xs uppercase tracking-widest">
-            <IconPalette className="size-4" /> Appearance plugins
+    <main className="page-body">
+      <header className="grid gap-section border-border border-b pb-section md:grid-cols-[1fr_auto] md:items-end">
+        <div className="flex max-w-3xl flex-col gap-base">
+          <div className="type-eyebrow flex items-center gap-group text-muted-foreground">
+            <IconPalette /> Appearance plugins
           </div>
-          <h1 className="font-semibold text-4xl tracking-tight sm:text-5xl">
-            Choose the room before you enter it.
-          </h1>
-          <p className="mt-4 max-w-2xl text-foreground/65">
+          <h1 className="type-display">Choose the room before you enter it.</h1>
+          <p className="type-lead max-w-2xl text-muted-foreground">
             Paseo themes recolor the app, panels, terminal, diffs, and syntax.
             These specimens use the exact seed colors each plugin contributes,
             so you can compare them before installing.
@@ -53,70 +52,62 @@ function ThemesPage() {
           <Link
             to="/"
             search={{ ...HOME_SEARCH_DEFAULT, category: "theme" }}
-            className="mt-4 inline-flex items-center gap-1 text-sm underline underline-offset-4"
+            className="type-body inline-flex items-center gap-inline underline underline-offset-4"
           >
-            See theme plugins in the main catalog{" "}
-            <IconArrowRight className="size-4" />
+            See theme plugins in the main catalog <IconArrowRight />
           </Link>
         </div>
-        <div className="border border-border bg-card px-4 py-3 text-right">
-          <p className="font-semibold text-2xl tabular-nums">{previewCount}</p>
-          <p className="text-foreground/50 text-xs uppercase tracking-wide">
+        <div className="surface-panel flex flex-col gap-inline px-base py-stack text-right">
+          <p className="type-title tabular-nums">{previewCount}</p>
+          <p className="type-eyebrow text-muted-foreground">
             palettes · {plugins.length} plugins
           </p>
         </div>
       </header>
 
-      <section className="flex flex-col gap-8" aria-labelledby="themes-heading">
-        <div>
-          <h2
-            id="themes-heading"
-            className="font-medium text-lg tracking-tight"
-          >
-            Theme gallery
-          </h2>
-          <p className="text-foreground/50 text-sm">
-            Each card is a small Paseo interface painted from the plugin&apos;s
-            declared palette. Theme plugins are ranked by npm downloads, then
-            GitHub stars, using the same popularity order as the main catalog.
-          </p>
-        </div>
+      <section
+        className="flex flex-col gap-section"
+        aria-labelledby="themes-heading"
+      >
+        <SectionHeader
+          id="themes-heading"
+          title="Theme gallery"
+          description="Each card is a small Paseo interface painted from the plugin's declared palette. Theme plugins are ranked by npm downloads, then GitHub stars, using the same popularity order as the main catalog."
+        />
 
         {plugins.map((plugin) => (
-          <article key={plugin.id} className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-end justify-between gap-3 border-border border-b pb-2">
-              <div>
-                <h3 className="font-semibold text-xl tracking-tight">
-                  {plugin.name}
-                </h3>
-                <p className="text-foreground/50 text-sm">
-                  {plugin.description || plugin.repo}
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <PluginPopularity plugin={plugin} />
-                <Link
-                  to="/plugins/$id"
-                  params={{ id: plugin.id }}
-                  className="flex items-center gap-1 text-sm underline underline-offset-4"
-                >
-                  Plugin details <IconArrowRight className="size-4" />
-                </Link>
-              </div>
-            </div>
+          <article key={plugin.id} className="flex flex-col gap-base">
+            <SectionHeader
+              as="h3"
+              title={plugin.name}
+              description={plugin.description || plugin.repo}
+              className="flex-wrap border-border border-b pb-group"
+              action={
+                <div className="flex items-center gap-base">
+                  <PluginPopularity plugin={plugin} />
+                  <Link
+                    to="/plugins/$id"
+                    params={{ id: plugin.id }}
+                    className="type-body flex items-center gap-inline underline underline-offset-4"
+                  >
+                    Plugin details <IconArrowRight />
+                  </Link>
+                </div>
+              }
+            />
 
             {plugin.themes?.length ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-base sm:grid-cols-2 lg:grid-cols-3">
                 {plugin.themes.map((theme) => (
                   <Link
                     key={theme.id}
                     to="/plugins/$id"
                     params={{ id: plugin.id }}
-                    className="group border border-border bg-card p-2 transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="group surface-panel surface-interactive p-group focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
                     <ThemePreview theme={theme} />
-                    <div className="flex items-center justify-between gap-3 px-1 pt-3 pb-1">
-                      <span className="truncate font-medium">{theme.name}</span>
+                    <div className="flex items-center justify-between gap-stack px-inline pt-stack pb-inline">
+                      <span className="type-label truncate">{theme.name}</span>
                       <Badge variant="outline">{theme.appearance}</Badge>
                     </div>
                   </Link>
@@ -126,7 +117,7 @@ function ThemesPage() {
               <Link
                 to="/plugins/$id"
                 params={{ id: plugin.id }}
-                className="flex min-h-36 items-center justify-center border border-border border-dashed bg-muted/30 px-6 text-center text-foreground/55 text-sm"
+                className="empty-state surface-interactive"
               >
                 No static palette preview is available. Open the listing to
                 inspect screenshots and details.

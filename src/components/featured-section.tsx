@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router"
+import { SectionHeader } from "@/components/section-header"
 import type { PluginRecord } from "@/lib/plugin-schema"
 
 export function FeaturedSection({
@@ -12,30 +13,21 @@ export function FeaturedSection({
 }) {
   if (plugins.length === 0) return null
 
+  const headingId = `${title.toLowerCase().replaceAll(" ", "-")}-heading`
+
   return (
-    <section
-      className="flex flex-col gap-3"
-      aria-labelledby={`${title.toLowerCase().replaceAll(" ", "-")}-heading`}
-    >
-      <div>
-        <h2
-          id={`${title.toLowerCase().replaceAll(" ", "-")}-heading`}
-          className="font-medium text-lg tracking-tight"
-        >
-          {title}
-        </h2>
-        <p className="text-foreground/50 text-sm">{description}</p>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <section className="flex flex-col gap-base" aria-labelledby={headingId}>
+      <SectionHeader id={headingId} title={title} description={description} />
+      <div className="grid gap-base sm:grid-cols-2">
         {plugins.map((plugin) => (
           <Link
             key={plugin.id}
             to="/plugins/$id"
             params={{ id: plugin.id }}
-            className="flex min-w-0 items-center justify-between gap-3 border border-border bg-card px-3 py-2 transition-colors hover:bg-muted"
+            className="surface-panel surface-interactive flex min-w-0 items-center justify-between gap-stack px-stack py-group"
           >
-            <span className="truncate font-medium text-sm">{plugin.name}</span>
-            <span className="shrink-0 text-foreground/50 text-xs">
+            <span className="type-label truncate">{plugin.name}</span>
+            <span className="type-meta shrink-0 text-muted-foreground">
               {plugin.repo}
             </span>
           </Link>

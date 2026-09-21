@@ -28,56 +28,55 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
   const hasNpmMetrics = hasCompleteCatalogNpmMetrics(plugin)
 
   return (
-    <aside className="flex flex-col gap-6 bg-card p-3 lg:sticky lg:top-20 lg:w-1/3 lg:shrink-0 lg:self-start">
+    <aside className="sidebar-column">
       <Link
         to="/user/$username"
         params={{ username }}
-        className="flex items-center gap-2 hover:opacity-80"
+        className="flex items-center gap-group hover:opacity-80"
       >
         {plugin.owner ? (
           <img
             src={plugin.owner.avatarUrl}
             alt=""
-            className="size-4 shrink-0 rounded-full ring-1 ring-foreground/10"
+            className="size-icon-md shrink-0 rounded-full border border-border"
           />
         ) : (
-          <IconBrandGithub className="size-8 text-foreground/40" />
+          <IconBrandGithub className="shrink-0 text-muted-foreground" />
         )}
-        <span className="font-medium text-foreground text-sm hover:underline">
+        <span className="type-label text-foreground hover:underline">
           {username}
         </span>
       </Link>
 
-      <div className="flex flex-col gap-1.5 text-sm">
+      <div className="type-body flex flex-col gap-chip">
         <a
           href={repositoryUrl}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-1.5 text-foreground hover:underline"
+          className="flex items-center gap-chip text-foreground hover:underline"
         >
-          <IconBrandGithub className="size-4 shrink-0" /> {plugin.repo}
-          <IconExternalLink className="size-3.5 shrink-0" />
+          <IconBrandGithub className="shrink-0" /> {plugin.repo}
+          <IconExternalLink className="size-icon-sm shrink-0" />
         </a>
         <a
           href={buildReportIssueUrl(plugin)}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-1.5 text-foreground hover:underline"
+          className="flex items-center gap-chip text-foreground hover:underline"
         >
-          <IconAlertTriangle className="size-4 shrink-0" /> Report plugin
-          <IconExternalLink className="size-3.5 shrink-0" />
+          <IconAlertTriangle className="shrink-0" /> Report plugin
+          <IconExternalLink className="size-icon-sm shrink-0" />
         </a>
       </div>
-      <div className="flex flex-col gap-1.5 text-foreground/70 text-sm">
+      <div className="type-body flex flex-col gap-chip text-muted-foreground">
         {hasNpmMetrics ? (
-          <span className="flex items-center gap-1.5">
-            <IconDownload className="size-4 shrink-0" />
+          <span className="flex items-center gap-chip">
+            <IconDownload className="shrink-0" />
             {formatCatalogDownloads(plugin.npm.downloadsLast30Days)}
           </span>
         ) : plugin.repoMeta ? (
-          <span className="flex items-center gap-1.5">
-            <IconStar className="size-4 shrink-0" /> {plugin.repoMeta.stars}{" "}
-            stars
+          <span className="flex items-center gap-chip">
+            <IconStar className="shrink-0" /> {plugin.repoMeta.stars} stars
           </span>
         ) : null}
         {hasNpmMetrics ? (
@@ -90,11 +89,9 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
       </div>
 
       {plugin.categories.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
-            Categories
-          </span>
-          <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-col gap-group">
+          <span className="type-eyebrow text-muted-foreground">Categories</span>
+          <div className="flex flex-wrap gap-chip">
             {plugin.categories.map((c) => (
               <Link
                 key={c}
@@ -117,11 +114,9 @@ export function PluginSidebar({ plugin }: { plugin: PluginRecord }) {
       ) : null}
 
       {plugin.platforms.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
-            Platforms
-          </span>
-          <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-col gap-group">
+          <span className="type-eyebrow text-muted-foreground">Platforms</span>
+          <div className="flex flex-wrap gap-chip">
             {plugin.platforms.map((p) => (
               <Badge key={p} variant="outline">
                 {PLATFORM_LABELS[p]}

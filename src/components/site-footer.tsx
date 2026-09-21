@@ -2,10 +2,10 @@ import { SITE_NAME } from "@/lib/site"
 
 export function SiteFooter() {
   return (
-    <footer className="border-border/60 border-t">
-      <div className="mx-auto max-w-5xl space-y-3 px-6 py-8 text-foreground/50 text-xs">
+    <footer className="border-border border-t">
+      <div className="page-shell type-meta flex flex-col gap-stack py-section text-muted-foreground">
         <p>
-          <strong className="text-foreground/70">{SITE_NAME}</strong> is an
+          <strong className="text-foreground">{SITE_NAME}</strong> is an
           independent, community-run directory. It is not affiliated with,
           endorsed by, or maintained by{" "}
           <a
@@ -18,7 +18,7 @@ export function SiteFooter() {
           </a>
           .
         </p>
-        <p className="">
+        <p>
           Every listing is generated automatically from a plugin's own public
           repository — nothing here is reviewed, audited, or vouched for by this
           site. Read a plugin's source before installing it. See each plugin's
@@ -36,7 +36,7 @@ export function SiteFooter() {
           </a>
           .
         </p>
-        <p className="mt-3">
+        <p>
           Built with ❤︎⁠ as a joined collaboration by{" "}
           <a
             href="https://github.com/tommerty"

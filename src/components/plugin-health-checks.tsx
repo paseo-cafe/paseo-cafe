@@ -20,15 +20,15 @@ export function PluginHealthChecks({ health }: { health: PluginHealth }) {
       title="Health checks"
       subtitle={`${passedCount}/${HEALTH_KEYS.length} passed`}
     >
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col gap-group">
         {HEALTH_KEYS.map((key) => (
-          <li key={key} className="flex items-center gap-2 text-sm">
+          <li key={key} className="type-body flex items-center gap-group">
             {health[key] ? (
-              <IconCheck className="size-4 text-green-600" />
+              <IconCheck className="text-green-600" />
             ) : (
-              <IconX className="size-4 text-foreground/30" />
+              <IconX className="text-muted-foreground/60" />
             )}
-            <span className={health[key] ? "" : "text-foreground/50"}>
+            <span className={health[key] ? "" : "text-muted-foreground"}>
               {HEALTH_LABELS[key]}
             </span>
           </li>

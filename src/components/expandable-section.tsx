@@ -12,21 +12,17 @@ export function ExpandableSection({
   children: ReactNode
 }) {
   return (
-    <details className="rounded-none border border-border bg-card px-3 py-2.5">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium text-foreground/70 text-sm [&::-webkit-details-marker]:hidden">
-        <span className="flex items-center gap-2">
+    <details className="surface-panel p-stack">
+      <summary className="type-label flex cursor-pointer list-none items-center justify-between gap-stack [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center gap-group">
           <span>{title}</span>
           {subtitle ? (
-            <span className="font-normal text-foreground/40 text-xs">
-              {subtitle}
-            </span>
+            <span className="type-meta text-muted-foreground">{subtitle}</span>
           ) : null}
         </span>
-        <span className="text-foreground/40 text-xs uppercase tracking-wide">
-          <IconChevronDown />
-        </span>
+        <IconChevronDown className="shrink-0 text-muted-foreground" />
       </summary>
-      <div className="mt-3">{children}</div>
+      <div className="mt-stack">{children}</div>
     </details>
   )
 }

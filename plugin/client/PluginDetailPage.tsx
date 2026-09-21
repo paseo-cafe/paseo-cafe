@@ -9,6 +9,7 @@ import {
 import { useMemo, useState } from "react"
 import { Image, Pressable, Text, View } from "react-native"
 import { getCatalogGalleryImages } from "../shared/catalog"
+import { BORDER_WIDTH, ICON, SPACE } from "../shared/design-tokens"
 import type {
   DirectoryCategory,
   DirectoryEntry,
@@ -41,8 +42,17 @@ import {
 import { ExpandableSection } from "./ExpandableSection"
 import { InlineMarkdown } from "./InlineMarkdown"
 import { ThemePreviewCard } from "./ThemePreviewCard"
-import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
+import {
+  CAFE_CONTROL_RADIUS,
+  chipStyle,
+  insetStyle,
+  panelStyle,
+  typeStyle,
+} from "./visual"
 import { openExternal } from "./web"
+
+// Owner avatars are images, so their size is explicit rather than a token.
+const AVATAR_SIZE = 20
 
 interface PluginDetailPageProps {
   entry: DirectoryEntry
@@ -114,354 +124,285 @@ export function PluginDetailPage({
         width: "100%" as const,
         maxWidth: 960,
         alignSelf: "center" as const,
-        padding: compact ? 16 : 24,
-        gap: 16,
+        padding: SPACE.base,
+        gap: SPACE.base,
       },
       backRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 4,
-        marginBottom: 4,
+        gap: SPACE.inline,
+        marginBottom: SPACE.inline,
       },
       backText: {
+        ...typeStyle("label"),
         color: theme.colors.accent,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 14,
       },
       headerRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 10,
+        gap: SPACE.stack,
         flexWrap: "wrap" as const,
       },
       ownerRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 6,
+        gap: SPACE.chip,
       },
-      avatar: { width: 20, height: 20, borderRadius: 10 },
+      avatar: {
+        width: AVATAR_SIZE,
+        height: AVATAR_SIZE,
+        borderRadius: AVATAR_SIZE / 2,
+      },
       ownerText: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
       },
       title: {
+        ...typeStyle("title"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: compact ? 22 : 28,
-        fontWeight: "700" as const,
-        letterSpacing: -0.6,
         flexShrink: 1,
       },
       errorBadge: {
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
+        ...chipStyle(theme),
         backgroundColor: theme.colors.statusDanger,
       },
       errorBadgeText: {
+        ...typeStyle("meta"),
         color: theme.colors.accentForeground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
       },
       description: {
+        ...typeStyle("body"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 14,
-        lineHeight: 20,
       },
       tagsRow: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
-        gap: 6,
+        gap: SPACE.chip,
       },
-      tag: {
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        backgroundColor: theme.colors.surface2,
-      },
+      tag: chipStyle(theme),
       tagText: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
       },
       requirementTag: {
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
+        ...chipStyle(theme),
         backgroundColor: theme.colors.accent,
       },
       requirementTagText: {
+        ...typeStyle("meta"),
         color: theme.colors.accentForeground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
       },
       metaRow: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
-        gap: 14,
+        gap: SPACE.base,
         alignItems: "center" as const,
       },
       metaItem: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 4,
+        gap: SPACE.inline,
       },
       metaText: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
       },
       linkText: {
+        ...typeStyle("meta"),
         color: theme.colors.accent,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
       },
       siteButton: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 6,
+        gap: SPACE.inline,
         alignSelf: "flex-start" as const,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: SPACE.base,
+        paddingVertical: SPACE.stack,
         borderRadius: CAFE_CONTROL_RADIUS,
         backgroundColor: theme.colors.accent,
       },
       siteButtonText: {
+        ...typeStyle("label"),
         color: theme.colors.accentForeground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 15,
-        fontWeight: "700" as const,
       },
       alert: {
-        gap: 6,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        padding: 12,
-        backgroundColor: theme.colors.surface1,
+        ...panelStyle(theme),
+        gap: SPACE.group,
+        padding: SPACE.stack,
       },
       alertTitleRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 6,
+        gap: SPACE.chip,
       },
       alertTitle: {
+        ...typeStyle("label"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        fontWeight: "600" as const,
       },
       alertBody: {
+        ...typeStyle("body"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        lineHeight: 19,
       },
       caveatLine: {
+        ...typeStyle("body"),
         color: theme.colors.statusWarning,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        lineHeight: 18,
       },
       readmeLabel: {
+        ...typeStyle("eyebrow"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 10,
-        fontWeight: "600" as const,
-        textTransform: "uppercase" as const,
-        letterSpacing: 0.8,
-        marginTop: 8,
-        marginBottom: 4,
+        marginTop: SPACE.group,
+        marginBottom: SPACE.inline,
       },
       readmeText: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        lineHeight: 18,
       },
       errorBox: {
-        borderWidth: 1,
+        ...panelStyle(theme),
         borderColor: theme.colors.statusDanger,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        padding: 12,
-        gap: 8,
-        backgroundColor: theme.colors.surface1,
+        padding: SPACE.stack,
+        gap: SPACE.group,
       },
       errorText: {
+        ...typeStyle("body"),
         color: theme.colors.statusDanger,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
       },
       errorDetails: {
+        ...typeStyle("meta"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        lineHeight: 18,
       },
       errorActions: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
-        gap: 14,
+        gap: SPACE.stack,
       },
       errorAction: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 5,
+        gap: SPACE.inline,
       },
       errorActionText: {
+        ...typeStyle("label"),
         color: theme.colors.accent,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        fontWeight: "600" as const,
       },
-      gallery: { marginHorizontal: compact ? -16 : -24 },
-      galleryContent: { paddingHorizontal: compact ? 16 : 24, gap: 10 },
+      // Bleeds to the page gutter, so it must match `content.padding`.
+      gallery: { marginHorizontal: -SPACE.base },
+      galleryContent: { paddingHorizontal: SPACE.base, gap: SPACE.stack },
       galleryTile: {
-        width: compact ? 220 : 280,
+        width: compact ? 220 : 280, // Explicit thumbnail width.
         aspectRatio: 16 / 9,
         borderRadius: CAFE_CONTROL_RADIUS,
         backgroundColor: theme.colors.surface2,
       },
-      section: { gap: 6 },
+      section: { gap: SPACE.group },
       themeGrid: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
-        gap: 12,
+        gap: SPACE.stack,
       },
       label: {
+        ...typeStyle("eyebrow"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-        textTransform: "uppercase" as const,
-        letterSpacing: 0.8,
       },
       commandRow: {
         flexDirection: "row" as const,
         alignItems: "stretch" as const,
-        gap: 8,
+        gap: SPACE.group,
       },
       command: {
+        ...insetStyle(theme),
+        ...typeStyle("meta"),
         flex: 1,
-        fontFamily: CAFE_MONO_FONT,
         color: theme.colors.foreground,
-        backgroundColor: theme.colors.surface1,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        padding: 10,
-        fontSize: 12,
+        padding: SPACE.stack,
       },
       copyButton: {
         alignItems: "center" as const,
         justifyContent: "center" as const,
-        paddingHorizontal: 12,
+        paddingHorizontal: SPACE.stack,
         borderRadius: CAFE_CONTROL_RADIUS,
-        borderWidth: 1,
+        borderWidth: BORDER_WIDTH,
         borderColor: theme.colors.border,
       },
       actionsRow: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
-        gap: 8,
+        gap: SPACE.stack,
       },
       button: {
-        paddingHorizontal: 14,
-        paddingVertical: 10,
+        paddingHorizontal: SPACE.base,
+        paddingVertical: SPACE.stack,
         borderRadius: CAFE_CONTROL_RADIUS,
         backgroundColor: theme.colors.accent,
         opacity: installing || updatingId !== null ? 0.6 : 1,
       },
       buttonText: {
+        ...typeStyle("label"),
         color: theme.colors.accentForeground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 14,
-        fontWeight: "600" as const,
       },
       manifestViewer: {
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        padding: 12,
-        backgroundColor: theme.colors.surface1,
+        ...insetStyle(theme),
+        padding: SPACE.stack,
       },
       manifestText: {
+        ...typeStyle("meta"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        lineHeight: 18,
       },
       readmeHeaderRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
         flexWrap: "wrap" as const,
-        gap: 8,
+        gap: SPACE.stack,
       },
       readmeViewer: {
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        padding: 12,
-        backgroundColor: theme.colors.surface1,
+        ...insetStyle(theme),
+        padding: SPACE.stack,
       },
       secondaryButton: {
-        paddingHorizontal: 14,
-        paddingVertical: 10,
+        paddingHorizontal: SPACE.base,
+        paddingVertical: SPACE.stack,
         borderRadius: CAFE_CONTROL_RADIUS,
-        borderWidth: 1,
+        borderWidth: BORDER_WIDTH,
         borderColor: theme.colors.border,
       },
       secondaryButtonText: {
+        ...typeStyle("label"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 14,
       },
-      installationList: { gap: 8 },
+      installationList: { gap: SPACE.group },
       installationCard: {
-        gap: 8,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        padding: 10,
-        backgroundColor: theme.colors.surface1,
+        ...panelStyle(theme),
+        gap: SPACE.group,
+        padding: SPACE.stack,
       },
       installationTitle: {
+        ...typeStyle("label"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        fontWeight: "600" as const,
       },
       healthGrid: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
-        gap: 10,
+        gap: SPACE.stack,
       },
       healthItem: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 6,
+        gap: SPACE.chip,
         width: compact ? ("100%" as const) : ("48%" as const),
       },
-      healthText: { fontFamily: CAFE_MONO_FONT, fontSize: 13 },
+      healthText: typeStyle("body"),
       footer: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
       },
-      modalBody: { gap: 16 },
+      modalBody: { gap: SPACE.base },
       modalTitle: {
+        ...typeStyle("subheading"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 15,
-        fontWeight: "600" as const,
       },
       modalText: {
+        ...typeStyle("body"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        lineHeight: 19,
       },
     }),
     [theme, compact, installing, updatingId]
@@ -577,7 +518,7 @@ export function PluginDetailPage({
           style={styles.backRow}
           onPress={onBack}
         >
-          <Icon name="ArrowLeft" size={16} color={theme.colors.accent} />
+          <Icon name="ArrowLeft" size={ICON.md} color={theme.colors.accent} />
           <Text style={styles.backText}>Paseo Cafe</Text>
         </Pressable>
 
@@ -599,7 +540,7 @@ export function PluginDetailPage({
           ) : (
             <Icon
               name="Github"
-              size={16}
+              size={ICON.md}
               color={theme.colors.foregroundMuted}
             />
           )}
@@ -641,7 +582,7 @@ export function PluginDetailPage({
             <View style={styles.metaItem}>
               <Icon
                 name="Download"
-                size={13}
+                size={ICON.sm}
                 color={theme.colors.foregroundMuted}
               />
               <Text style={styles.metaText}>
@@ -652,7 +593,7 @@ export function PluginDetailPage({
             <View style={styles.metaItem}>
               <Icon
                 name="Star"
-                size={13}
+                size={ICON.sm}
                 color={theme.colors.foregroundMuted}
               />
               <Text style={styles.metaText}>{entry.repoMeta.stars} stars</Text>
@@ -686,7 +627,7 @@ export function PluginDetailPage({
         >
           <Icon
             name="ExternalLink"
-            size={16}
+            size={ICON.md}
             color={theme.colors.accentForeground}
           />
           <Text style={styles.siteButtonText}>View on paseo.cafe</Text>
@@ -697,7 +638,7 @@ export function PluginDetailPage({
             <View style={styles.alertTitleRow}>
               <Icon
                 name="AlertTriangle"
-                size={14}
+                size={ICON.sm}
                 color={theme.colors.statusWarning}
               />
               <Text style={styles.alertTitle}>
@@ -718,7 +659,7 @@ export function PluginDetailPage({
             <View style={styles.alertTitleRow}>
               <Icon
                 name="AlertTriangle"
-                size={14}
+                size={ICON.sm}
                 color={theme.colors.statusWarning}
               />
               <Text style={styles.alertTitle}>Caveats</Text>
@@ -819,7 +760,7 @@ export function PluginDetailPage({
               >
                 <Icon
                   name={showReadme ? "ChevronUp" : "ChevronDown"}
-                  size={14}
+                  size={ICON.sm}
                   color={theme.colors.accent}
                 />
                 <Text style={styles.errorActionText}>
@@ -837,7 +778,7 @@ export function PluginDetailPage({
                 }}
                 style={styles.errorAction}
               >
-                <Icon name="Copy" size={14} color={theme.colors.accent} />
+                <Icon name="Copy" size={ICON.sm} color={theme.colors.accent} />
                 <Text style={styles.errorActionText}>Copy text</Text>
               </Pressable>
             </View>
@@ -872,7 +813,11 @@ export function PluginDetailPage({
                   toast.show("Copied install command")
                 }}
               >
-                <Icon name="Copy" size={16} color={theme.colors.foreground} />
+                <Icon
+                  name="Copy"
+                  size={ICON.md}
+                  color={theme.colors.foreground}
+                />
               </Pressable>
             ) : null}
           </View>
@@ -900,7 +845,7 @@ export function PluginDetailPage({
                 }}
                 style={styles.errorAction}
               >
-                <Icon name="Copy" size={14} color={theme.colors.accent} />
+                <Icon name="Copy" size={ICON.sm} color={theme.colors.accent} />
                 <Text style={styles.errorActionText}>Copy JSON</Text>
               </Pressable>
               <View style={styles.manifestViewer}>
@@ -1121,7 +1066,7 @@ export function PluginDetailPage({
                 >
                   <Icon
                     name={showFullActionError ? "ChevronUp" : "ChevronDown"}
-                    size={14}
+                    size={ICON.sm}
                     color={theme.colors.accent}
                   />
                   <Text style={styles.errorActionText}>
@@ -1138,7 +1083,7 @@ export function PluginDetailPage({
                 }}
                 style={styles.errorAction}
               >
-                <Icon name="Copy" size={14} color={theme.colors.accent} />
+                <Icon name="Copy" size={ICON.sm} color={theme.colors.accent} />
                 <Text style={styles.errorActionText}>Copy error</Text>
               </Pressable>
             </View>
@@ -1160,7 +1105,7 @@ export function PluginDetailPage({
                       ? "X"
                       : "AlertTriangle"
                 }
-                size={14}
+                size={ICON.sm}
                 color={securityStatusColor}
               />
               <Text style={[styles.alertTitle, { color: securityStatusColor }]}>
@@ -1190,7 +1135,7 @@ export function PluginDetailPage({
                   >
                     <Icon
                       name="ExternalLink"
-                      size={14}
+                      size={ICON.sm}
                       color={theme.colors.accent}
                     />
                     <Text style={styles.errorActionText}>Open report</Text>
@@ -1215,7 +1160,7 @@ export function PluginDetailPage({
                   <View key={key} style={styles.healthItem}>
                     <Icon
                       name={ok ? "Check" : "X"}
-                      size={14}
+                      size={ICON.sm}
                       color={
                         ok
                           ? theme.colors.statusSuccess
@@ -1250,7 +1195,9 @@ export function PluginDetailPage({
       </ScrollView>
       <Modal
         title={`Review ${entry.name} ${confirmingInstall === "preview" ? "Preview" : "stable"} installation`}
-        icon={<Icon name="Download" size={18} color={theme.colors.accent} />}
+        icon={
+          <Icon name="Download" size={ICON.md} color={theme.colors.accent} />
+        }
         open={confirmingInstall !== null}
         onOpenChange={(open: boolean) => {
           if (!open) setConfirmingInstall(null)
@@ -1313,7 +1260,7 @@ export function PluginDetailPage({
             <View style={styles.alertTitleRow}>
               <Icon
                 name="AlertTriangle"
-                size={14}
+                size={ICON.sm}
                 color={theme.colors.statusWarning}
               />
               <Text style={styles.alertTitle}>Trusted, unsandboxed code</Text>
@@ -1405,7 +1352,9 @@ export function PluginDetailPage({
       </Modal>
       <Modal
         title={`${confirmingUpdate?.channel === "preview" ? "Use Preview for" : "Use stable for"} ${entry.name}?`}
-        icon={<Icon name="RefreshCw" size={18} color={theme.colors.accent} />}
+        icon={
+          <Icon name="RefreshCw" size={ICON.md} color={theme.colors.accent} />
+        }
         open={confirmingUpdate !== null}
         onOpenChange={(open: boolean) => {
           if (!open) setConfirmingUpdate(null)

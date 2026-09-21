@@ -10,19 +10,19 @@ export function SiteHeader() {
   const isMobile = useIsMobile()
 
   return (
-    <header className="sticky top-0 z-10 border-border/60 border-b bg-background/80 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-4">
+    <header className="sticky top-0 z-10 border-border border-b bg-background/80 backdrop-blur">
+      <div className="page-shell flex items-center justify-between gap-stack py-base">
         <Link
           to="/"
           search={HOME_SEARCH_DEFAULT}
           className="flex flex-col justify-center"
         >
-          <span className="flex items-center gap-2 font-semibold tracking-tight">
+          <span className="type-subheading flex items-center gap-group">
             <BrandMark className="size-5.5 shrink-0" />
             {!isMobile ? SITE_NAME : null}
           </span>
         </Link>
-        <nav className="flex items-center gap-4 text-foreground/70 text-sm">
+        <nav className="type-body flex items-center gap-base text-muted-foreground">
           <Link
             to="/"
             search={HOME_SEARCH_DEFAULT}
@@ -53,7 +53,7 @@ export function SiteHeader() {
             className="hover:text-foreground"
             aria-label="View source on GitHub"
           >
-            <IconBrandGithub className="size-5" />
+            <IconBrandGithub />
           </a>
           <ModeToggle />
         </nav>

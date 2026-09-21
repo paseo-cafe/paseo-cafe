@@ -2,6 +2,7 @@ import type { PluginTheme } from "@getpaseo/plugin"
 import { Icon } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Image, Pressable, Text, View } from "react-native"
+import { ICON, SPACE } from "../shared/design-tokens"
 import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   DIRECTORY_CATEGORY_LABELS,
@@ -18,7 +19,10 @@ import {
   normalizeDirectoryCategory,
 } from "../shared/directory"
 import { InlineMarkdown } from "./InlineMarkdown"
-import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
+import { chipStyle, panelStyle, typeStyle } from "./visual"
+
+// Owner avatars are images, so their size is explicit rather than a token.
+const AVATAR_SIZE = 20
 
 interface PluginRowProps {
   entry: DirectoryEntry
@@ -91,58 +95,47 @@ export function PluginRow({
   const styles = useMemo(
     () => ({
       row: {
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        padding: compact ? 12 : 14,
-        gap: 8,
-        backgroundColor: theme.colors.surface1,
+        ...panelStyle(theme),
+        padding: compact ? SPACE.stack : SPACE.base,
+        gap: SPACE.group,
       },
       headerRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 8,
+        gap: SPACE.group,
         flexWrap: "wrap" as const,
       },
-      avatar: { width: 20, height: 20, borderRadius: 10 },
+      avatar: {
+        width: AVATAR_SIZE,
+        height: AVATAR_SIZE,
+        borderRadius: AVATAR_SIZE / 2,
+      },
       name: {
+        ...typeStyle("label"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 16,
-        fontWeight: "600" as const,
-        letterSpacing: -0.2,
         flexShrink: 1,
       },
-      statusBadge: {
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        backgroundColor: theme.colors.surface2,
-      },
+      statusBadge: chipStyle(theme),
       statusText: (updateAvailable: boolean) => ({
+        ...typeStyle("meta"),
         color: updateAvailable
           ? theme.colors.statusWarning
           : theme.colors.statusSuccess,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
       }),
       metaRow: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
-        gap: 6,
+        gap: SPACE.chip,
         alignItems: "center" as const,
       },
       metaBadge: {
+        ...chipStyle(theme),
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 4,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        backgroundColor: theme.colors.surface2,
+        gap: SPACE.inline,
       },
       metaBadgeText: (tone: BadgeColor) => ({
+        ...typeStyle("meta"),
         color:
           tone === "success"
             ? theme.colors.statusSuccess
@@ -153,30 +146,20 @@ export function PluginRow({
                 : tone === "accent"
                   ? theme.colors.accent
                   : theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
       }),
       description: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        lineHeight: 19,
       },
       tagsRow: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
-        gap: 6,
+        gap: SPACE.chip,
       },
-      tag: {
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        backgroundColor: theme.colors.surface2,
-      },
+      tag: chipStyle(theme),
       tagText: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
       },
     }),
     [theme, compact]
@@ -263,7 +246,7 @@ export function PluginRow({
           <View style={styles.metaBadge}>
             <Icon
               name={popularity.source === "npm" ? "Download" : "Star"}
-              size={11}
+              size={ICON.sm}
               color={theme.colors.foregroundMuted}
             />
             <Text style={styles.metaBadgeText("muted")}>{popularity.text}</Text>

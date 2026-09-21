@@ -1,5 +1,6 @@
 import { IconSearch } from "@tabler/icons-react"
 import { Link } from "@tanstack/react-router"
+import type { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import {
   InputGroup,
@@ -24,6 +25,46 @@ interface CatalogSidebarProps {
   onPlatformChange: (platform: Platform | "") => void
 }
 
+/** A labelled group of filter chips; every group in the sidebar is built this way. */
+function FilterGroup({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-group">
+      <span className="type-eyebrow text-muted-foreground">{label}</span>
+      <div className="flex flex-wrap gap-chip">{children}</div>
+    </div>
+  )
+}
+
+function FilterChip({
+  active,
+  count,
+  onClick,
+  children,
+}: {
+  active: boolean
+  count?: number
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <Button
+      size="sm"
+      variant={active ? "default" : "outline"}
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      {children}
+      {count === undefined ? null : <span className="opacity-70">{count}</span>}
+    </Button>
+  )
+}
+
 export function CatalogSidebar({
   search,
   totalCount,
@@ -37,97 +78,70 @@ export function CatalogSidebar({
   onPlatformChange,
 }: CatalogSidebarProps) {
   return (
-    <aside className="flex flex-col gap-3 bg-card p-3 lg:sticky lg:top-20 lg:order-last lg:w-1/3 lg:shrink-0 lg:self-start">
-      <div className="relative">
-        <InputGroup>
-          <InputGroupAddon align="inline-start">
-            <IconSearch />
-          </InputGroupAddon>
-          <InputGroupInput
-            value={search.q}
-            onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Search name, repo, owner…"
-            aria-label="Search plugins"
-          />
-        </InputGroup>
-      </div>
+    <aside className="sidebar-column lg:order-last">
+      <InputGroup>
+        <InputGroupAddon align="inline-start">
+          <IconSearch />
+        </InputGroupAddon>
+        <InputGroupInput
+          value={search.q}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder="Search name, repo, owner…"
+          aria-label="Search plugins"
+        />
+      </InputGroup>
 
-      <div className="flex flex-col gap-2">
-        <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
-          Sort
-        </span>
-        <div className="flex flex-wrap gap-1">
-          {sortOptions.map((option) => (
-            <Button
-              key={option}
-              size="sm"
-              onClick={() => onSortChange(option)}
-              aria-pressed={search.sort === option}
-              className="h-auto w-fit text-sm!"
-              variant={search.sort === option ? "default" : "outline"}
-            >
-              {sortLabels[option]}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <FilterGroup label="Sort">
+        {sortOptions.map((option) => (
+          <FilterChip
+            key={option}
+            active={search.sort === option}
+            onClick={() => onSortChange(option)}
+          >
+            {sortLabels[option]}
+          </FilterChip>
+        ))}
+      </FilterGroup>
 
-      <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
-        Categories
-      </span>
-      <div className="flex flex-wrap gap-1">
-        <Button
-          size="sm"
+      <FilterGroup label="Categories">
+        <FilterChip
+          active={search.category === ""}
+          count={totalCount}
           onClick={() => onCategoryChange("")}
-          aria-pressed={search.category === ""}
-          className="h-auto w-fit text-sm!"
-          variant={search.category === "" ? "default" : "outline"}
         >
           All
-          <span className="text-xs! opacity-70">{totalCount}</span>
-        </Button>
+        </FilterChip>
         {categories.map((c) => (
-          <Button
+          <FilterChip
             key={c}
-            size="sm"
+            active={search.category === c}
+            count={categoryCounts[c]}
             onClick={() => onCategoryChange(c)}
-            aria-pressed={search.category === c}
-            className="h-auto w-fit text-sm!"
-            variant={search.category === c ? "default" : "outline"}
           >
             {CATEGORY_LABELS[c]}
-            <span className="text-xs! opacity-70">{categoryCounts[c]}</span>
-          </Button>
+          </FilterChip>
         ))}
-      </div>
+      </FilterGroup>
 
-      <span className="font-medium text-foreground/50 text-xs uppercase tracking-wide">
-        Platform
-      </span>
-      <div className="flex flex-wrap gap-1">
-        <Button
-          size="sm"
+      <FilterGroup label="Platform">
+        <FilterChip
+          active={search.platform === ""}
+          count={totalCount}
           onClick={() => onPlatformChange("")}
-          aria-pressed={search.platform === ""}
-          className="h-auto w-fit text-sm!"
-          variant={search.platform === "" ? "default" : "outline"}
         >
           All
-        </Button>
+        </FilterChip>
         {platforms.map((p) => (
-          <Button
+          <FilterChip
             key={p}
-            size="sm"
+            active={search.platform === p}
+            count={platformCounts[p]}
             onClick={() => onPlatformChange(p)}
-            aria-pressed={search.platform === p}
-            className="h-auto w-fit text-sm!"
-            variant={search.platform === p ? "default" : "outline"}
           >
             {PLATFORM_LABELS[p]}
-            <span className="text-xs! opacity-70">{platformCounts[p]}</span>
-          </Button>
+          </FilterChip>
         ))}
-      </div>
+      </FilterGroup>
 
       <Button
         nativeButton={false}

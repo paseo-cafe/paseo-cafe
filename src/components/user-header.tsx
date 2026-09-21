@@ -11,21 +11,19 @@ export function UserHeader({
   pluginCount: number
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-stack">
       {owner ? (
         <img
           src={owner.avatarUrl}
           alt=""
-          className="size-10 rounded-full ring-1 ring-foreground/10"
+          className="size-10 rounded-full border border-border"
         />
       ) : (
-        <IconBrandGithub className="size-10 text-foreground/40" />
+        <IconBrandGithub className="size-10 text-muted-foreground" />
       )}
       <div>
-        <h1 className="font-semibold text-2xl tracking-tight">
-          {owner?.login ?? username}
-        </h1>
-        <p className="text-foreground/60 text-sm">
+        <h1 className="type-title">{owner?.login ?? username}</h1>
+        <p className="type-body text-muted-foreground">
           {pluginCount} plugin{pluginCount === 1 ? "" : "s"} on paseo.cafe.
         </p>
       </div>

@@ -1,12 +1,13 @@
 import type { PluginTheme } from "@getpaseo/plugin"
 import { Icon } from "@getpaseo/plugin/client/react-native"
 import { Pressable, Text, View } from "react-native"
+import { BORDER_WIDTH, ICON, SPACE } from "../shared/design-tokens"
 import type { DirectoryEntry } from "../shared/directory"
 import {
   formatDirectoryCompactCount,
   getDirectoryPopularityMetric,
 } from "../shared/directory"
-import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
+import { panelStyle, typeStyle } from "./visual"
 
 interface ThemePreviewCardProps {
   entry: DirectoryEntry
@@ -43,22 +44,21 @@ export function ThemePreviewCard({
       onPress={onPress}
       style={{
         width: compact ? "100%" : "48.5%",
-        minWidth: 260,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        padding: 8,
-        gap: 10,
-        backgroundColor: theme.colors.surface1,
+        minWidth: 260, // Narrowest a mock stays legible; below it the grid wraps.
+        ...panelStyle(theme),
+        padding: SPACE.group,
+        gap: SPACE.stack,
       }}
     >
+      {/* The mock's bar and swatch sizes are illustration geometry, not layout
+          spacing; only its padding and gaps follow the shared scale. */}
       <View
         accessible={false}
         style={{
           height: compact ? 150 : 170,
           flexDirection: "row",
           overflow: "hidden",
-          borderWidth: 1,
+          borderWidth: BORDER_WIDTH,
           borderColor: preview.colors.border,
           backgroundColor: preview.colors.background,
         }}
@@ -66,9 +66,9 @@ export function ThemePreviewCard({
         <View
           style={{
             width: "28%",
-            padding: 12,
-            gap: 9,
-            borderRightWidth: 1,
+            padding: SPACE.stack,
+            gap: SPACE.group,
+            borderRightWidth: BORDER_WIDTH,
             borderColor: preview.colors.border,
             backgroundColor: preview.colors.raised,
           }}
@@ -85,13 +85,13 @@ export function ThemePreviewCard({
             />
           ))}
         </View>
-        <View style={{ flex: 1, padding: 14, gap: 12 }}>
+        <View style={{ flex: 1, padding: SPACE.base, gap: SPACE.stack }}>
           <View
             style={{
               width: "84%",
-              gap: 8,
-              padding: 12,
-              borderWidth: 1,
+              gap: SPACE.group,
+              padding: SPACE.stack,
+              borderWidth: BORDER_WIDTH,
               borderColor: preview.colors.border,
               backgroundColor: preview.colors.raised,
             }}
@@ -117,8 +117,8 @@ export function ThemePreviewCard({
           <View
             style={{
               marginTop: "auto",
-              padding: 10,
-              borderWidth: 1,
+              padding: SPACE.group,
+              borderWidth: BORDER_WIDTH,
               borderColor: preview.colors.ring,
               backgroundColor: preview.colors.control,
             }}
@@ -138,47 +138,53 @@ export function ThemePreviewCard({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 8,
+          gap: SPACE.group,
         }}
       >
         <View style={{ minWidth: 0, flex: 1 }}>
           <Text
             numberOfLines={1}
             style={{
+              ...typeStyle("label"),
               color: theme.colors.foreground,
-              fontFamily: CAFE_MONO_FONT,
-              fontSize: 14,
-              fontWeight: "600",
             }}
           >
             {preview.name}
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: SPACE.chip,
+            }}
+          >
             <Text
               numberOfLines={1}
               style={{
+                ...typeStyle("meta"),
                 flexShrink: 1,
                 color: theme.colors.foregroundMuted,
-                fontFamily: CAFE_MONO_FONT,
-                fontSize: 11,
               }}
             >
               {entry.name}
             </Text>
             {popularity ? (
               <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: SPACE.inline,
+                }}
               >
                 <Icon
                   name={popularity.source === "npm" ? "Download" : "Star"}
-                  size={10}
+                  size={ICON.sm}
                   color={theme.colors.foregroundMuted}
                 />
                 <Text
                   style={{
+                    ...typeStyle("meta"),
                     color: theme.colors.foregroundMuted,
-                    fontFamily: CAFE_MONO_FONT,
-                    fontSize: 10,
                   }}
                 >
                   {formatDirectoryCompactCount(popularity.count)}
@@ -189,10 +195,8 @@ export function ThemePreviewCard({
         </View>
         <Text
           style={{
+            ...typeStyle("eyebrow"),
             color: theme.colors.foregroundMuted,
-            fontFamily: CAFE_MONO_FONT,
-            fontSize: 10,
-            textTransform: "uppercase",
           }}
         >
           {preview.appearance}

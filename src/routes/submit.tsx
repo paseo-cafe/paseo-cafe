@@ -211,386 +211,381 @@ function SubmitPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex flex-col gap-3">
-        <p className="font-medium text-foreground/50 text-xs uppercase tracking-[0.18em]">
-          Community registry intake
-        </p>
-        <h1 className="font-semibold text-3xl tracking-tight">
-          Submit your plugin
-        </h1>
-        <p className="max-w-2xl text-foreground/70">
-          Fill in the listing details here, then review and submit them on
-          GitHub. The registry bot writes the file and opens the pull request
-          for you.
-        </p>
-      </div>
-
-      <div className="mt-8 grid border border-border sm:grid-cols-3">
-        {[
-          ["01", "Describe", "Enter the registry details."],
-          ["02", "Confirm", "Review the prefilled GitHub issue."],
-          ["03", "Automate", "The bot opens the registry PR."],
-        ].map(([number, title, description], index) => (
-          <div
-            key={number}
-            className={`p-4 ${index > 0 ? "border-border border-t sm:border-t-0 sm:border-l" : ""}`}
-          >
-            <p className="font-mono text-foreground/40 text-xs">{number}</p>
-            <p className="mt-2 font-medium text-sm uppercase tracking-wide">
-              {title}
-            </p>
-            <p className="mt-1 text-foreground/60 text-xs">{description}</p>
-          </div>
-        ))}
-      </div>
-
-      <Separator className="my-8" />
-
-      <section className="flex flex-col gap-4">
-        <h2 className="font-semibold text-xl tracking-tight">
-          1. Before you submit
-        </h2>
-        <div>
-          <p className="mb-2 font-medium text-foreground/60 text-sm">
-            Required
+    <div className="page-body">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-section">
+        <div className="flex flex-col gap-stack">
+          <p className="type-eyebrow text-muted-foreground">
+            Community registry intake
           </p>
-          <ul className="flex flex-col gap-2">
-            {REQUIRED_CHECKS.map((item) => (
-              <li key={item} className="flex items-start gap-2 text-sm">
-                <IconCheck className="mt-0.5 size-4 shrink-0 text-green-600" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <p className="mb-2 font-medium text-foreground/60 text-sm">
-            Recommended — not required to get in, but makes your listing much
-            better
-          </p>
-          <ul className="flex flex-col gap-2">
-            {RECOMMENDED.map((item) => (
-              <li
-                key={item}
-                className="flex items-start gap-2 text-foreground/70 text-sm"
-              >
-                <IconCheck className="mt-0.5 size-4 shrink-0 text-foreground/30" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      <Separator className="my-8" />
-
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="font-semibold text-xl tracking-tight">
-            2. Describe your plugin
-          </h2>
-          <p className="mt-2 text-foreground/70 text-sm">
-            These answers become the registry entry. Everything else is read
-            from the plugin repository automatically.
+          <h1 className="type-title">Submit your plugin</h1>
+          <p className="type-lead max-w-2xl text-muted-foreground">
+            Fill in the listing details here, then review and submit them on
+            GitHub. The registry bot writes the file and opens the pull request
+            for you.
           </p>
         </div>
 
-        <form className="border border-border" onSubmit={submit} noValidate>
-          <div className="grid gap-3 border-border border-b p-4 sm:grid-cols-[11rem_1fr]">
-            <label htmlFor="registry-id" className="font-medium text-sm">
-              Registry id
-              <span className="mt-1 block font-normal text-foreground/45 text-xs">
-                Required
-              </span>
-            </label>
-            <div>
-              <Input
-                id="registry-id"
-                value={form.registryId}
-                onChange={(event) =>
-                  updateField("registryId", event.target.value)
-                }
-                placeholder="my-plugin"
-                maxLength={64}
-                aria-invalid={Boolean(errors.registryId)}
-                aria-describedby="registry-id-help"
-                autoComplete="off"
-              />
-              <p
-                id="registry-id-help"
-                className={`mt-1.5 text-xs ${errors.registryId ? "text-destructive" : "text-foreground/50"}`}
-              >
-                {errors.registryId ??
-                  "Lowercase kebab-case. Becomes registry/my-plugin.json."}
+        <div className="surface-panel grid sm:grid-cols-3">
+          {[
+            ["01", "Describe", "Enter the registry details."],
+            ["02", "Confirm", "Review the prefilled GitHub issue."],
+            ["03", "Automate", "The bot opens the registry PR."],
+          ].map(([number, title, description], index) => (
+            <div
+              key={number}
+              className={`flex flex-col gap-inline p-base ${index > 0 ? "border-border border-t sm:border-t-0 sm:border-l" : ""}`}
+            >
+              <p className="type-meta font-mono text-muted-foreground">
+                {number}
               </p>
+              <p className="type-eyebrow text-foreground">{title}</p>
+              <p className="type-meta text-muted-foreground">{description}</p>
             </div>
-          </div>
+          ))}
+        </div>
 
-          <div className="grid gap-3 border-border border-b p-4 sm:grid-cols-[11rem_1fr]">
-            <label htmlFor="repo" className="font-medium text-sm">
-              GitHub repository
-              <span className="mt-1 block font-normal text-foreground/45 text-xs">
-                Required
-              </span>
-            </label>
-            <div>
-              <Input
-                id="repo"
-                value={form.repo}
-                onChange={(event) => updateField("repo", event.target.value)}
-                placeholder="yourname/your-repo"
-                aria-invalid={Boolean(errors.repo)}
-                aria-describedby="repo-help"
-                autoComplete="off"
-              />
-              <p
-                id="repo-help"
-                className={`mt-1.5 text-xs ${errors.repo ? "text-destructive" : "text-foreground/50"}`}
-              >
-                {errors.repo ??
-                  'Public "owner/repo" hosting paseo-plugin.json. Do not paste a full URL.'}
-              </p>
-            </div>
-          </div>
+        <Separator />
 
-          <div className="grid gap-3 border-border border-b p-4 sm:grid-cols-[11rem_1fr]">
-            <label htmlFor="path" className="font-medium text-sm">
-              Plugin subpath
-              <span className="mt-1 block font-normal text-foreground/45 text-xs">
-                Optional
-              </span>
-            </label>
-            <div>
-              <Input
-                id="path"
-                value={form.path}
-                onChange={(event) => updateField("path", event.target.value)}
-                placeholder="packages/my-plugin"
-                maxLength={500}
-                aria-invalid={Boolean(errors.path)}
-                aria-describedby="path-help"
-                autoComplete="off"
-              />
-              <p
-                id="path-help"
-                className={`mt-1.5 text-xs ${errors.path ? "text-destructive" : "text-foreground/50"}`}
-              >
-                {errors.path ??
-                  "Only needed when one repository hosts multiple plugins."}
-              </p>
-            </div>
-          </div>
-          <div className="grid gap-3 border-border border-b p-4 sm:grid-cols-[11rem_1fr]">
-            <label htmlFor="package" className="font-medium text-sm">
-              npm package
-              <span className="mt-1 block font-normal text-foreground/45 text-xs">
-                Required · npmjs.org only
-              </span>
-            </label>
-            <div>
-              <Input
-                id="package"
-                value={form.package}
-                onChange={(event) => updateField("package", event.target.value)}
-                placeholder="@yourname/paseo-plugin"
-                required
-                maxLength={214}
-                aria-invalid={Boolean(errors.package)}
-                aria-describedby="package-help"
-                autoComplete="off"
-              />
-              <p
-                id="package-help"
-                className={`mt-1.5 text-xs ${errors.package ? "text-destructive" : "text-foreground/50"}`}
-              >
-                {errors.package ??
-                  "Paseo 0.9 installs this package; Paseo 0.8 uses the GitHub source."}
-              </p>
-            </div>
-          </div>
-
-          <fieldset className="grid gap-3 border-border border-b p-4 sm:grid-cols-[11rem_1fr]">
-            <legend className="sr-only">Categories</legend>
-            <div className="font-medium text-sm">
-              Categories
-              <span className="mt-1 block font-normal text-foreground/45 text-xs">
-                Optional
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-              {CATALOG_CATEGORIES.map((category) => (
-                <label
-                  key={category}
-                  className="flex cursor-pointer items-center gap-2 text-xs"
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.categories.includes(category)}
-                    onChange={() => toggleCategory(category)}
-                    className="size-3.5 rounded-none accent-foreground"
-                  />
-                  {CATALOG_CATEGORY_LABELS[category]}
-                </label>
+        <section className="flex flex-col gap-base">
+          <h2 className="type-heading">1. Before you submit</h2>
+          <div>
+            <p className="type-label text-muted-foreground">Required</p>
+            <ul className="flex flex-col gap-group">
+              {REQUIRED_CHECKS.map((item) => (
+                <li key={item} className="type-body flex items-start gap-group">
+                  <IconCheck className="mt-hair shrink-0 text-green-600" />
+                  <span>{item}</span>
+                </li>
               ))}
-            </div>
-          </fieldset>
+            </ul>
+          </div>
+          <div>
+            <p className="type-label text-muted-foreground">
+              Recommended — not required to get in, but makes your listing much
+              better
+            </p>
+            <ul className="flex flex-col gap-group">
+              {RECOMMENDED.map((item) => (
+                <li
+                  key={item}
+                  className="type-body flex items-start gap-group text-muted-foreground"
+                >
+                  <IconCheck className="mt-hair shrink-0 text-muted-foreground/60" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
 
-          <fieldset className="grid gap-3 border-border border-b p-4 sm:grid-cols-[11rem_1fr]">
-            <legend className="sr-only">Platforms</legend>
-            <div className="font-medium text-sm">
-              Platforms
-              <span className="mt-1 block font-normal text-foreground/45 text-xs">
-                Optional restriction
-              </span>
+        <Separator />
+
+        <section className="flex flex-col gap-base">
+          <div>
+            <h2 className="type-heading">2. Describe your plugin</h2>
+            <p className="type-body text-muted-foreground">
+              These answers become the registry entry. Everything else is read
+              from the plugin repository automatically.
+            </p>
+          </div>
+
+          <form className="surface-panel" onSubmit={submit} noValidate>
+            <div className="grid gap-stack border-border border-b p-base sm:grid-cols-[11rem_1fr]">
+              <label htmlFor="registry-id" className="type-label">
+                Registry id
+                <span className="type-meta block text-muted-foreground">
+                  Required
+                </span>
+              </label>
+              <div>
+                <Input
+                  id="registry-id"
+                  value={form.registryId}
+                  onChange={(event) =>
+                    updateField("registryId", event.target.value)
+                  }
+                  placeholder="my-plugin"
+                  maxLength={64}
+                  aria-invalid={Boolean(errors.registryId)}
+                  aria-describedby="registry-id-help"
+                  autoComplete="off"
+                />
+                <p
+                  id="registry-id-help"
+                  className={`type-meta mt-chip ${errors.registryId ? "text-destructive" : "text-muted-foreground"}`}
+                >
+                  {errors.registryId ??
+                    "Lowercase kebab-case. Becomes registry/my-plugin.json."}
+                </p>
+              </div>
             </div>
-            <div>
-              <div className="flex flex-wrap gap-x-5 gap-y-2">
-                {CATALOG_PLATFORMS.map((platform) => (
+
+            <div className="grid gap-stack border-border border-b p-base sm:grid-cols-[11rem_1fr]">
+              <label htmlFor="repo" className="type-label">
+                GitHub repository
+                <span className="type-meta block text-muted-foreground">
+                  Required
+                </span>
+              </label>
+              <div>
+                <Input
+                  id="repo"
+                  value={form.repo}
+                  onChange={(event) => updateField("repo", event.target.value)}
+                  placeholder="yourname/your-repo"
+                  aria-invalid={Boolean(errors.repo)}
+                  aria-describedby="repo-help"
+                  autoComplete="off"
+                />
+                <p
+                  id="repo-help"
+                  className={`type-meta mt-chip ${errors.repo ? "text-destructive" : "text-muted-foreground"}`}
+                >
+                  {errors.repo ??
+                    'Public "owner/repo" hosting paseo-plugin.json. Do not paste a full URL.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-stack border-border border-b p-base sm:grid-cols-[11rem_1fr]">
+              <label htmlFor="path" className="type-label">
+                Plugin subpath
+                <span className="type-meta block text-muted-foreground">
+                  Optional
+                </span>
+              </label>
+              <div>
+                <Input
+                  id="path"
+                  value={form.path}
+                  onChange={(event) => updateField("path", event.target.value)}
+                  placeholder="packages/my-plugin"
+                  maxLength={500}
+                  aria-invalid={Boolean(errors.path)}
+                  aria-describedby="path-help"
+                  autoComplete="off"
+                />
+                <p
+                  id="path-help"
+                  className={`type-meta mt-chip ${errors.path ? "text-destructive" : "text-muted-foreground"}`}
+                >
+                  {errors.path ??
+                    "Only needed when one repository hosts multiple plugins."}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-stack border-border border-b p-base sm:grid-cols-[11rem_1fr]">
+              <label htmlFor="package" className="type-label">
+                npm package
+                <span className="type-meta block text-muted-foreground">
+                  Required · npmjs.org only
+                </span>
+              </label>
+              <div>
+                <Input
+                  id="package"
+                  value={form.package}
+                  onChange={(event) =>
+                    updateField("package", event.target.value)
+                  }
+                  placeholder="@yourname/paseo-plugin"
+                  required
+                  maxLength={214}
+                  aria-invalid={Boolean(errors.package)}
+                  aria-describedby="package-help"
+                  autoComplete="off"
+                />
+                <p
+                  id="package-help"
+                  className={`type-meta mt-chip ${errors.package ? "text-destructive" : "text-muted-foreground"}`}
+                >
+                  {errors.package ??
+                    "Paseo 0.9 installs this package; Paseo 0.8 uses the GitHub source."}
+                </p>
+              </div>
+            </div>
+
+            <fieldset className="grid gap-stack border-border border-b p-base sm:grid-cols-[11rem_1fr]">
+              <legend className="sr-only">Categories</legend>
+              <div className="type-label">
+                Categories
+                <span className="type-meta block text-muted-foreground">
+                  Optional
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-base gap-y-group sm:grid-cols-3">
+                {CATALOG_CATEGORIES.map((category) => (
                   <label
-                    key={platform}
-                    className="flex cursor-pointer items-center gap-2 text-xs"
+                    key={category}
+                    className="type-meta flex cursor-pointer items-center gap-group"
                   >
                     <input
                       type="checkbox"
-                      checked={form.platforms.includes(platform)}
-                      onChange={() => togglePlatform(platform)}
-                      className="size-3.5 rounded-none accent-foreground"
+                      checked={form.categories.includes(category)}
+                      onChange={() => toggleCategory(category)}
+                      className="size-icon-sm rounded-none accent-foreground"
                     />
-                    {CATALOG_PLATFORM_LABELS[platform]}
+                    {CATALOG_CATEGORY_LABELS[category]}
                   </label>
                 ))}
               </div>
-              <p className="mt-2 text-foreground/50 text-xs">
-                Leave blank when the plugin is not platform-restricted.
-              </p>
+            </fieldset>
+
+            <fieldset className="grid gap-stack border-border border-b p-base sm:grid-cols-[11rem_1fr]">
+              <legend className="sr-only">Platforms</legend>
+              <div className="type-label">
+                Platforms
+                <span className="type-meta block text-muted-foreground">
+                  Optional restriction
+                </span>
+              </div>
+              <div>
+                <div className="flex flex-wrap gap-x-base gap-y-group">
+                  {CATALOG_PLATFORMS.map((platform) => (
+                    <label
+                      key={platform}
+                      className="type-meta flex cursor-pointer items-center gap-group"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.platforms.includes(platform)}
+                        onChange={() => togglePlatform(platform)}
+                        className="size-icon-sm rounded-none accent-foreground"
+                      />
+                      {CATALOG_PLATFORM_LABELS[platform]}
+                    </label>
+                  ))}
+                </div>
+                <p className="type-meta mt-group text-muted-foreground">
+                  Leave blank when the plugin is not platform-restricted.
+                </p>
+              </div>
+            </fieldset>
+
+            <div className="grid gap-stack border-border border-b p-base sm:grid-cols-[11rem_1fr]">
+              <label htmlFor="caveats" className="type-label">
+                Caveats
+                <span className="type-meta block text-muted-foreground">
+                  Optional
+                </span>
+              </label>
+              <div>
+                <Textarea
+                  id="caveats"
+                  value={form.caveats}
+                  onChange={(event) =>
+                    updateField("caveats", event.target.value)
+                  }
+                  placeholder={
+                    "Requires an OpenAI API key\nExperimental - breaking changes expected"
+                  }
+                  rows={3}
+                  aria-invalid={Boolean(errors.caveats)}
+                  aria-describedby="caveats-help"
+                />
+                <p
+                  id="caveats-help"
+                  className={`type-meta mt-chip ${errors.caveats ? "text-destructive" : "text-muted-foreground"}`}
+                >
+                  {errors.caveats ??
+                    "One per line. Up to 6 single-sentence caveats, 140 characters each."}
+                </p>
+              </div>
             </div>
-          </fieldset>
 
-          <div className="grid gap-3 border-border border-b p-4 sm:grid-cols-[11rem_1fr]">
-            <label htmlFor="caveats" className="font-medium text-sm">
-              Caveats
-              <span className="mt-1 block font-normal text-foreground/45 text-xs">
-                Optional
-              </span>
-            </label>
-            <div>
-              <Textarea
-                id="caveats"
-                value={form.caveats}
-                onChange={(event) => updateField("caveats", event.target.value)}
-                placeholder={
-                  "Requires an OpenAI API key\nExperimental - breaking changes expected"
-                }
-                rows={3}
-                aria-invalid={Boolean(errors.caveats)}
-                aria-describedby="caveats-help"
-              />
-              <p
-                id="caveats-help"
-                className={`mt-1.5 text-xs ${errors.caveats ? "text-destructive" : "text-foreground/50"}`}
-              >
-                {errors.caveats ??
-                  "One per line. Up to 6 single-sentence caveats, 140 characters each."}
+            <div className="flex flex-col gap-stack bg-muted p-base sm:flex-row sm:items-center sm:justify-between">
+              <p className="type-meta max-w-md text-muted-foreground">
+                GitHub opens with these answers filled in. Tick the two required
+                confirmation boxes, then submit the issue. You may be asked to
+                sign in.
               </p>
+              <Button type="submit" className="w-fit">
+                <IconBrandGithub /> Review on GitHub
+                <IconExternalLink className="size-icon-sm" />
+              </Button>
             </div>
-          </div>
+          </form>
 
-          <div className="flex flex-col gap-3 bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="max-w-md text-foreground/60 text-xs">
-              GitHub opens with these answers filled in. Tick the two required
-              confirmation boxes, then submit the issue. You may be asked to
-              sign in.
-            </p>
-            <Button type="submit" className="w-fit">
-              <IconBrandGithub className="size-4" /> Review on GitHub
-              <IconExternalLink className="size-3.5" />
-            </Button>
-          </div>
-        </form>
+          <details className="surface-panel">
+            <summary className="type-label cursor-pointer px-base py-stack">
+              Need the manual pull request path?
+            </summary>
+            <div className="flex flex-col gap-stack border-border border-t p-base">
+              <p className="type-meta text-muted-foreground">
+                Use this only when the issue form cannot express the registry
+                change you need. New plugin submissions should use the form
+                above.
+              </p>
+              <CopyBlock code={GIT_STEPS} />
+            </div>
+          </details>
+        </section>
 
-        <details className="border border-border">
-          <summary className="cursor-pointer px-4 py-3 font-medium text-sm">
-            Need the manual pull request path?
-          </summary>
-          <div className="flex flex-col gap-3 border-border border-t p-4">
-            <p className="text-foreground/65 text-xs">
-              Use this only when the issue form cannot express the registry
-              change you need. New plugin submissions should use the form above.
-            </p>
-            <CopyBlock code={GIT_STEPS} />
-          </div>
-        </details>
-      </section>
+        <Separator />
 
-      <Separator className="my-8" />
-
-      <section className="flex flex-col gap-4">
-        <h2 className="font-semibold text-xl tracking-tight">
-          3. What happens next
-        </h2>
-        <ol className="flex flex-col gap-3 text-foreground/70 text-sm">
-          <li>
-            <strong className="text-foreground">Submit the issue:</strong>{" "}
-            GitHub shows every prefilled answer for a final review and asks you
-            to confirm the manifest id and released package version.
-          </li>
-          <li>
-            <strong className="text-foreground">The bot opens a PR:</strong> the
-            issue is validated, converted into the registry JSON file, and
-            referenced by the generated pull request.
-          </li>
-          <li>
-            <strong className="text-foreground">Registry admission:</strong> the
-            normal checks confirm the repo/path exists, the manifest id matches,
-            and the plugin passes the security scan.
-          </li>
-          <li>
-            <strong className="text-foreground">On merge:</strong> your full
-            listing is generated from its published sources. Six-hour scans
-            refresh npm downloads and publish dates or GitHub stars without
-            another PR.
-          </li>
-        </ol>
-      </section>
-
-      <Separator className="my-8" />
-
-      <section className="flex flex-col gap-4">
-        <h2 className="font-semibold text-xl tracking-tight">
-          What you don't need to write
-        </h2>
-        <ul className="flex flex-col gap-2">
-          {AUTO_GENERATED.map((item) => (
-            <li
-              key={item}
-              className="flex items-start gap-2 text-foreground/70 text-sm"
-            >
-              <IconCheck className="mt-0.5 size-4 shrink-0 text-green-600" />
-              <span>{item}</span>
+        <section className="flex flex-col gap-base">
+          <h2 className="type-heading">3. What happens next</h2>
+          <ol className="type-body flex flex-col gap-stack text-muted-foreground">
+            <li>
+              <strong className="text-foreground">Submit the issue:</strong>{" "}
+              GitHub shows every prefilled answer for a final review and asks
+              you to confirm the manifest id and released package version.
             </li>
-          ))}
-        </ul>
-      </section>
+            <li>
+              <strong className="text-foreground">The bot opens a PR:</strong>{" "}
+              the issue is validated, converted into the registry JSON file, and
+              referenced by the generated pull request.
+            </li>
+            <li>
+              <strong className="text-foreground">Registry admission:</strong>{" "}
+              the normal checks confirm the repo/path exists, the manifest id
+              matches, and the plugin passes the security scan.
+            </li>
+            <li>
+              <strong className="text-foreground">On merge:</strong> your full
+              listing is generated from its published sources. Six-hour scans
+              refresh npm downloads and publish dates or GitHub stars without
+              another PR.
+            </li>
+          </ol>
+        </section>
 
-      <Separator className="my-8" />
+        <Separator />
 
-      <div className="flex flex-wrap items-center gap-4">
-        <Button
-          nativeButton={false}
-          render={<Link to="/" search={HOME_SEARCH_DEFAULT} />}
-        >
-          Browse existing plugins <IconArrowRight className="size-4" />
-        </Button>
-        <a
-          href={`https://github.com/${SITE_REPO}`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1 text-foreground/60 text-sm hover:text-foreground"
-        >
-          <IconBrandGithub className="size-4" /> Read the source
-          <IconExternalLink className="size-3.5" />
-        </a>
+        <section className="flex flex-col gap-base">
+          <h2 className="type-heading">What you don't need to write</h2>
+          <ul className="flex flex-col gap-group">
+            {AUTO_GENERATED.map((item) => (
+              <li
+                key={item}
+                className="type-body flex items-start gap-group text-muted-foreground"
+              >
+                <IconCheck className="mt-hair shrink-0 text-green-600" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <Separator />
+
+        <div className="flex flex-wrap items-center gap-base">
+          <Button
+            nativeButton={false}
+            render={<Link to="/" search={HOME_SEARCH_DEFAULT} />}
+          >
+            Browse existing plugins <IconArrowRight />
+          </Button>
+          <a
+            href={`https://github.com/${SITE_REPO}`}
+            target="_blank"
+            rel="noreferrer"
+            className="type-body flex items-center gap-inline text-muted-foreground hover:text-foreground"
+          >
+            <IconBrandGithub /> Read the source
+            <IconExternalLink className="size-icon-sm" />
+          </a>
+        </div>
       </div>
     </div>
   )

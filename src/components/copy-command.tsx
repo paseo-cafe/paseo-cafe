@@ -17,11 +17,11 @@ export function CopyCommand({
   return (
     <div
       className={cn(
-        "flex min-w-0 max-w-full items-center justify-between gap-3 border border-border bg-muted px-4 py-3",
+        "surface-inset flex min-w-0 max-w-full items-center justify-between gap-stack px-base py-stack",
         className
       )}
     >
-      <code className="min-w-0 flex-1 overflow-x-auto whitespace-pre text-sm">
+      <code className="type-body min-w-0 flex-1 overflow-x-auto whitespace-pre">
         {command}
       </code>
       <Button
@@ -32,9 +32,9 @@ export function CopyCommand({
         aria-label={copyAriaLabel}
       >
         {copied ? (
-          <IconCheck className="size-3.5" />
+          <IconCheck className="size-icon-sm" />
         ) : (
-          <IconCopy className="size-3.5" />
+          <IconCopy className="size-icon-sm" />
         )}
       </Button>
     </div>

@@ -9,6 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Pressable, Text, View } from "react-native"
+import { BORDER_WIDTH, ICON, SPACE } from "../shared/design-tokens"
 import type {
   DirectoryBrowseSettings,
   DirectoryCategory,
@@ -47,7 +48,7 @@ import {
   startPreparedSelfUpdate,
 } from "./self-update"
 import { ThemePreviewCard } from "./ThemePreviewCard"
-import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
+import { CAFE_CONTROL_RADIUS, panelStyle, typeStyle } from "./visual"
 
 const DIRECTORY_QUERY_KEY = "paseo-cafe-directory"
 const UPDATE_STATUS_QUERY_KEY = "paseo-cafe-update-status"
@@ -69,6 +70,38 @@ function toggle<T>(set: ReadonlySet<T>, value: T): Set<T> {
   if (next.has(value)) next.delete(value)
   else next.add(value)
   return next
+}
+
+/** Sort, status, and facet rows are one kind of control, so they share one recipe. */
+function filterControlStyles(theme: PluginTheme, largeTouchTarget: boolean) {
+  return {
+    row: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: SPACE.chip,
+      flexWrap: "wrap" as const,
+    },
+    label: {
+      ...typeStyle("eyebrow"),
+      color: theme.colors.foregroundMuted,
+    },
+    chip: (active: boolean) => ({
+      minHeight: largeTouchTarget ? 44 : 32, // Finger vs. pointer touch target.
+      justifyContent: "center" as const,
+      borderWidth: BORDER_WIDTH,
+      borderColor: active ? theme.colors.accent : theme.colors.border,
+      borderRadius: CAFE_CONTROL_RADIUS,
+      paddingHorizontal: SPACE.group,
+      paddingVertical: SPACE.chip,
+      backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
+    }),
+    chipText: (active: boolean) => ({
+      ...typeStyle("meta"),
+      color: active
+        ? theme.colors.accentForeground
+        : theme.colors.foregroundMuted,
+    }),
+  }
 }
 
 interface FilterRowProps<T extends string> {
@@ -97,39 +130,7 @@ function FilterRow<T extends string>({
   onClear,
 }: FilterRowProps<T>) {
   const styles = useMemo(
-    () => ({
-      row: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 6,
-        flexWrap: "wrap" as const,
-      },
-      label: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-        letterSpacing: 0.8,
-      },
-      chip: (active: boolean) => ({
-        minHeight: largeTouchTarget ? 44 : 32,
-        justifyContent: "center" as const,
-        borderWidth: 1,
-        borderColor: active ? theme.colors.accent : theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
-      }),
-      chipText: (active: boolean) => ({
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        fontWeight: "600" as const,
-        color: active
-          ? theme.colors.accentForeground
-          : theme.colors.foregroundMuted,
-      }),
-    }),
+    () => filterControlStyles(theme, largeTouchTarget),
     [theme, largeTouchTarget]
   )
 
@@ -204,39 +205,7 @@ function StatusFilterRow({
   onSelect: (value: InstallationStatusFilter) => void
 }) {
   const styles = useMemo(
-    () => ({
-      row: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 6,
-        flexWrap: "wrap" as const,
-      },
-      label: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-        letterSpacing: 0.8,
-      },
-      chip: (active: boolean) => ({
-        minHeight: largeTouchTarget ? 44 : 32,
-        justifyContent: "center" as const,
-        borderWidth: 1,
-        borderColor: active ? theme.colors.accent : theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
-      }),
-      chipText: (active: boolean) => ({
-        color: active
-          ? theme.colors.accentForeground
-          : theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        fontWeight: "600" as const,
-      }),
-    }),
+    () => filterControlStyles(theme, largeTouchTarget),
     [theme, largeTouchTarget]
   )
 
@@ -315,6 +284,9 @@ const SORT_OPTIONS: readonly SortOption[] = [
 ]
 
 const FEATURED_LIMIT = 5
+
+// A dot is a shape, not spacing, so its size is explicit and its radius follows.
+const EYEBROW_DOT_SIZE = 7
 
 function normalizeText(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? ""
@@ -410,39 +382,7 @@ function SortRow({
   onSelect: (value: SortMode) => void
 }) {
   const styles = useMemo(
-    () => ({
-      row: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 6,
-        flexWrap: "wrap" as const,
-      },
-      label: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-        letterSpacing: 0.8,
-      },
-      chip: (active: boolean) => ({
-        minHeight: largeTouchTarget ? 44 : 32,
-        justifyContent: "center" as const,
-        borderWidth: 1,
-        borderColor: active ? theme.colors.accent : theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
-      }),
-      chipText: (active: boolean) => ({
-        color: active
-          ? theme.colors.accentForeground
-          : theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        fontWeight: "600" as const,
-      }),
-    }),
+    () => filterControlStyles(theme, largeTouchTarget),
     [theme, largeTouchTarget]
   )
 
@@ -1222,132 +1162,112 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     () => ({
       screen: {
         flex: 1,
-        padding: layout.compact ? 16 : 24,
+        padding: SPACE.base,
         backgroundColor: theme.colors.surface0,
       },
       listContent: {
         width: "100%" as const,
         maxWidth: 1120,
         alignSelf: "center" as const,
-        gap: 16,
-        paddingBottom: 32,
+        gap: SPACE.base,
+        paddingBottom: SPACE.section,
       },
-      listHeader: { gap: layout.compact ? 16 : 24 },
-      masthead: { gap: 8, paddingVertical: layout.compact ? 4 : 8 },
+      listHeader: { gap: layout.compact ? SPACE.base : SPACE.section },
+      masthead: {
+        gap: SPACE.group,
+        paddingVertical: layout.compact ? SPACE.inline : SPACE.group,
+      },
       // Mirrors the website header: mark in the foreground color next to a
       // semibold, tightly tracked wordmark.
       brandRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 8,
-        marginBottom: 4,
+        gap: SPACE.group,
+        marginBottom: SPACE.inline,
       },
       brandName: {
+        ...typeStyle("label"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 14,
-        fontWeight: "600" as const,
-        letterSpacing: -0.3,
       },
       eyebrowRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 7,
+        gap: SPACE.chip,
       },
       eyebrowDot: {
-        width: 7,
-        height: 7,
-        borderRadius: 4,
+        width: EYEBROW_DOT_SIZE,
+        height: EYEBROW_DOT_SIZE,
+        borderRadius: EYEBROW_DOT_SIZE / 2,
         backgroundColor: theme.colors.accent,
       },
       eyebrow: {
+        ...typeStyle("eyebrow"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-        letterSpacing: 0.7,
       },
       title: {
+        ...typeStyle("title"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: layout.compact ? 26 : 34,
-        fontWeight: "700" as const,
-        letterSpacing: -1,
       },
       subtitle: {
+        ...typeStyle("lead"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        lineHeight: 20,
         maxWidth: 680,
       },
       filterPanel: {
-        gap: 10,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        padding: 12,
-        backgroundColor: theme.colors.surface1,
+        ...panelStyle(theme),
+        gap: SPACE.stack,
+        padding: SPACE.stack,
       },
       searchInput: {
-        borderWidth: 1,
+        ...typeStyle("body"),
+        borderWidth: BORDER_WIDTH,
         borderColor: theme.colors.border,
         borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
+        paddingHorizontal: SPACE.stack,
+        paddingVertical: SPACE.group,
         color: theme.colors.foreground,
         backgroundColor: theme.colors.surface0,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
       },
-      filtersBlock: { gap: 8 },
+      filtersBlock: { gap: SPACE.group },
       refreshButton: {
         alignSelf: "flex-start" as const,
-        borderWidth: 1,
+        borderWidth: BORDER_WIDTH,
         borderColor: theme.colors.border,
         borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
+        paddingHorizontal: SPACE.stack,
+        paddingVertical: SPACE.group,
         backgroundColor: theme.colors.surface0,
       },
       refreshText: {
+        ...typeStyle("label"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        fontWeight: "600" as const,
       },
       feedbackText: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        lineHeight: 18,
       },
       catalogSummary: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
       },
-      featuredBlock: { gap: 28 },
-      featuredSection: { gap: 10 },
-      sectionHeading: { gap: 2 },
-      featuredItems: { gap: 8 },
+      featuredBlock: { gap: SPACE.section },
+      featuredSection: { gap: SPACE.stack },
+      sectionHeading: { gap: SPACE.inline },
+      featuredItems: { gap: SPACE.group },
       themeItems: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
-        gap: 12,
+        gap: SPACE.stack,
       },
       featuredHeader: {
+        ...typeStyle("heading"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 17,
-        fontWeight: "600" as const,
-        letterSpacing: -0.3,
       },
       featuredDescription: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
       },
-      resultsHeader: { gap: 2, marginTop: 8 },
+      resultsHeader: { gap: SPACE.inline, marginTop: SPACE.group },
     }),
     [theme, layout.compact]
   )
@@ -1408,7 +1328,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
           <View style={styles.listHeader}>
             <View style={styles.masthead}>
               <View style={styles.brandRow}>
-                <BrandMark size={22} color={theme.colors.foreground} />
+                <BrandMark size={ICON.lg} color={theme.colors.foreground} />
                 <Text style={styles.brandName}>paseo.cafe</Text>
               </View>
               <View style={styles.eyebrowRow}>

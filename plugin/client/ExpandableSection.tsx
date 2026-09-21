@@ -3,8 +3,9 @@ import { Icon } from "@getpaseo/plugin/client/react-native"
 import type { ReactNode } from "react"
 import { useMemo, useState } from "react"
 import { Pressable, Text, View } from "react-native"
+import { BORDER_WIDTH, ICON, SPACE } from "../shared/design-tokens"
 import { expandableAccessibilityLabel } from "./accessibility"
-import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
+import { panelStyle, typeStyle } from "./visual"
 
 interface ExpandableSectionProps {
   title: string
@@ -25,20 +26,14 @@ export function ExpandableSection({
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const styles = useMemo(
     () => ({
-      container: {
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        backgroundColor: theme.colors.surface1,
-      },
+      container: panelStyle(theme),
       summary: {
-        minHeight: 44,
+        minHeight: 44, // Minimum touch target.
         flexDirection: "row" as const,
         alignItems: "center" as const,
         justifyContent: "space-between" as const,
-        gap: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
+        gap: SPACE.stack,
+        padding: SPACE.stack,
       },
       titleRow: {
         minWidth: 0,
@@ -46,23 +41,20 @@ export function ExpandableSection({
         flexDirection: "row" as const,
         alignItems: "center" as const,
         flexWrap: "wrap" as const,
-        gap: 8,
+        gap: SPACE.group,
       },
       title: {
+        ...typeStyle("label"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        fontWeight: "600" as const,
       },
       subtitle: {
+        ...typeStyle("meta"),
         color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
       },
       body: {
-        borderTopWidth: 1,
+        borderTopWidth: BORDER_WIDTH,
         borderTopColor: theme.colors.border,
-        padding: 12,
+        padding: SPACE.stack,
       },
     }),
     [theme]
@@ -87,7 +79,7 @@ export function ExpandableSection({
         </View>
         <Icon
           name={expanded ? "ChevronUp" : "ChevronDown"}
-          size={15}
+          size={ICON.md}
           color={theme.colors.foregroundMuted}
         />
       </Pressable>

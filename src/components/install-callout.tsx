@@ -7,10 +7,8 @@ export function InstallCallout({ plugin }: { plugin: PluginRecord }) {
   const command = getInstallCommand(plugin)
   if (!command) return null
   return (
-    <div className="mx-auto w-full">
-      <h2 className="text-center font-semibold tracking-tight">
-        Try the plugin
-      </h2>
+    <div className="mx-auto flex w-full flex-col gap-group">
+      <h2 className="type-subheading text-center">Try the plugin</h2>
       <CopyCommand command={command} className="mx-auto w-full sm:w-fit" />
     </div>
   )

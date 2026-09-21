@@ -3,9 +3,10 @@ import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
 import { Pressable, Text, View } from "react-native"
 import { getCatalogGalleryImages } from "../shared/catalog"
+import { ICON, SPACE } from "../shared/design-tokens"
 import type { DirectoryEntry } from "../shared/directory"
 import { AspectImage } from "./AspectImage"
-import { CAFE_MONO_FONT } from "./visual"
+import { typeStyle } from "./visual"
 
 interface PluginGalleryPageProps {
   entry: DirectoryEntry
@@ -18,7 +19,6 @@ interface PluginGalleryPageProps {
 export function PluginGalleryPage({
   entry,
   theme,
-  compact,
   onBack,
 }: PluginGalleryPageProps) {
   const images = getCatalogGalleryImages(entry.images, entry.owner)
@@ -29,29 +29,26 @@ export function PluginGalleryPage({
         width: "100%" as const,
         maxWidth: 1100,
         alignSelf: "center" as const,
-        padding: compact ? 16 : 24,
-        gap: 16,
+        padding: SPACE.base,
+        gap: SPACE.base,
       },
       backRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        gap: 4,
-        marginBottom: 4,
+        gap: SPACE.inline,
+        marginBottom: SPACE.inline,
       },
       backText: {
+        ...typeStyle("label"),
         color: theme.colors.accent,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 14,
       },
       title: {
+        ...typeStyle("title"),
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: compact ? 20 : 24,
-        fontWeight: "700" as const,
       },
-      images: { gap: 20 },
+      images: { gap: SPACE.base },
     }),
-    [theme, compact]
+    [theme]
   )
 
   return (
@@ -63,7 +60,7 @@ export function PluginGalleryPage({
           style={styles.backRow}
           onPress={onBack}
         >
-          <Icon name="ArrowLeft" size={16} color={theme.colors.accent} />
+          <Icon name="ArrowLeft" size={ICON.md} color={theme.colors.accent} />
           <Text style={styles.backText}>{entry.name}</Text>
         </Pressable>
         <Text style={styles.title}>Screenshots</Text>

@@ -9,7 +9,7 @@ export function PluginGrid({
   showAddedDate?: boolean
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-base sm:grid-cols-2 xl:grid-cols-3">
       {plugins.map((plugin) => (
         <PluginCard
           key={plugin.id}

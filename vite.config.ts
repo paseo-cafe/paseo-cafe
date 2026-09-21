@@ -42,6 +42,7 @@ const config = defineConfig({
           BASE,
           `${BASE}submit`,
           `${BASE}themes`,
+          `${BASE}style-guide`,
           `${BASE}api/plugins`,
           `${BASE}llms.txt`,
           `${BASE}llms-full.txt`,

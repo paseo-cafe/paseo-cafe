@@ -11,22 +11,22 @@ export function PluginHeader({ plugin }: { plugin: PluginRecord }) {
   const versionLabel = formatPluginVersion(plugin.version)
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-semibold text-3xl tracking-tight">{plugin.name}</h1>
+    <div className="flex flex-col gap-stack">
+      <div className="flex flex-wrap items-center gap-stack">
+        <h1 className="type-title">{plugin.name}</h1>
         <Link
           to="/user/$username"
           params={{ username }}
-          className="inline-flex items-center gap-1.5 text-foreground/60 text-sm hover:text-foreground"
+          className="type-body inline-flex items-center gap-chip text-muted-foreground hover:text-foreground"
         >
           {plugin.owner ? (
             <img
               src={plugin.owner.avatarUrl}
               alt=""
-              className="size-5 rounded-full ring-1 ring-foreground/10"
+              className="size-icon-md rounded-full border border-border"
             />
           ) : (
-            <IconBrandGithub className="size-4" />
+            <IconBrandGithub />
           )}
           by {username}
         </Link>
@@ -34,7 +34,7 @@ export function PluginHeader({ plugin }: { plugin: PluginRecord }) {
           <Badge variant="destructive">needs attention</Badge>
         ) : null}
       </div>
-      <p className="max-w-2xl text-foreground/70">
+      <p className="type-lead max-w-2xl text-muted-foreground">
         {plugin.descriptionNodes.length > 0 ? (
           <InlineMarkdown nodes={plugin.descriptionNodes} />
         ) : (
@@ -42,7 +42,7 @@ export function PluginHeader({ plugin }: { plugin: PluginRecord }) {
         )}
       </p>
       {versionLabel || plugin.paseoVersionRequirement ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-chip">
           {versionLabel ? (
             <Badge variant="outline">{versionLabel}</Badge>
           ) : null}
