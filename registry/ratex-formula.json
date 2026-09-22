@@ -1,0 +1,10 @@
+{
+  "repo": "ZedRover/ratex-paseo",
+  "package": "ratex-math-render",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Formula rendering and double-click source view require the web client. Native clients show selectable TeX."
+  ],
+  "submittedBy": "ZedRover"
+}
