@@ -4,7 +4,7 @@
   "categories": ["productivity"],
   "platforms": [],
   "caveats": [
-    "Formula rendering and double-click source view require the web client. Native clients show selectable TeX."
+    "Formula rendering and double-click source view require the web client; native iOS/Android clients display selectable TeX."
   ],
   "submittedBy": "ZedRover"
 }
