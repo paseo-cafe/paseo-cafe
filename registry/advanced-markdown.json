@@ -1,0 +1,15 @@
+{
+  "repo": "custyhs/paseo-advanced-markdown",
+  "package": "paseo-advanced-markdown",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo app and daemon >=0.8.0 <0.10.0.",
+    "Requires Node.js >=22.22, npm and Git on the daemon host, with about 700 MiB of cache space.",
+    "Daemon-host validation is on macOS arm64; Windows is untested, and Linux needs the dependencies listed in the README.",
+    "The latest iPhone layout and Android UI are not yet device-verified.",
+    "Downloads the Mermaid worker and Chrome during setup; message rendering stays on the selected daemon host.",
+    "Avoid enabling another plugin that claims the same assistant messages containing math or Mermaid."
+  ],
+  "submittedBy": "custyhs"
+}
