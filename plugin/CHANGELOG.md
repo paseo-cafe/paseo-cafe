@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.7.1...v0.8.0) (2026-09-22)
+
+
+### Features
+
+* **catalog:** add a listing-date sort beside the release-date one ([#200](https://github.com/paseo-cafe/paseo-cafe/issues/200)) ([28c3521](https://github.com/paseo-cafe/paseo-cafe/commit/28c3521db46be74198ddfe5b5a4944ea1af60a76))
+* **registry:** make scans release-incremental ([#186](https://github.com/paseo-cafe/paseo-cafe/issues/186)) ([568ff91](https://github.com/paseo-cafe/paseo-cafe/commit/568ff91f08259235ec0ce7d36416aeeecc623420))
+
 ## [0.7.1](https://github.com/paseo-cafe/paseo-cafe/compare/v0.7.0...v0.7.1) (2026-09-20)
 
 
