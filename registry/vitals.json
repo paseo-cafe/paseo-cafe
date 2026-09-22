@@ -1,0 +1,10 @@
+{
+  "repo": "tomgrin10/paseo-vitals",
+  "package": "paseo-vitals",
+  "categories": ["monitoring", "docker"],
+  "platforms": ["linux"],
+  "caveats": [
+    "Docker is optional; container metrics are omitted when it is unavailable"
+  ],
+  "submittedBy": "tomgrin10"
+}

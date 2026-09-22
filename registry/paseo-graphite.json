@@ -1,0 +1,9 @@
+{
+  "repo": "tomgrin10/paseo-graphite",
+  "package": "paseo-graphite",
+  "categories": ["github", "monitoring", "productivity"],
+  "caveats": [
+    "Requires git, an initialized Graphite CLI, and an authenticated GitHub CLI on the daemon host"
+  ],
+  "submittedBy": "tomgrin10"
+}
