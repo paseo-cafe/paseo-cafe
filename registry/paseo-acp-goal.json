@@ -1,0 +1,11 @@
+{
+  "repo": "sequico/paseo-acp-goal",
+  "categories": ["automation", "orchestration"],
+  "caveats": [
+    "The goal tool only reaches agents whose provider exposes injected MCP servers; elsewhere a GOAL_COMPLETE sentinel carries the loop",
+    "The token ceiling counts only the usage a provider reports, so a provider that reports none falls back to the round ceiling",
+    "A verification command runs with the daemon user's own access",
+    "A goal set by a launch label cannot be cleared from the ACP goals screen"
+  ],
+  "submittedBy": "sequico"
+}
