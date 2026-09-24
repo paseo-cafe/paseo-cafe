@@ -1,0 +1,15 @@
+{
+  "repo": "cuongntr/paseo-beads-viewer",
+  "package": "beads-viewer",
+  "categories": ["monitoring", "productivity", "orchestration"],
+  "platforms": ["macos", "linux"],
+  "caveats": [
+    "Requires the bv (beads_viewer) CLI on the Paseo daemon's PATH; verified against bv v0.25.0.",
+    "Read-only by design: it never claims, closes or edits issues; do that with br or bd.",
+    "Issue detail, types and assignees need the project's br or bd CLI on the daemon's PATH.",
+    "Custom statuses from .beads/policy.yaml are shown as written, never mapped to ready or done.",
+    "Projects over 2000 issues load all open work but only some closed issues, and the panel says so.",
+    "Composer attachment search covers at most 4 recently active Beads workspaces."
+  ],
+  "submittedBy": "cuongntr"
+}
