@@ -1,0 +1,12 @@
+{
+  "repo": "Ironside-Software/pull-requests-paseo-plugin",
+  "package": "paseo-plugin-pull-requests",
+  "categories": ["code-review", "github", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.9.x on both the daemon and connected clients.",
+    "Requires npm and authenticated GitHub CLI (gh) on the daemon host; all connected clients use that GitHub account.",
+    "GitHub search is limited to 1,000 results; narrow filters when the dashboard reports the limit."
+  ],
+  "submittedBy": "HamadTheIronside"
+}
