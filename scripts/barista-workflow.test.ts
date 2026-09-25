@@ -83,6 +83,12 @@ describe("Barista workflows", () => {
       "$" + "{{ steps.barista.outputs.token }}"
     )
     expect(run?.env?.GITHUB_PR_CREATOR_TOKEN).toBe("$" + "{{ github.token }}")
+    const token = submit?.steps.find(
+      (step) => step.name === "Create Barista token"
+    )
+    expect(token?.with?.["permission-contents"]).toBe("read")
+    expect(token?.with?.["permission-pull-requests"]).toBe("read")
+    expect(token?.with?.["permission-actions"]).toBe("write")
   })
 
   it("grants Barista Actions write access only for held-run approval", () => {
@@ -90,5 +96,11 @@ describe("Barista workflows", () => {
       (step) => step.name === "Create Barista token"
     )
     expect(token?.with?.["permission-actions"]).toBe("write")
+    const run = reconciliation.jobs.reconcile?.steps.find(
+      (step) => step.name === "Reconcile pull request"
+    )
+    expect(run?.env?.BARISTA_APP_SLUG).toBe(
+      "$" + "{{ steps.barista.outputs.app-slug }}"
+    )
   })
 })

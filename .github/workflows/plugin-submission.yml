@@ -38,9 +38,10 @@ jobs:
         with:
           app-id: ${{ secrets.BARISTA_APP_ID }}
           private-key: ${{ secrets.BARISTA_APP_PEM }}
-          permission-contents: write
+          permission-actions: write
+          permission-contents: read
           permission-issues: write
-          permission-pull-requests: write
+          permission-pull-requests: read
 
       - name: Process submission issue
         run: bun run scripts/barista.ts

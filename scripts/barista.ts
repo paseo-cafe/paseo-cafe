@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { readFile } from "node:fs/promises"
+import { setTimeout as sleep } from "node:timers/promises"
 import type { Api } from "@octokit/plugin-rest-endpoint-methods"
 import { Octokit } from "@octokit/rest"
 import type { ApplicationFunction, Context } from "probot"
@@ -54,8 +55,14 @@ export type PullRequestReview = {
 export function hasActiveChangesRequest(reviews: PullRequestReview[]): boolean {
   const latestReviewByUser = new Map<string, string>()
   for (const review of reviews) {
-    if (review.user?.login)
+    if (
+      review.user?.login &&
+      (review.state === "APPROVED" ||
+        review.state === "CHANGES_REQUESTED" ||
+        review.state === "DISMISSED")
+    ) {
       latestReviewByUser.set(review.user.login, review.state)
+    }
   }
   return [...latestReviewByUser.values()].some(
     (state) => state === "CHANGES_REQUESTED"
@@ -68,7 +75,7 @@ export function isRegistryOnlyPullRequest(files: PullRequestFile[]): boolean {
     files.length <= 20 &&
     files.every(
       (file) =>
-        (file.status === "added" || file.status === "modified") &&
+        file.status === "added" &&
         REGISTRY_PATH.test(file.filename) &&
         !file.previous_filename
     )
@@ -128,32 +135,40 @@ async function listCheckRuns(
     filter: "latest",
   })
 }
-async function approveWaitingWorkflowRuns(
-  context: Context<"pull_request" | "workflow_run">,
+async function approveActionRequiredWorkflowRuns(
+  context: BaristaContext,
   pullNumber: number,
-  headSha: string
+  headSha: string,
+  waitForRuns = false
 ): Promise<void> {
   const repo = repository(context)
-  const runs = await octokit(context).paginate(
-    octokit(context).rest.actions.listWorkflowRunsForRepo,
-    {
-      ...repo,
-      head_sha: headSha,
-      status: "waiting",
-      per_page: 100,
-    }
-  )
-  for (const run of runs) {
-    if (
-      run.pull_requests?.some(
-        (pullRequest) => pullRequest.number === pullNumber
-      )
-    ) {
-      await octokit(context).rest.actions.approveWorkflowRun({
+  const approvedRunIds = new Set<number>()
+  const attempts = waitForRuns ? 5 : 1
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const runs = await octokit(context).paginate(
+      octokit(context).rest.actions.listWorkflowRunsForRepo,
+      {
         ...repo,
-        run_id: run.id,
-      })
+        head_sha: headSha,
+        status: "action_required",
+        per_page: 100,
+      }
+    )
+    for (const run of runs) {
+      if (
+        !approvedRunIds.has(run.id) &&
+        run.pull_requests?.some(
+          (pullRequest) => pullRequest.number === pullNumber
+        )
+      ) {
+        await octokit(context).rest.actions.approveWorkflowRun({
+          ...repo,
+          run_id: run.id,
+        })
+        approvedRunIds.add(run.id)
+      }
     }
+    if (attempt + 1 < attempts) await sleep(1_000)
   }
 }
 
@@ -251,7 +266,7 @@ async function upsertSubmissionCommit(
   return true
 }
 
-async function handleSubmissionIssue(
+export async function handleSubmissionIssue(
   context: Context<"issues">
 ): Promise<void> {
   const issue = context.payload.issue
@@ -313,7 +328,15 @@ async function handleSubmissionIssue(
     })
     return
   }
-  if (state.mode === "create") {
+  let previousRegistryId: string | undefined
+  if (state.mode === "update") {
+    const files = await listPullRequestFiles(
+      context,
+      state.pullRequestNumber ?? 0
+    )
+    previousRegistryId = existingRegistryId(files.map((file) => file.filename))
+  }
+  if (generated.id !== previousRegistryId) {
     const registryEntryExists = await octokit(context)
       .rest.repos.getContent({
         ...repo,
@@ -334,15 +357,6 @@ async function handleSubmissionIssue(
       return
     }
   }
-
-  let previousRegistryId: string | undefined
-  if (state.mode === "update") {
-    const files = await listPullRequestFiles(
-      context,
-      state.pullRequestNumber ?? 0
-    )
-    previousRegistryId = existingRegistryId(files.map((file) => file.filename))
-  }
   const changed = await upsertSubmissionCommit(
     context,
     branch,
@@ -354,22 +368,27 @@ async function handleSubmissionIssue(
   if (!changed) return
 
   const body = `Closes #${issueNumber}\n\nAutomated from #${issueNumber} by @${author}. Registry admission runs after every update.`
-  if (state.mode === "create") {
-    await submissionOctokit().rest.pulls.create({
-      ...repo,
-      title: `Add ${generated.id} plugin`,
-      body,
-      head: branch,
-      base: context.payload.repository.default_branch,
-    })
-  } else {
-    await submissionOctokit().rest.pulls.update({
-      ...repo,
-      pull_number: state.pullRequestNumber ?? 0,
-      title: `Add ${generated.id} plugin`,
-      body,
-    })
-  }
+  const pullRequest =
+    state.mode === "create"
+      ? await submissionOctokit().rest.pulls.create({
+          ...repo,
+          title: `Add ${generated.id} plugin`,
+          body,
+          head: branch,
+          base: context.payload.repository.default_branch,
+        })
+      : await submissionOctokit().rest.pulls.update({
+          ...repo,
+          pull_number: state.pullRequestNumber ?? 0,
+          title: `Add ${generated.id} plugin`,
+          body,
+        })
+  await approveActionRequiredWorkflowRuns(
+    context,
+    pullRequest.data.number,
+    pullRequest.data.head.sha,
+    true
+  )
 }
 
 export async function reconcilePullRequest(
@@ -397,7 +416,7 @@ export async function reconcilePullRequest(
       pullRequest.data.head.ref
     )
   ) {
-    await approveWaitingWorkflowRuns(context, pullNumber, headSha)
+    await approveActionRequiredWorkflowRuns(context, pullNumber, headSha)
   }
   if (!hasRequiredSuccessfulChecks(await listCheckRuns(context, headSha))) {
     return
@@ -418,10 +437,9 @@ export async function reconcilePullRequest(
   )
   if (hasActiveChangesRequest(reviews)) return
 
-  const { data: authenticatedApp } =
-    await octokit(context).rest.apps.getAuthenticated()
-  if (!authenticatedApp) return
-  const appLogin = `${authenticatedApp.slug}[bot]`
+  const appSlug = process.env.BARISTA_APP_SLUG
+  if (!appSlug) throw new Error("BARISTA_APP_SLUG is required")
+  const appLogin = `${appSlug}[bot]`
   const alreadyApproved = reviews.some(
     (review) =>
       review.user?.login === appLogin &&

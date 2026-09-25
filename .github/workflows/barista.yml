@@ -48,4 +48,5 @@ jobs:
       - name: Reconcile pull request
         run: bun run scripts/barista.ts
         env:
+          BARISTA_APP_SLUG: ${{ steps.barista.outputs.app-slug }}
           GITHUB_TOKEN: ${{ steps.barista.outputs.token }}

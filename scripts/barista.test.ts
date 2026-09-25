@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   type CheckRun,
+  handleSubmissionIssue,
   hasActiveChangesRequest,
   hasRequiredSuccessfulChecks,
   isActionsSubmissionPullRequest,
   isRegistryOnlyPullRequest,
-  type PullRequestFile,
   type PullRequestReview,
   reconcilePullRequest,
 } from "./barista.ts"
@@ -25,14 +25,53 @@ const successfulChecks: CheckRun[] = [
   },
 ]
 
-describe("Barista registry path policy", () => {
-  it("accepts added and modified flat registry entries", () => {
-    const files: PullRequestFile[] = [
-      { filename: "registry/new-plugin.json", status: "added" },
-      { filename: "registry/existing-plugin.json", status: "modified" },
-    ]
+const submissionBody = `### Registry filename (id)
 
-    expect(isRegistryOnlyPullRequest(files)).toBe(true)
+existing-plugin
+
+### GitHub repository
+
+example/existing-plugin
+
+### Subpath (optional)
+
+_No response_
+
+### npm package
+
+existing-plugin
+
+### Categories
+
+productivity
+
+### Platforms (only if platform-restricted)
+
+_No response_
+
+### Caveats
+
+_No response_
+
+### Confirmations
+
+- [x] Confirmed
+`
+
+afterEach(() => vi.unstubAllEnvs())
+
+describe("Barista registry path policy", () => {
+  it("accepts only added flat registry entries", () => {
+    expect(
+      isRegistryOnlyPullRequest([
+        { filename: "registry/new-plugin.json", status: "added" },
+      ])
+    ).toBe(true)
+    expect(
+      isRegistryOnlyPullRequest([
+        { filename: "registry/existing-plugin.json", status: "modified" },
+      ])
+    ).toBe(false)
   })
 
   it("rejects mixed, nested, renamed, and removed changes", () => {
@@ -124,6 +163,12 @@ describe("Barista review policy", () => {
     expect(hasActiveChangesRequest(resolvedRequest)).toBe(false)
     expect(
       hasActiveChangesRequest([
+        { user: { login: "reviewer" }, state: "CHANGES_REQUESTED" },
+        { user: { login: "reviewer" }, state: "COMMENTED" },
+      ])
+    ).toBe(true)
+    expect(
+      hasActiveChangesRequest([
         ...resolvedRequest,
         { user: { login: "other-reviewer" }, state: "CHANGES_REQUESTED" },
       ])
@@ -131,7 +176,55 @@ describe("Barista review policy", () => {
   })
 })
 
+describe("Barista issue updates", () => {
+  it("rejects an edited submission that changes to an existing registry id", async () => {
+    const addLabels = vi.fn()
+    const createComment = vi.fn()
+    const list = vi.fn()
+    const listFiles = vi.fn()
+    const context = {
+      octokit: {
+        paginate: vi.fn(async (method) => {
+          if (method === list) {
+            return [{ merged_at: null, number: 41, state: "open" }]
+          }
+          if (method === listFiles) {
+            return [{ filename: "registry/old-plugin.json", status: "added" }]
+          }
+          throw new Error("Unexpected paginated endpoint")
+        }),
+        rest: {
+          issues: { addLabels, createComment },
+          pulls: { list, listFiles },
+          repos: { getContent: vi.fn(async () => ({ data: {} })) },
+        },
+      },
+      payload: {
+        issue: {
+          body: submissionBody,
+          number: 42,
+          state: "open",
+          title: "Add plugin: existing-plugin",
+          user: { login: "contributor" },
+        },
+        repository: { default_branch: "main" },
+      },
+      repo: () => ({ owner: "paseo-cafe", repo: "paseo-cafe" }),
+    }
+
+    await handleSubmissionIssue(context as never)
+
+    expect(createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringContaining(
+          "registry/existing-plugin.json already exists"
+        ),
+      })
+    )
+  })
+})
 function reconciliationContext(heads: string[]) {
+  vi.stubEnv("BARISTA_APP_SLUG", "barista")
   const createReview = vi.fn()
   const merge = vi.fn()
   const approveWorkflowRun = vi.fn()
@@ -157,12 +250,14 @@ function reconciliationContext(heads: string[]) {
     listReviews,
     merge,
   }
+  const workflowParameters: Record<string, unknown>[] = []
   const octokit = {
-    paginate: vi.fn(async (method) => {
+    paginate: vi.fn(async (method, parameters) => {
       if (method === listFiles) {
         return [{ filename: "registry/example.json", status: "added" }]
       }
       if (method === listWorkflowRunsForRepo) {
+        workflowParameters.push(parameters as Record<string, unknown>)
         return [{ id: 17, pull_requests: [{ number: 42 }] }]
       }
       if (method === listForRef) return successfulChecks
@@ -171,15 +266,12 @@ function reconciliationContext(heads: string[]) {
     }),
     rest: {
       actions: { approveWorkflowRun, listWorkflowRunsForRepo },
-      apps: {
-        getAuthenticated: vi.fn(async () => ({ data: { slug: "barista" } })),
-      },
       checks: { listForRef },
       pulls,
     },
   }
   return {
-    calls: { approveWorkflowRun, createReview, merge },
+    calls: { approveWorkflowRun, createReview, merge, workflowParameters },
     context: {
       octokit,
       payload: { repository: { default_branch: "main" } },
@@ -199,6 +291,9 @@ describe("Barista privileged reconciliation", () => {
       repo: "paseo-cafe",
       run_id: 17,
     })
+    expect(calls.workflowParameters).toEqual([
+      expect.objectContaining({ head_sha: "head", status: "action_required" }),
+    ])
     expect(calls.createReview).toHaveBeenCalledWith(
       expect.objectContaining({ commit_id: "head", event: "APPROVE" })
     )
