@@ -1,0 +1,11 @@
+{
+  "repo": "xpufx/paseo",
+  "path": "plugins/twofado",
+  "package": "@xpufx/paseo-twofado",
+  "categories": ["automation", "monitoring"],
+  "platforms": ["linux", "macos"],
+  "caveats": [
+    "Runs companion 2fado daemon within the paseo node context. Possible to run your own version instead. (https://github.com/xpufx/2fado)"
+  ],
+  "submittedBy": "xpufx"
+}
