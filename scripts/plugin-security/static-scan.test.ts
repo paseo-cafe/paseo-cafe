@@ -74,6 +74,87 @@ describe("scanStaticFiles", () => {
     ).toBe(true)
   })
 
+  it("allows a manifest description only for supported Paseo versions", () => {
+    const descriptionRuleIds = (
+      requirements?: unknown,
+      allowManifestDescription?: boolean
+    ) => {
+      const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+      writeFileSync(
+        join(root, "paseo-plugin.json"),
+        JSON.stringify({ id: "plugin", description: "A plugin", requirements })
+      )
+      writeFileSync(
+        join(root, "index.server.ts"),
+        "export default () => () => {}"
+      )
+      return scanStaticFiles({
+        root,
+        registryId: "plugin",
+        allowManifestDescription,
+      })
+        .findings.filter(({ tool }) => tool === "manifest")
+        .map(({ ruleId }) => ruleId)
+    }
+
+    for (const paseo of [
+      ">=0.9.0",
+      "^0.9.1",
+      ">=0.9.0-beta.1",
+      "0.9.0-beta.1",
+      "0.9.0-beta.1 || >=0.9.0",
+      ">=0.9.0 <0.9.0 || >=1.0.0",
+      ">=1.0.0 || >=0.9.0 <0.9.0",
+    ])
+      expect(descriptionRuleIds({ paseo })).toEqual([])
+
+    expect(descriptionRuleIds({ paseo: ">=0.8.0" })).toEqual([
+      "unknown:description",
+    ])
+    expect(descriptionRuleIds({ paseo: ">=0.9.0-0 <0.9.0-beta.1" })).toEqual([
+      "unknown:description",
+    ])
+    expect(descriptionRuleIds()).toEqual([
+      "requirements.paseo",
+      "unknown:description",
+    ])
+    expect(descriptionRuleIds({ paseo: ">=0.8.0" }, true)).toEqual([])
+  })
+
+  it("rejects invalid descriptions when the key is supported", () => {
+    const descriptionRuleIds = (
+      description: unknown,
+      allowManifestDescription?: boolean
+    ) => {
+      const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+      writeFileSync(
+        join(root, "paseo-plugin.json"),
+        JSON.stringify({
+          id: "plugin",
+          description,
+          requirements: {
+            paseo: allowManifestDescription ? ">=0.8.0" : ">=0.9.0",
+          },
+        })
+      )
+      writeFileSync(
+        join(root, "index.server.ts"),
+        "export default () => () => {}"
+      )
+      return scanStaticFiles({
+        root,
+        registryId: "plugin",
+        allowManifestDescription,
+      })
+        .findings.filter(({ tool }) => tool === "manifest")
+        .map(({ ruleId }) => ruleId)
+    }
+
+    for (const description of [42, "", "   "])
+      expect(descriptionRuleIds(description)).toEqual(["description"])
+    expect(descriptionRuleIds(42, true)).toEqual(["description"])
+  })
+
   it("requires a manifest and recognizes legacy TSX entrypoints", () => {
     const missing = mkdtempSync(join(tmpdir(), "plugin-security-"))
     expect(
