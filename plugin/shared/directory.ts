@@ -317,8 +317,8 @@ export function setAutomaticUpdatePreference(
   enabled: boolean
 ): string[] {
   return enabled
-    ? Array.from(new Set([...current, installationId]))
-    : current.filter((id) => id !== installationId)
+    ? current.filter((id) => id !== installationId)
+    : Array.from(new Set([...current, installationId]))
 }
 
 export const directorySettings = defineSettings({
@@ -345,7 +345,7 @@ export const directorySettings = defineSettings({
       .array(z.string().regex(/^[a-z][a-z0-9-]*$/))
       .max(500)
       .default([]),
-    autoUpdateOptIns: z
+    autoUpdateOptOuts: z
       .array(z.string().regex(/^[a-z][a-z0-9-]*$/))
       .max(500)
       .default([]),

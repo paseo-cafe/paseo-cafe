@@ -45,7 +45,7 @@ describe("automatic update lifecycle", () => {
             values: {
               directoryUrl: "https://catalog.example/plugins",
               previewOptIns: [],
-              autoUpdateOptIns: [],
+              autoUpdateOptOuts: [],
               browse: {},
               pendingSelfUpdate: null,
             },
@@ -101,7 +101,7 @@ describe("automatic update lifecycle", () => {
               values: {
                 directoryUrl: "https://catalog.example/plugins",
                 previewOptIns: [],
-                autoUpdateOptIns: ["review"],
+                autoUpdateOptOuts: [],
                 browse: {},
                 pendingSelfUpdate: null,
               },

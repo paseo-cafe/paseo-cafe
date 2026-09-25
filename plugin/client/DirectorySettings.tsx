@@ -135,7 +135,7 @@ export function DirectorySettings() {
         <SettingsAction
           label="Automatic updates"
           actionLabel={checkingUpdates ? "Checking…" : "Check now"}
-          disabled={checkingUpdates || values.autoUpdateOptIns.length === 0}
+          disabled={checkingUpdates}
           onPress={() => void checkForUpdates()}
         />
       </SettingsCard>

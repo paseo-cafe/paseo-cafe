@@ -792,19 +792,19 @@ describe("directory taxonomy and browse settings", () => {
     expect(directorySettings.version).toBe(4)
   })
 
-  it("persists automatic update enrollment without duplicates", () => {
-    expect(setAutomaticUpdatePreference([], "review", true)).toEqual(["review"])
-    expect(setAutomaticUpdatePreference(["review"], "review", true)).toEqual([
+  it("persists automatic update opt-outs without duplicates", () => {
+    expect(setAutomaticUpdatePreference([], "review", true)).toEqual([])
+    expect(setAutomaticUpdatePreference([], "review", false)).toEqual([
       "review",
     ])
     expect(
       setAutomaticUpdatePreference(
         ["review", "other", "review"],
         "review",
-        false
+        true
       )
     ).toEqual(["other"])
-    expect(directorySettings.schema.parse({}).autoUpdateOptIns).toEqual([])
+    expect(directorySettings.schema.parse({}).autoUpdateOptOuts).toEqual([])
   })
 
   it("treats reordered category selections as the same persisted state", () => {
@@ -841,7 +841,7 @@ describe("directory taxonomy and browse settings", () => {
       directoryUrl,
       browse: DEFAULT_DIRECTORY_BROWSE_SETTINGS,
       previewOptIns: [],
-      autoUpdateOptIns: [],
+      autoUpdateOptOuts: [],
       pendingSelfUpdate: null,
     })
   })

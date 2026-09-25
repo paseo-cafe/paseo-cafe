@@ -60,7 +60,7 @@ interface PluginDetailPageProps {
     installation: InstalledPlugin,
     channel: "stable" | "preview"
   ) => void
-  autoUpdateOptIns: readonly string[]
+  autoUpdateOptOuts: readonly string[]
   autoUpdateSaving: boolean
 
   onAutoUpdateChange: (installationId: string, enabled: boolean) => void
@@ -87,7 +87,7 @@ export function PluginDetailPage({
   updateError,
   onInstall,
   onUpdate,
-  autoUpdateOptIns,
+  autoUpdateOptOuts,
   autoUpdateSaving,
 
   onAutoUpdateChange,
@@ -986,12 +986,10 @@ export function PluginDetailPage({
                       {installation.updateError}
                     </Text>
                   ) : null}
-                  {isNpm &&
-                  installation.management === "reviewed" &&
-                  installation.id !== "paseo-cafe" ? (
+                  {isNpm && installation.management === "reviewed" ? (
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={`${autoUpdateOptIns.includes(installation.id) ? "Disable" : "Enable"} automatic updates for ${installation.id}`}
+                      accessibilityLabel={`${autoUpdateOptOuts.includes(installation.id) ? "Enable" : "Disable"} automatic updates for ${installation.id}`}
                       accessibilityState={{
                         disabled: actionPending || autoUpdateSaving,
                       }}
@@ -1000,13 +998,13 @@ export function PluginDetailPage({
                       onPress={() =>
                         onAutoUpdateChange(
                           installation.id,
-                          !autoUpdateOptIns.includes(installation.id)
+                          autoUpdateOptOuts.includes(installation.id)
                         )
                       }
                     >
                       <Text style={styles.secondaryButtonText}>
                         AUTO UPDATE ·{" "}
-                        {autoUpdateOptIns.includes(installation.id)
+                        {!autoUpdateOptOuts.includes(installation.id)
                           ? "ON"
                           : "OFF"}
                       </Text>

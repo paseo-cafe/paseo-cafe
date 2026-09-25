@@ -526,7 +526,7 @@ export function planAutomaticPluginUpdates(
   entries: readonly DirectoryEntry[],
   installations: readonly InstalledPlugin[],
   previewOptIns: ReadonlySet<string>,
-  autoUpdateOptIns: ReadonlySet<string>
+  autoUpdateOptOuts: ReadonlySet<string>
 ): AutomaticUpdateOutcome[] {
   const entriesByInstallationId = new Map<string, DirectoryEntry>()
   for (const entry of entries) {
@@ -535,19 +535,9 @@ export function planAutomaticPluginUpdates(
     }
   }
   return installations.flatMap<AutomaticUpdateOutcome>((installation) => {
-    if (!autoUpdateOptIns.has(installation.id)) return []
+    if (autoUpdateOptOuts.has(installation.id)) return []
     const channel = previewOptIns.has(installation.id) ? "preview" : "stable"
     const entry = entriesByInstallationId.get(installation.id)
-    if (installation.id === "paseo-cafe") {
-      return [
-        {
-          installationId: installation.id,
-          channel,
-          status: "skipped",
-          message: "Paseo Cafe updates require explicit confirmation.",
-        },
-      ]
-    }
     if (
       installation.source !== "npm" ||
       installation.management !== "reviewed"
@@ -629,7 +619,7 @@ export function planAutomaticPluginUpdates(
 export interface AutomaticUpdateSettings {
   baseUrl?: string
   previewOptIns: readonly string[]
-  autoUpdateOptIns: readonly string[]
+  autoUpdateOptOuts: readonly string[]
 }
 
 interface AutomaticUpdateDependencies {
@@ -665,34 +655,53 @@ export async function serializePluginUpdate<Result>(
     }
   }
 }
+export async function executeAutomaticPluginUpdate(
+  installation: InstalledPlugin,
+  targetVersion: string,
+  signal?: AbortSignal,
+  startSelfUpdate: (
+    args: readonly string[]
+  ) => Promise<void> = startDetachedPaseo,
+  executeUpdate: typeof executeDirectoryPluginUpdate = executeDirectoryPluginUpdate
+): Promise<RpcOutput<typeof directoryUpdateRpc>> {
+  const args = buildUpdateArgs(
+    installation.id,
+    installation.management,
+    installation.source,
+    undefined,
+    targetVersion
+  )
+  if (installation.id === "paseo-cafe") {
+    if (signal?.aborted) throw new Error("Automatic update was cancelled.")
+    if (pendingSelfUpdate) {
+      return {
+        ok: false,
+        message: "A Paseo Cafe update is already awaiting confirmation.",
+      }
+    }
+    await startSelfUpdate(args)
+    return {
+      ok: true,
+      updated: true,
+      message: `Paseo Cafe automatic update to ${targetVersion} started.`,
+    }
+  }
+  return executeUpdate(args, installation, targetVersion, signal)
+}
 
 export function runAutomaticPluginUpdates(
   readSettings: () => Promise<AutomaticUpdateSettings | undefined>,
   dependencies: AutomaticUpdateDependencies = {
     fetch: fetchDirectory,
     listInstalled: listInstalledPlugins,
-    execute: async (installation, targetVersion, signal) =>
-      executeDirectoryPluginUpdate(
-        buildUpdateArgs(
-          installation.id,
-          installation.management,
-          installation.source,
-          undefined,
-          targetVersion
-        ),
-        installation,
-        targetVersion,
-        signal
-      ),
+    execute: executeAutomaticPluginUpdate,
   },
   signal?: AbortSignal
 ): Promise<AutomaticUpdateOutcome[]> {
   if (automaticUpdateRun) return automaticUpdateRun
   automaticUpdateRun = (async () => {
     const initialSettings = await readSettings()
-    if (!initialSettings || initialSettings.autoUpdateOptIns.length === 0) {
-      return []
-    }
+    if (!initialSettings) return []
     const [directory, installations] = await Promise.all([
       dependencies.fetch(initialSettings.baseUrl),
       dependencies.listInstalled(),
@@ -701,7 +710,11 @@ export function runAutomaticPluginUpdates(
       directory.plugins,
       installations,
       new Set(initialSettings.previewOptIns),
-      new Set(initialSettings.autoUpdateOptIns)
+      new Set(initialSettings.autoUpdateOptOuts)
+    ).sort(
+      (left, right) =>
+        Number(left.installationId === "paseo-cafe") -
+        Number(right.installationId === "paseo-cafe")
     )
     const outcomes: AutomaticUpdateOutcome[] = []
     for (const item of plan) {
@@ -729,11 +742,7 @@ export function runAutomaticPluginUpdates(
               currentDirectory.plugins,
               currentInstallations,
               new Set(currentSettings.previewOptIns),
-              new Set(
-                currentSettings.autoUpdateOptIns.includes(item.installationId)
-                  ? [item.installationId]
-                  : []
-              )
+              new Set(currentSettings.autoUpdateOptOuts)
             ).filter(
               (decision) => decision.installationId === item.installationId
             )

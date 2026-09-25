@@ -28,7 +28,7 @@ import {
 interface DirectorySettingsValues {
   directoryUrl: string
   previewOptIns?: string[]
-  autoUpdateOptIns?: string[]
+  autoUpdateOptOuts?: string[]
 }
 interface DirectorySettingsReader {
   read(): Promise<
@@ -82,7 +82,7 @@ export default function contribute(
     return {
       baseUrl: current.directoryUrl,
       previewOptIns: current.previewOptIns ?? [],
-      autoUpdateOptIns: current.autoUpdateOptIns ?? [],
+      autoUpdateOptOuts: current.autoUpdateOptOuts ?? [],
     }
   }
   const runAutomaticUpdates = () =>

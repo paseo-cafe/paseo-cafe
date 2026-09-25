@@ -27,6 +27,7 @@ import {
   buildPaseoInvocation,
   buildUpdateArgs,
   execPaseo,
+  executeAutomaticPluginUpdate,
   inspectUpdateStatus,
   installDirectoryPlugin,
   listDirectory,
@@ -1480,13 +1481,13 @@ describe("automatic update planning", () => {
     management: "reviewed",
   })
 
-  it("uses an opted-in installation's selected preview channel", () => {
+  it("uses a default-enabled installation's selected preview channel", () => {
     expect(
       planAutomaticPluginUpdates(
         [npmEntry],
         [installation],
         new Set(["review"]),
-        new Set(["review"])
+        new Set()
       )
     ).toMatchObject([
       {
@@ -1498,28 +1499,85 @@ describe("automatic update planning", () => {
     ])
   })
 
-  it("never schedules an automatic downgrade or Cafe self-update", () => {
+  it("prevents downgrades and honors explicit opt-outs", () => {
     const older = { ...installation, version: "2.0.0" }
-    const cafe = { ...installation, id: "paseo-cafe" }
     expect(
-      planAutomaticPluginUpdates(
-        [npmEntry],
-        [older, cafe],
-        new Set(),
-        new Set(["review", "paseo-cafe"])
-      )
+      planAutomaticPluginUpdates([npmEntry], [older], new Set(), new Set())
     ).toMatchObject([
       {
         installationId: "review",
         status: "current",
         message: "Automatic updates never downgrade plugins.",
       },
+    ])
+    expect(
+      planAutomaticPluginUpdates(
+        [npmEntry],
+        [installation],
+        new Set(),
+        new Set(["review"])
+      )
+    ).toEqual([])
+  })
+
+  it("plans Paseo Cafe self-updates", () => {
+    const cafeEntry = {
+      ...npmEntry,
+      id: "paseo-cafe",
+      package: "paseo-cafe",
+      npm: {
+        package: "paseo-cafe",
+        version: "1.2.0",
+        integrity: `sha512-${"d".repeat(86)}`,
+      },
+    }
+    const cafe = {
+      ...installation,
+      id: "paseo-cafe",
+      packageName: "paseo-cafe",
+    }
+    expect(
+      planAutomaticPluginUpdates([cafeEntry], [cafe], new Set(), new Set())
+    ).toMatchObject([
       {
         installationId: "paseo-cafe",
-        status: "skipped",
-        message: "Paseo Cafe updates require explicit confirmation.",
+        targetVersion: "1.2.0",
+        message: "Ready to update.",
       },
     ])
+  })
+
+  it("starts Paseo Cafe updates through the detached handoff", async () => {
+    const cafe = {
+      ...installation,
+      id: "paseo-cafe",
+      packageName: "paseo-cafe",
+    }
+    const startSelfUpdate = vi.fn(async () => undefined)
+    const executeUpdate = vi.fn()
+
+    await expect(
+      executeAutomaticPluginUpdate(
+        cafe,
+        "1.2.0",
+        undefined,
+        startSelfUpdate,
+        executeUpdate
+      )
+    ).resolves.toMatchObject({
+      ok: true,
+      updated: true,
+      message: "Paseo Cafe automatic update to 1.2.0 started.",
+    })
+    expect(startSelfUpdate).toHaveBeenCalledWith([
+      "plugin",
+      "update",
+      "paseo-cafe",
+      "--version",
+      "1.2.0",
+      "--json",
+    ])
+    expect(executeUpdate).not.toHaveBeenCalled()
   })
 
   it("updates to a distinct exact version with equal semver precedence", () => {
@@ -1541,22 +1599,25 @@ describe("automatic update planning", () => {
         [buildEntry],
         [buildInstallation],
         new Set(),
-        new Set(["review"])
+        new Set()
       )
     ).toMatchObject([
       { targetVersion: "1.2.0+build.2", message: "Ready to update." },
     ])
   })
 
-  it("rechecks opt-in state before executing a queued update", async () => {
+  it("rechecks opt-out state before executing a queued update", async () => {
     const enabled = {
       previewOptIns: [],
-      autoUpdateOptIns: ["review"],
+      autoUpdateOptOuts: [],
     }
     const readSettings = vi
       .fn()
       .mockResolvedValueOnce(enabled)
-      .mockResolvedValue({ previewOptIns: [], autoUpdateOptIns: [] })
+      .mockResolvedValue({
+        previewOptIns: [],
+        autoUpdateOptOuts: ["review"],
+      })
     const execute = vi.fn()
     const outcomes = await runAutomaticPluginUpdates(readSettings, {
       fetch: async () => ({
@@ -1604,7 +1665,7 @@ describe("automatic update planning", () => {
     )
     const settings = {
       previewOptIns: [],
-      autoUpdateOptIns: ["review", "other"],
+      autoUpdateOptOuts: [],
     }
     const outcomes = await runAutomaticPluginUpdates(async () => settings, {
       fetch: async () => ({
@@ -1652,7 +1713,7 @@ describe("automatic update planning", () => {
     )
     const settings = {
       previewOptIns: [],
-      autoUpdateOptIns: ["review"],
+      autoUpdateOptOuts: [],
     }
     const run = runAutomaticPluginUpdates(
       async () => settings,

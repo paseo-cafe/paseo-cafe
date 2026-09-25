@@ -574,8 +574,8 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     void saveSettings(
       {
         ...settingsValues,
-        autoUpdateOptIns: setAutomaticUpdatePreference(
-          settingsValues.autoUpdateOptIns,
+        autoUpdateOptOuts: setAutomaticUpdatePreference(
+          settingsValues.autoUpdateOptOuts,
           pending.installationId,
           pending.enabled
         ),
@@ -1367,7 +1367,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         onUpdate={(installation, channel) =>
           updateMutation.mutate({ entry: detailEntry, installation, channel })
         }
-        autoUpdateOptIns={settingsValues?.autoUpdateOptIns ?? []}
+        autoUpdateOptOuts={settingsValues?.autoUpdateOptOuts ?? []}
         onAutoUpdateChange={saveAutomaticUpdatePreference}
         autoUpdateSaving={settingsSaving || pendingAutomaticPreference !== null}
         onOpenGallery={() => setGalleryEntry(detailEntry)}
