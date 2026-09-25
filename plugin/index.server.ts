@@ -60,7 +60,16 @@ export async function readDirectoryUrl(
   }
 }
 
-export default function contribute(server: PluginServerContext) {
+interface AutomaticUpdateLifecycleDependencies {
+  run: typeof runAutomaticPluginUpdates
+}
+
+export default function contribute(
+  server: PluginServerContext,
+  dependencies: AutomaticUpdateLifecycleDependencies = {
+    run: runAutomaticPluginUpdates,
+  }
+) {
   const settings = server.registerSettings(directorySettings)
   const directoryUrl = () => readDirectoryUrl(settings)
   let disposed = false
@@ -77,7 +86,7 @@ export default function contribute(server: PluginServerContext) {
     }
   }
   const runAutomaticUpdates = () =>
-    runAutomaticPluginUpdates(
+    dependencies.run(
       readAutomaticUpdateSettings,
       undefined,
       automaticUpdateAbort.signal
