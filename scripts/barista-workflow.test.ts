@@ -37,6 +37,10 @@ describe("Barista workflows", () => {
 
   it("runs reconciliation after PR updates and prerequisite workflow completion", () => {
     expect(reconciliation.on).toHaveProperty("pull_request_target")
+    expect(reconciliation.on.workflow_run).toEqual({
+      workflows: ["CI", "Registry admission"],
+      types: ["requested", "completed"],
+    })
     expect(reconciliation.on).toHaveProperty("workflow_run")
   })
 

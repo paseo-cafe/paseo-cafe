@@ -524,17 +524,20 @@ export const barista: ApplicationFunction = (app) => {
     async (context) =>
       reconcilePullRequest(context, context.payload.pull_request.number)
   )
-  app.on("workflow_run.completed", async (context) => {
-    if (
-      context.payload.workflow_run.name !== "CI" &&
-      context.payload.workflow_run.name !== "Registry admission"
-    ) {
-      return
+  app.on(
+    ["workflow_run.requested", "workflow_run.completed"],
+    async (context) => {
+      if (
+        context.payload.workflow_run.name !== "CI" &&
+        context.payload.workflow_run.name !== "Registry admission"
+      ) {
+        return
+      }
+      for (const pullRequest of context.payload.workflow_run.pull_requests) {
+        if (pullRequest) await reconcilePullRequest(context, pullRequest.number)
+      }
     }
-    for (const pullRequest of context.payload.workflow_run.pull_requests) {
-      if (pullRequest) await reconcilePullRequest(context, pullRequest.number)
-    }
-  })
+  )
 }
 
 async function main(): Promise<void> {
