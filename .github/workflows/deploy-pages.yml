@@ -96,7 +96,7 @@ jobs:
           --mode "$SCAN_MODE"
           --output "$RUNNER_TEMP/registry-scan-plan.json"
         env:
-          SCAN_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '7,22,37,52 * * * *' && 'npm' || 'full' }}
+          SCAN_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '7/15 * * * *' && 'npm' || 'full' }}
           GITHUB_TOKEN: ${{ github.token }}
           CATALOG_IMPLEMENTATION_DIGEST: ${{ hashFiles('scripts/scan.ts', 'scripts/scan-plan.ts', 'scripts/npm-registry.ts', 'scripts/github.ts', 'scripts/og-image.tsx', 'scripts/theme-previews.ts', 'src/lib/**/*.ts', 'plugin/shared/**/*.ts', 'package.json', 'bun.lock') }}
           SECURITY_IMPLEMENTATION_DIGEST: ${{ hashFiles('scripts/plugin-security/**/*.ts', 'scripts/npm-registry.ts', 'src/lib/plugin-schema.ts', 'src/lib/registry-schema.ts', 'plugin/shared/catalog.ts', 'package.json', 'bun.lock') }}
@@ -109,13 +109,8 @@ jobs:
           --plan "$RUNNER_TEMP/registry-scan-plan.json"
           --json "$RUNNER_TEMP/plugin-security-candidates.json"
 
-      - name: Reject stale scan completions
-        if: steps.plan.outputs.scan_count != '0'
-        run: >-
-          bun run registry:plan
-          --verify "$RUNNER_TEMP/registry-scan-plan.json"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      # The plan pins immutable commits and npm integrity hashes. Do not
+      # re-resolve mutable HEAD or dist-tags here; later polls scan newer targets.
 
       - name: Decide whether to deploy
         id: decision

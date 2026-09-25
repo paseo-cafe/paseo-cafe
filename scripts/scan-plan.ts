@@ -720,52 +720,6 @@ export function assertScanPlanIntegrity(plan: ScanPlan): void {
     }
   }
 }
-export async function verifyScanPlan(
-  plan: ScanPlan,
-  resolvers: ScanPlanResolvers
-): Promise<void> {
-  assertScanPlanIntegrity(plan)
-  const commitPromises = new Map<string, Promise<string>>()
-  const npmPromises = new Map<
-    string,
-    Promise<{ latest?: NpmPackageRelease; next?: NpmPackageRelease }>
-  >()
-  for (const entry of plan.entries) {
-    if (entry.gitTarget) {
-      let currentCommit = commitPromises.get(entry.registry.repo)
-      if (!currentCommit) {
-        currentCommit = resolvers.resolveCommit(entry.registry.repo)
-        commitPromises.set(entry.registry.repo, currentCommit)
-      }
-      if ((await currentCommit) !== entry.gitTarget.commit) {
-        throw new Error(
-          `stale Git target for ${entry.registry.id}: repository HEAD changed`
-        )
-      }
-    }
-    if (entry.npmTargets.length === 0 || !entry.registry.package) continue
-    let releases = npmPromises.get(entry.registry.package)
-    if (!releases) {
-      releases = resolvers.resolveNpm(entry.registry.package)
-      npmPromises.set(entry.registry.package, releases)
-    }
-    const current = await releases
-    for (const target of entry.npmTargets) {
-      const release =
-        target.channel === "latest" ? current.latest : current.next
-      if (
-        !release ||
-        release.package !== target.release.package ||
-        release.version !== target.release.version ||
-        release.integrity !== target.release.integrity
-      ) {
-        throw new Error(
-          `stale npm target for ${entry.registry.id}: ${target.channel} changed`
-        )
-      }
-    }
-  }
-}
 
 const MAX_PACKAGE_JSON_BYTES = 1 * 1_024 * 1_024
 
@@ -877,14 +831,6 @@ function valueFor(argv: string[], flag: string): string | undefined {
 
 async function main() {
   const args = process.argv.slice(2)
-  const input = valueFor(args, "--verify")
-  if (input) {
-    const plan = scanPlanSchema.parse(
-      JSON.parse(readFileSync(resolve(process.cwd(), input), "utf8"))
-    )
-    await verifyScanPlan(plan, defaultResolvers(process.env.GITHUB_TOKEN))
-    return
-  }
 
   const output = valueFor(args, "--output")
   if (!output) throw new Error("missing --output")

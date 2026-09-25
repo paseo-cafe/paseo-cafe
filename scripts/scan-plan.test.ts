@@ -5,7 +5,6 @@ import {
   type RegistryEntryWithId,
   type RegistryScanState,
   type ScanPlanResolvers,
-  verifyScanPlan,
 } from "./scan-plan"
 
 const OLD_COMMIT = "1".repeat(40)
@@ -469,21 +468,5 @@ describe("incremental scan planning", () => {
     expect(plan.needsAssembly).toBe(true)
     expect(plan.entries[0].npmTargets).toEqual([])
     expect(plan.entries[0].observedNpmPreview).toBeUndefined()
-  })
-
-  it("rejects a candidate when its repository moved after planning", async () => {
-    const pluginEntry = entry("plugin")
-    const services = resolvers({ ".": "1.0.0" })
-    const plan = await createScanPlan({
-      entries: [pluginEntry],
-      catalogDigest: DIGEST,
-      securityDigest: DIGEST,
-      resolvers: services,
-    })
-    vi.mocked(services.resolveCommit).mockResolvedValue("3".repeat(40))
-
-    await expect(verifyScanPlan(plan, services)).rejects.toThrow(
-      "repository HEAD changed"
-    )
   })
 })

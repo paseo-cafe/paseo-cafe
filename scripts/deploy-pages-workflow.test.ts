@@ -68,6 +68,14 @@ describe("incremental Pages deployment", () => {
       { cron: "7/15 * * * *" },
       { cron: "3 * * * *" },
     ])
+    const plan = buildSteps.find(
+      (step) => step.name === "Build pinned registry plan"
+    )
+    expect(plan?.env?.SCAN_MODE).toBe(
+      expression(
+        "github.event_name == 'schedule' && github.event.schedule == '7/15 * * * *' && 'npm' || 'full'"
+      )
+    )
     expect(workflow.concurrency).toEqual({
       group: "github-pages",
       "cancel-in-progress": false,
@@ -120,26 +128,33 @@ describe("incremental Pages deployment", () => {
     expect(decision?.env?.DEPLOY).toContain("inputs.state_run_id == ''")
   })
 
-  it("pins once, scans candidates, and verifies the plan before assembly", () => {
+  it("pins once, scans candidates, and assembles the pinned results", () => {
     const planIndex = buildSteps.findIndex(
       (step) => step.name === "Build pinned registry plan"
     )
     const scanIndex = buildSteps.findIndex(
       (step) => step.name === "Scan changed plugin releases"
     )
-    const verifyIndex = buildSteps.findIndex(
-      (step) => step.name === "Reject stale scan completions"
-    )
     const assembleIndex = buildSteps.findIndex(
       (step) =>
         step.name === "Assemble registry from active and candidate releases"
     )
+    const decision = buildSteps.find(
+      (step) => step.name === "Decide whether to deploy"
+    )
     expect(planIndex).toBeGreaterThan(-1)
     expect(scanIndex).toBeGreaterThan(planIndex)
-    expect(verifyIndex).toBeGreaterThan(scanIndex)
-    expect(assembleIndex).toBeGreaterThan(verifyIndex)
+    expect(assembleIndex).toBeGreaterThan(scanIndex)
+    expect(buildSteps.some((step) => step.run?.includes("--verify"))).toBe(
+      false
+    )
     expect(buildSteps[scanIndex]?.if).toBe(
       "steps.plan.outputs.scan_count != '0'"
+    )
+    expect(decision?.env?.DEPLOY).toBe(
+      expression(
+        "inputs.state_run_id == '' && (github.event_name != 'schedule' || steps.plan.outputs.assemble == 'true')"
+      )
     )
     expect(buildSteps[assembleIndex]?.env).toEqual({
       GITHUB_TOKEN: expression("github.token"),
