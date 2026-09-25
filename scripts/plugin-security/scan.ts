@@ -415,10 +415,14 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
       "Build commands must be explicit argument arrays so they run without a shell.",
     fix: 'Use a non-empty array of non-empty argv arrays, for example `[["bun", "install", "--frozen-lockfile"]]`.',
   },
+  "manifest/description": {
+    issue: "The manifest description is not a non-empty string.",
+    fix: "Set `description` to a non-empty string or remove it from `paseo-plugin.json`.",
+  },
   "manifest/unknown": {
     issue:
       "The manifest contains a key the current plugin format does not recognize. Paseo rejects unknown top-level keys.",
-    fix: "Remove the key. Supported top-level keys are `id`, `requirements`, and `build`, plus `description` when `requirements.paseo` admits only Paseo 0.9 or newer.",
+    fix: "Remove the key. Supported top-level keys are `id`, `requirements`, and `build`, plus `description` when `requirements.paseo` requires Paseo 0.9.0-beta.1 or newer.",
   },
   "manifest/json": {
     issue: "The scanner could not parse `paseo-plugin.json`.",

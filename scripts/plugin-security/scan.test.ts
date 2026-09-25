@@ -206,10 +206,11 @@ describe("security report", () => {
     expect(report).not.toContain("MiB")
   })
 
-  it("provides remediation for Paseo 0.8 compatibility findings", () => {
+  it("provides remediation for manifest and Paseo 0.8 compatibility findings", () => {
     const findings: SecurityFinding[] = [
       ["manifest", "missing"],
       ["manifest", "requirements.unknown"],
+      ["manifest", "description"],
       ["entrypoint", "missing"],
       ["boundary", "invalid-module-location"],
       ["boundary", "runtime-module-import"],

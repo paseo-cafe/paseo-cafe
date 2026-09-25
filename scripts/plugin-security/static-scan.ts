@@ -269,6 +269,21 @@ function readScannedFile(
   }
 }
 
+const MANIFEST_DESCRIPTION_MINIMUM = "0.9.0-beta.1"
+
+function rangeRequiresDescriptionSupport(range: string): boolean {
+  const minimums = new semver.Range(range).set.flatMap((comparators) => {
+    const minimum = semver.minVersion(comparators.map(String).join(" "))
+    return minimum ? [minimum] : []
+  })
+  return (
+    minimums.length > 0 &&
+    minimums.every((minimum) =>
+      semver.gte(minimum, MANIFEST_DESCRIPTION_MINIMUM)
+    )
+  )
+}
+
 function validateManifest(
   raw: string,
   path: string,
@@ -298,8 +313,8 @@ function validateManifest(
         )
       )
     const req = parsed.requirements
-    // Paseo 0.9 added the optional manifest `description`; 0.8 rejects it.
-    let requiresPaseo09 = false
+    // Paseo 0.9.0-beta.1 added the optional manifest `description`.
+    let requiresDescriptionSupport = false
     if (req === undefined) {
       findings.push(
         finding(
@@ -341,9 +356,8 @@ function validateManifest(
         typeof paseo === "string" && paseo.trim().length > 0
           ? semver.validRange(paseo, { loose: false })
           : null
-      // minVersion (not intersects) so prerelease alternatives count.
-      const minimum = range ? semver.minVersion(range) : null
-      requiresPaseo09 = minimum !== null && semver.gte(minimum, "0.9.0")
+      requiresDescriptionSupport =
+        range !== null && rangeRequiresDescriptionSupport(range)
       if (!range || !semver.intersects(range, ">=0.8.0"))
         findings.push(
           finding(
@@ -356,6 +370,24 @@ function validateManifest(
           )
         )
     }
+    const descriptionAllowed =
+      allowDescription === true || requiresDescriptionSupport
+    if (
+      descriptionAllowed &&
+      parsed.description !== undefined &&
+      (typeof parsed.description !== "string" ||
+        parsed.description.trim().length === 0)
+    )
+      findings.push(
+        finding(
+          "manifest",
+          "description",
+          "high",
+          true,
+          path,
+          "description must be a non-empty string"
+        )
+      )
     if (parsed.build !== undefined) {
       if (
         !Array.isArray(parsed.build) ||
@@ -384,8 +416,7 @@ function validateManifest(
         key === "id" ||
         key === "requirements" ||
         key === "build" ||
-        ((allowDescription === true || requiresPaseo09) &&
-          key === "description")
+        (descriptionAllowed && key === "description")
       if (!allowed)
         findings.push(
           finding(
