@@ -20,6 +20,7 @@ import type {
   directoryListRpc,
   directoryManifestSearchRpc,
   directoryReadmeSearchRpc,
+  directoryRunAutomaticUpdatesRpc,
   directorySearchRpc,
   directorySecuritySearchRpc,
   directoryUpdateRpc,
@@ -190,10 +191,15 @@ export function buildPaseoInvocation(
   }
 }
 
-export async function execPaseo(args: readonly string[], timeout: number) {
+export async function execPaseo(
+  args: readonly string[],
+  timeout: number,
+  signal?: AbortSignal
+) {
   const invocation = buildPaseoInvocation(args)
   return execFileAsync(invocation.executable, invocation.args, {
     timeout,
+    signal,
     env: invocation.env,
     windowsVerbatimArguments: invocation.windowsVerbatimArguments,
   })
@@ -510,6 +516,276 @@ async function addUpdateStatus(
   return installations.map(
     (installation) => byId.get(installation.id) ?? installation
   )
+}
+
+export type AutomaticUpdateOutcome = RpcOutput<
+  typeof directoryRunAutomaticUpdatesRpc
+>["outcomes"][number]
+
+export function planAutomaticPluginUpdates(
+  entries: readonly DirectoryEntry[],
+  installations: readonly InstalledPlugin[],
+  previewOptIns: ReadonlySet<string>,
+  autoUpdateOptIns: ReadonlySet<string>
+): AutomaticUpdateOutcome[] {
+  const entriesByInstallationId = new Map<string, DirectoryEntry>()
+  for (const entry of entries) {
+    for (const installation of findInstallations(entry, installations)) {
+      entriesByInstallationId.set(installation.id, entry)
+    }
+  }
+  return installations.flatMap<AutomaticUpdateOutcome>((installation) => {
+    if (!autoUpdateOptIns.has(installation.id)) return []
+    const channel = previewOptIns.has(installation.id) ? "preview" : "stable"
+    const entry = entriesByInstallationId.get(installation.id)
+    if (installation.id === "paseo-cafe") {
+      return [
+        {
+          installationId: installation.id,
+          channel,
+          status: "skipped",
+          message: "Paseo Cafe updates require explicit confirmation.",
+        },
+      ]
+    }
+    if (
+      installation.source !== "npm" ||
+      installation.management !== "reviewed"
+    ) {
+      return [
+        {
+          installationId: installation.id,
+          channel,
+          status: "skipped",
+          message: "Automatic updates require a reviewed npm installation.",
+        },
+      ]
+    }
+    if (!entry || entry.package !== installation.packageName) {
+      return [
+        {
+          installationId: installation.id,
+          channel,
+          status: "skipped",
+          message: "Installed package does not match a trusted catalog entry.",
+        },
+      ]
+    }
+    const release = getCatalogNpmRelease(entry, channel)
+    if (!release)
+      return [
+        {
+          installationId: installation.id,
+          channel,
+          status: "skipped",
+          message: `The selected ${channel} channel is unavailable.`,
+        },
+      ]
+    const installedVersionText = installation.version ?? ""
+    const installedVersion = semver.valid(installedVersionText)
+    if (!installedVersion)
+      return [
+        {
+          installationId: installation.id,
+          channel,
+          status: "skipped",
+          message: "Installed version is not valid semver.",
+        },
+      ]
+    if (release.version === installedVersionText) {
+      return [
+        {
+          installationId: installation.id,
+          channel,
+          targetVersion: release.version,
+          status: "current",
+          message: `${installation.id} is already up to date.`,
+        },
+      ]
+    }
+    if (semver.lt(release.version, installedVersion)) {
+      return [
+        {
+          installationId: installation.id,
+          channel,
+          targetVersion: release.version,
+          status: "current",
+          message: "Automatic updates never downgrade plugins.",
+        },
+      ]
+    }
+    return [
+      {
+        installationId: installation.id,
+        channel,
+        targetVersion: release.version,
+        status: "skipped",
+        message: "Ready to update.",
+      },
+    ]
+  })
+}
+
+export interface AutomaticUpdateSettings {
+  baseUrl?: string
+  previewOptIns: readonly string[]
+  autoUpdateOptIns: readonly string[]
+}
+
+interface AutomaticUpdateDependencies {
+  fetch: typeof fetchDirectory
+  listInstalled: typeof listInstalledPlugins
+  execute: (
+    installation: InstalledPlugin,
+    targetVersion: string,
+    signal?: AbortSignal
+  ) => Promise<RpcOutput<typeof directoryUpdateRpc>>
+}
+
+const pluginUpdateRuns = new Map<string, Promise<void>>()
+let automaticUpdateRun: Promise<AutomaticUpdateOutcome[]> | undefined
+
+export async function serializePluginUpdate<Result>(
+  installationId: string,
+  operation: () => Promise<Result>
+): Promise<Result> {
+  const previous = pluginUpdateRuns.get(installationId)
+  let release: () => void = () => {}
+  const current = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  pluginUpdateRuns.set(installationId, current)
+  if (previous) await previous
+  try {
+    return await operation()
+  } finally {
+    release()
+    if (pluginUpdateRuns.get(installationId) === current) {
+      pluginUpdateRuns.delete(installationId)
+    }
+  }
+}
+
+export function runAutomaticPluginUpdates(
+  readSettings: () => Promise<AutomaticUpdateSettings | undefined>,
+  dependencies: AutomaticUpdateDependencies = {
+    fetch: fetchDirectory,
+    listInstalled: listInstalledPlugins,
+    execute: async (installation, targetVersion, signal) =>
+      executeDirectoryPluginUpdate(
+        buildUpdateArgs(
+          installation.id,
+          installation.management,
+          installation.source,
+          undefined,
+          targetVersion
+        ),
+        installation,
+        targetVersion,
+        signal
+      ),
+  },
+  signal?: AbortSignal
+): Promise<AutomaticUpdateOutcome[]> {
+  if (automaticUpdateRun) return automaticUpdateRun
+  automaticUpdateRun = (async () => {
+    const initialSettings = await readSettings()
+    if (!initialSettings || initialSettings.autoUpdateOptIns.length === 0) {
+      return []
+    }
+    const [directory, installations] = await Promise.all([
+      dependencies.fetch(initialSettings.baseUrl),
+      dependencies.listInstalled(),
+    ])
+    const plan = planAutomaticPluginUpdates(
+      directory.plugins,
+      installations,
+      new Set(initialSettings.previewOptIns),
+      new Set(initialSettings.autoUpdateOptIns)
+    )
+    const outcomes: AutomaticUpdateOutcome[] = []
+    for (const item of plan) {
+      if (!item.targetVersion || item.message !== "Ready to update.") {
+        outcomes.push(item)
+        continue
+      }
+      const outcome = await serializePluginUpdate(
+        item.installationId,
+        async (): Promise<AutomaticUpdateOutcome> => {
+          try {
+            const currentSettings = await readSettings()
+            if (!currentSettings) {
+              return {
+                ...item,
+                status: "skipped",
+                message: "Automatic update stopped before installation.",
+              }
+            }
+            const [currentDirectory, currentInstallations] = await Promise.all([
+              dependencies.fetch(currentSettings.baseUrl),
+              dependencies.listInstalled(),
+            ])
+            const [currentDecision] = planAutomaticPluginUpdates(
+              currentDirectory.plugins,
+              currentInstallations,
+              new Set(currentSettings.previewOptIns),
+              new Set(
+                currentSettings.autoUpdateOptIns.includes(item.installationId)
+                  ? [item.installationId]
+                  : []
+              )
+            ).filter(
+              (decision) => decision.installationId === item.installationId
+            )
+            if (
+              !currentDecision?.targetVersion ||
+              currentDecision.message !== "Ready to update."
+            ) {
+              return (
+                currentDecision ?? {
+                  ...item,
+                  status: "skipped",
+                  message:
+                    "Automatic updates were disabled before installation.",
+                }
+              )
+            }
+            const installation = currentInstallations.find(
+              (candidate) => candidate.id === item.installationId
+            )
+            if (!installation) throw new Error("Installation disappeared.")
+            const result = await dependencies.execute(
+              installation,
+              currentDecision.targetVersion,
+              signal
+            )
+            return {
+              ...currentDecision,
+              status: !result.ok
+                ? "failed"
+                : result.updated
+                  ? "updated"
+                  : "current",
+              message: result.message,
+            }
+          } catch (error) {
+            return {
+              ...item,
+              status: signal?.aborted ? "skipped" : "failed",
+              message: signal?.aborted
+                ? "Automatic update stopped during plugin cleanup."
+                : commandFailureMessage(error),
+            }
+          }
+        }
+      )
+      outcomes.push(outcome)
+    }
+    return outcomes
+  })().finally(() => {
+    automaticUpdateRun = undefined
+  })
+  return automaticUpdateRun
 }
 
 function commandFailureMessage(error: unknown): string {
@@ -1145,6 +1421,22 @@ export function parsePluginUpdateResult(
   }
 }
 
+async function executeDirectoryPluginUpdate(
+  args: readonly string[],
+  installation: InstalledPlugin,
+  revision: string,
+  signal?: AbortSignal
+): Promise<RpcOutput<typeof directoryUpdateRpc>> {
+  const { stdout } = await execPaseo(args, 120_000, signal)
+  updateStatusCache.clear()
+  return parsePluginUpdateResult(
+    stdout,
+    installation.management,
+    installation.id,
+    revision
+  )
+}
+
 export async function installDirectoryPlugin(
   input: RpcInput<typeof directoryInstallRpc>,
   baseUrl?: string,
@@ -1227,7 +1519,16 @@ export async function installDirectoryPlugin(
   }
 }
 
-export async function updateDirectoryPlugin(
+export function updateDirectoryPlugin(
+  input: RpcInput<typeof directoryUpdateRpc>,
+  baseUrl?: string
+): Promise<RpcOutput<typeof directoryUpdateRpc>> {
+  return serializePluginUpdate(input.installationId, () =>
+    updateDirectoryPluginUnlocked(input, baseUrl)
+  )
+}
+
+async function updateDirectoryPluginUnlocked(
   input: RpcInput<typeof directoryUpdateRpc>,
   baseUrl?: string
 ): Promise<RpcOutput<typeof directoryUpdateRpc>> {
@@ -1380,13 +1681,10 @@ export async function updateDirectoryPlugin(
       }
     }
 
-    const { stdout } = await execPaseo(updateArgs, 120_000)
-    updateStatusCache.clear()
-    return parsePluginUpdateResult(
-      stdout,
-      target.management,
-      input.installationId,
-      target.source === "npm" ? version : commit?.slice(0, 12)
+    return executeDirectoryPluginUpdate(
+      updateArgs,
+      target,
+      target.source === "npm" ? (version ?? "") : (commit ?? "")
     )
   } catch (error) {
     return { ok: false, message: commandFailureMessage(error) }

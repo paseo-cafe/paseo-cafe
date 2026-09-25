@@ -60,6 +60,11 @@ interface PluginDetailPageProps {
     installation: InstalledPlugin,
     channel: "stable" | "preview"
   ) => void
+  autoUpdateOptIns: readonly string[]
+  autoUpdateSaving: boolean
+
+  onAutoUpdateChange: (installationId: string, enabled: boolean) => void
+
   onOpenGallery: () => void
   onBack: () => void
 }
@@ -82,6 +87,10 @@ export function PluginDetailPage({
   updateError,
   onInstall,
   onUpdate,
+  autoUpdateOptIns,
+  autoUpdateSaving,
+
+  onAutoUpdateChange,
   onOpenGallery,
   onBack,
 }: PluginDetailPageProps) {
@@ -977,6 +986,33 @@ export function PluginDetailPage({
                       {installation.updateError}
                     </Text>
                   ) : null}
+                  {isNpm &&
+                  installation.management === "reviewed" &&
+                  installation.id !== "paseo-cafe" ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${autoUpdateOptIns.includes(installation.id) ? "Disable" : "Enable"} automatic updates for ${installation.id}`}
+                      accessibilityState={{
+                        disabled: actionPending || autoUpdateSaving,
+                      }}
+                      disabled={actionPending || autoUpdateSaving}
+                      style={styles.secondaryButton}
+                      onPress={() =>
+                        onAutoUpdateChange(
+                          installation.id,
+                          !autoUpdateOptIns.includes(installation.id)
+                        )
+                      }
+                    >
+                      <Text style={styles.secondaryButtonText}>
+                        AUTO UPDATE ·{" "}
+                        {autoUpdateOptIns.includes(installation.id)
+                          ? "ON"
+                          : "OFF"}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
                   {stableAvailable || previewAvailable ? (
                     <View style={styles.actionsRow}>
                       {stableAvailable && stableUpdateCommand ? (

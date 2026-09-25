@@ -4,6 +4,7 @@ import {
   installDirectoryPlugin,
   listDirectory,
   listDirectoryUpdateStatus,
+  runAutomaticPluginUpdates,
   searchDirectory,
   searchDirectoryManifests,
   searchDirectoryReadmes,
@@ -16,6 +17,7 @@ import {
   directoryListRpc,
   directoryManifestSearchRpc,
   directoryReadmeSearchRpc,
+  directoryRunAutomaticUpdatesRpc,
   directorySearchRpc,
   directorySecuritySearchRpc,
   directorySettings,
@@ -23,11 +25,27 @@ import {
   directoryUpdateStatusRpc,
 } from "./shared/directory"
 
+interface DirectorySettingsValues {
+  directoryUrl: string
+  previewOptIns?: string[]
+  autoUpdateOptIns?: string[]
+}
 interface DirectorySettingsReader {
   read(): Promise<
-    | { status: "ready"; values: { directoryUrl: string } }
-    | { status: "invalid" }
+    { status: "ready"; values: DirectorySettingsValues } | { status: "invalid" }
   >
+}
+
+async function readDirectorySettings(
+  settings: DirectorySettingsReader | undefined
+): Promise<DirectorySettingsValues | undefined> {
+  if (!settings) return undefined
+  try {
+    const current = await settings.read()
+    return current.status === "ready" ? current.values : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export async function readDirectoryUrl(
@@ -45,11 +63,39 @@ export async function readDirectoryUrl(
 export default function contribute(server: PluginServerContext) {
   const settings = server.registerSettings(directorySettings)
   const directoryUrl = () => readDirectoryUrl(settings)
+  let disposed = false
+  const automaticUpdateAbort = new AbortController()
+
+  const readAutomaticUpdateSettings = async () => {
+    if (disposed) return undefined
+    const current = await readDirectorySettings(settings)
+    if (!current || disposed) return undefined
+    return {
+      baseUrl: current.directoryUrl,
+      previewOptIns: current.previewOptIns ?? [],
+      autoUpdateOptIns: current.autoUpdateOptIns ?? [],
+    }
+  }
+  const runAutomaticUpdates = () =>
+    runAutomaticPluginUpdates(
+      readAutomaticUpdateSettings,
+      undefined,
+      automaticUpdateAbort.signal
+    )
+
+  const runScheduledAutomaticUpdates = () => {
+    void runAutomaticUpdates().catch(() => undefined)
+  }
+  const startup = setTimeout(runScheduledAutomaticUpdates, 30_000)
+  const interval = setInterval(runScheduledAutomaticUpdates, 6 * 60 * 60_000)
 
   server.handle(directoryListRpc, (input) => listDirectory(input))
   server.handle(directoryUpdateStatusRpc, (input) =>
     listDirectoryUpdateStatus(input)
   )
+  server.handle(directoryRunAutomaticUpdatesRpc, async () => ({
+    outcomes: await runAutomaticUpdates(),
+  }))
   server.handle(directorySearchRpc, async (input) =>
     searchDirectory(input, await directoryUrl())
   )
@@ -71,5 +117,10 @@ export default function contribute(server: PluginServerContext) {
   server.handle(directoryApplySelfUpdateRpc, (input) =>
     applyDirectorySelfUpdate(input)
   )
-  return () => {}
+  return () => {
+    disposed = true
+    automaticUpdateAbort.abort()
+    clearTimeout(startup)
+    clearInterval(interval)
+  }
 }

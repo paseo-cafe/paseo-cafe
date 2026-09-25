@@ -1,4 +1,4 @@
-import { useSettings } from "@getpaseo/plugin/client"
+import { useRpc, useSettings } from "@getpaseo/plugin/client"
 import { useToast } from "@getpaseo/plugin/client/react-native"
 import type { SettingsInputHandle } from "@getpaseo/plugin/client/ui"
 import {
@@ -9,13 +9,19 @@ import {
   SettingsSection,
 } from "@getpaseo/plugin/client/ui"
 import { useRef, useState } from "react"
-import { DEFAULT_DIRECTORY_URL, directorySettings } from "../shared/directory"
+import {
+  DEFAULT_DIRECTORY_URL,
+  directoryRunAutomaticUpdatesRpc,
+  directorySettings,
+} from "../shared/directory"
 
 export function DirectorySettings() {
   const settings = useSettings(directorySettings)
+  const runAutomaticUpdates = useRpc(directoryRunAutomaticUpdatesRpc)
   const toast = useToast()
   const [draft, setDraft] = useState<string | null>(null)
   const inputRef = useRef<SettingsInputHandle>(null)
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
 
   if (settings.status === "loading") return null
 
@@ -62,6 +68,41 @@ export function DirectorySettings() {
     setDraft(DEFAULT_DIRECTORY_URL)
     void apply(DEFAULT_DIRECTORY_URL)
   }
+  async function checkForUpdates() {
+    setCheckingUpdates(true)
+    try {
+      const result = await runAutomaticUpdates({})
+      const updated = result.outcomes.filter(
+        (outcome) => outcome.status === "updated"
+      ).length
+      const failed = result.outcomes.filter(
+        (outcome) => outcome.status === "failed"
+      ).length
+      const skipped = result.outcomes.filter(
+        (outcome) => outcome.status === "skipped"
+      )
+
+      if (failed > 0 || skipped.length > 0) {
+        const firstProblem = skipped[0]?.message
+        toast.error(
+          `Updated ${updated} plugin${updated === 1 ? "" : "s"}; ${failed} failed; ${skipped.length} skipped.${firstProblem ? ` ${firstProblem}` : ""}`
+        )
+      } else {
+        toast.show(
+          updated > 0
+            ? `Updated ${updated} plugin${updated === 1 ? "" : "s"}.`
+            : "No automatic updates available.",
+          { variant: "success" }
+        )
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Update check failed."
+      )
+    } finally {
+      setCheckingUpdates(false)
+    }
+  }
 
   return (
     <SettingsSection
@@ -90,6 +131,12 @@ export function DirectorySettings() {
           actionLabel="Reset to paseo.cafe"
           disabled={saving || currentUrl === DEFAULT_DIRECTORY_URL}
           onPress={reset}
+        />
+        <SettingsAction
+          label="Automatic updates"
+          actionLabel={checkingUpdates ? "Checking…" : "Check now"}
+          disabled={checkingUpdates || values.autoUpdateOptIns.length === 0}
+          onPress={() => void checkForUpdates()}
         />
       </SettingsCard>
     </SettingsSection>

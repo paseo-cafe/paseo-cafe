@@ -311,6 +311,15 @@ const pendingSelfUpdateSchema = z.object({
 })
 
 export type PendingSelfUpdate = z.infer<typeof pendingSelfUpdateSchema>
+export function setAutomaticUpdatePreference(
+  current: readonly string[],
+  installationId: string,
+  enabled: boolean
+): string[] {
+  return enabled
+    ? Array.from(new Set([...current, installationId]))
+    : current.filter((id) => id !== installationId)
+}
 
 export const directorySettings = defineSettings({
   id: "directory-settings",
@@ -336,6 +345,11 @@ export const directorySettings = defineSettings({
       .array(z.string().regex(/^[a-z][a-z0-9-]*$/))
       .max(500)
       .default([]),
+    autoUpdateOptIns: z
+      .array(z.string().regex(/^[a-z][a-z0-9-]*$/))
+      .max(500)
+      .default([]),
+
     pendingSelfUpdate: pendingSelfUpdateSchema.nullable().default(null),
   }),
   migrate: migrateDirectorySettings,
@@ -1010,6 +1024,21 @@ export const directoryUpdateStatusRpc = defineRpc({
   }),
   output: z.object({
     installations: z.array(installedPluginSchema).max(500),
+  }),
+})
+export const directoryRunAutomaticUpdatesRpc = defineRpc({
+  name: "directory.run-automatic-updates",
+  input: z.object({}),
+  output: z.object({
+    outcomes: z.array(
+      z.object({
+        installationId: z.string(),
+        channel: z.enum(["stable", "preview"]),
+        targetVersion: z.string().optional(),
+        status: z.enum(["updated", "current", "skipped", "failed"]),
+        message: z.string(),
+      })
+    ),
   }),
 })
 

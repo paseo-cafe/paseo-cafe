@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 const executeFileAsync = promisify(executeFile)
 
-import type { InstalledPlugin } from "../shared/directory"
+import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
 import {
   DEFAULT_DIRECTORY_URL,
   findInstallations,
@@ -33,12 +33,15 @@ import {
   mapWithConcurrency,
   normalizeInstalledPlugin,
   parsePluginUpdateResult,
+  planAutomaticPluginUpdates,
   probeReviewedPluginManagement,
   readInstalledPluginVersion,
+  runAutomaticPluginUpdates,
   searchDirectory,
   searchDirectoryManifests,
   searchDirectoryReadmes,
   searchDirectorySecurity,
+  serializePluginUpdate,
   supportsReviewedPluginManagement,
   updateDirectoryPlugin,
 } from "./directory"
@@ -1447,5 +1450,254 @@ describe("bounded update checks", () => {
 
     expect(maximum).toBe(2)
     expect(results).toEqual([2, 4, 6, 8, 10, 12])
+  })
+})
+
+describe("automatic update planning", () => {
+  const npmEntry = plugin({
+    id: "review",
+    package: "review",
+    version: "1.2.0",
+    npm: {
+      package: "review",
+      version: "1.2.0",
+      integrity: `sha512-${"a".repeat(86)}`,
+    },
+    npmPreview: {
+      package: "review",
+      version: "1.3.0-next.1",
+      integrity: `sha512-${"b".repeat(86)}`,
+    },
+  }) as unknown as DirectoryEntry
+  const installation = installedPluginSchema.parse({
+    id: "review",
+    path: "/tmp/review",
+    enabled: true,
+    status: "running",
+    source: "npm",
+    packageName: "review",
+    version: "1.1.0",
+    management: "reviewed",
+  })
+
+  it("uses an opted-in installation's selected preview channel", () => {
+    expect(
+      planAutomaticPluginUpdates(
+        [npmEntry],
+        [installation],
+        new Set(["review"]),
+        new Set(["review"])
+      )
+    ).toMatchObject([
+      {
+        installationId: "review",
+        channel: "preview",
+        targetVersion: "1.3.0-next.1",
+        message: "Ready to update.",
+      },
+    ])
+  })
+
+  it("never schedules an automatic downgrade or Cafe self-update", () => {
+    const older = { ...installation, version: "2.0.0" }
+    const cafe = { ...installation, id: "paseo-cafe" }
+    expect(
+      planAutomaticPluginUpdates(
+        [npmEntry],
+        [older, cafe],
+        new Set(),
+        new Set(["review", "paseo-cafe"])
+      )
+    ).toMatchObject([
+      {
+        installationId: "review",
+        status: "current",
+        message: "Automatic updates never downgrade plugins.",
+      },
+      {
+        installationId: "paseo-cafe",
+        status: "skipped",
+        message: "Paseo Cafe updates require explicit confirmation.",
+      },
+    ])
+  })
+
+  it("updates to a distinct exact version with equal semver precedence", () => {
+    const buildEntry = {
+      ...npmEntry,
+      version: "1.2.0+build.2",
+      npm: {
+        package: "review",
+        version: "1.2.0+build.2",
+        integrity: `sha512-${"a".repeat(86)}`,
+      },
+    }
+    const buildInstallation = {
+      ...installation,
+      version: "1.2.0+build.1",
+    }
+    expect(
+      planAutomaticPluginUpdates(
+        [buildEntry],
+        [buildInstallation],
+        new Set(),
+        new Set(["review"])
+      )
+    ).toMatchObject([
+      { targetVersion: "1.2.0+build.2", message: "Ready to update." },
+    ])
+  })
+
+  it("rechecks opt-in state before executing a queued update", async () => {
+    const enabled = {
+      previewOptIns: [],
+      autoUpdateOptIns: ["review"],
+    }
+    const readSettings = vi
+      .fn()
+      .mockResolvedValueOnce(enabled)
+      .mockResolvedValue({ previewOptIns: [], autoUpdateOptIns: [] })
+    const execute = vi.fn()
+    const outcomes = await runAutomaticPluginUpdates(readSettings, {
+      fetch: async () => ({
+        receivedAt: 0,
+        fetchedAt: new Date(0).toISOString(),
+        plugins: [npmEntry],
+      }),
+      listInstalled: async () => [installation],
+      execute,
+    })
+
+    expect(execute).not.toHaveBeenCalled()
+    expect(outcomes).toMatchObject([
+      {
+        installationId: "review",
+        status: "skipped",
+        message: "Automatic updates were disabled before installation.",
+      },
+    ])
+  })
+
+  it("isolates execution failures and keeps exact target versions", async () => {
+    const otherEntry = {
+      ...npmEntry,
+      id: "other",
+      package: "other",
+      npm: {
+        package: "other",
+        version: "2.0.0",
+        integrity: `sha512-${"c".repeat(86)}`,
+      },
+      version: "2.0.0",
+    }
+    const otherInstallation = {
+      ...installation,
+      id: "other",
+      packageName: "other",
+      version: "1.0.0",
+    }
+    const execute = vi.fn(
+      async (candidate: InstalledPlugin, version: string) => {
+        if (candidate.id === "review") throw new Error("first failed")
+        return { ok: true, updated: true, message: `Updated to ${version}.` }
+      }
+    )
+    const settings = {
+      previewOptIns: [],
+      autoUpdateOptIns: ["review", "other"],
+    }
+    const outcomes = await runAutomaticPluginUpdates(async () => settings, {
+      fetch: async () => ({
+        receivedAt: 0,
+        fetchedAt: new Date(0).toISOString(),
+        plugins: [npmEntry, otherEntry],
+      }),
+      listInstalled: async () => [installation, otherInstallation],
+      execute,
+    })
+
+    expect(execute.mock.calls).toEqual([
+      [installation, "1.2.0", undefined],
+      [otherInstallation, "2.0.0", undefined],
+    ])
+
+    expect(outcomes).toMatchObject([
+      { installationId: "review", status: "failed" },
+      { installationId: "other", status: "updated" },
+    ])
+  })
+
+  it("aborts an active automatic update during cleanup", async () => {
+    const controller = new AbortController()
+    let markStarted: () => void = () => {}
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve
+    })
+    const execute = vi.fn(
+      async (
+        _candidate: InstalledPlugin,
+        _version: string,
+        signal?: AbortSignal
+      ) => {
+        markStarted()
+        await new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () => reject(new Error("aborted")),
+            { once: true }
+          )
+        })
+        return { ok: true, updated: true, message: "unreachable" }
+      }
+    )
+    const settings = {
+      previewOptIns: [],
+      autoUpdateOptIns: ["review"],
+    }
+    const run = runAutomaticPluginUpdates(
+      async () => settings,
+      {
+        fetch: async () => ({
+          receivedAt: 0,
+          fetchedAt: new Date(0).toISOString(),
+          plugins: [npmEntry],
+        }),
+        listInstalled: async () => [installation],
+        execute,
+      },
+      controller.signal
+    )
+    await started
+    controller.abort()
+
+    await expect(run).resolves.toMatchObject([
+      {
+        installationId: "review",
+        status: "skipped",
+        message: "Automatic update stopped during plugin cleanup.",
+      },
+    ])
+  })
+
+  it("serializes manual and automatic mutations for one installation", async () => {
+    const order: string[] = []
+    let releaseFirst: () => void = () => {}
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const first = serializePluginUpdate("review", async () => {
+      order.push("first-start")
+      await firstGate
+      order.push("first-end")
+    })
+    await Promise.resolve()
+    const second = serializePluginUpdate("review", async () => {
+      order.push("second")
+    })
+
+    expect(order).toEqual(["first-start"])
+    releaseFirst()
+    await Promise.all([first, second])
+    expect(order).toEqual(["first-start", "first-end", "second"])
   })
 })
