@@ -22,6 +22,11 @@ const REQUIRED_CHECKS: Record<string, true> = {
   "All checks passed": true,
   "Registry admission": true,
 }
+const APPROVABLE_WORKFLOWS: Record<string, true> = {
+  CI: true,
+  "Registry admission": true,
+}
+
 const ACTIONS_APP_SLUG = "github-actions"
 
 export function isActionsSubmissionPullRequest(
@@ -157,6 +162,7 @@ async function approveActionRequiredWorkflowRuns(
     for (const run of runs) {
       if (
         !approvedRunIds.has(run.id) &&
+        APPROVABLE_WORKFLOWS[run.name ?? ""] &&
         run.pull_requests?.some(
           (pullRequest) => pullRequest.number === pullNumber
         )
@@ -170,6 +176,17 @@ async function approveActionRequiredWorkflowRuns(
     }
     if (attempt + 1 < attempts) await sleep(1_000)
   }
+}
+export async function dispatchRegistryAdmission(
+  context: BaristaContext,
+  pullNumber: number
+): Promise<void> {
+  await octokit(context).rest.actions.createWorkflowDispatch({
+    ...repository(context),
+    workflow_id: "plugin-security.yml",
+    ref: context.payload.repository.default_branch,
+    inputs: { pr_number: String(pullNumber) },
+  })
 }
 
 async function upsertSubmissionCommit(
@@ -383,6 +400,7 @@ export async function handleSubmissionIssue(
           title: `Add ${generated.id} plugin`,
           body,
         })
+  await dispatchRegistryAdmission(context, pullRequest.data.number)
   await approveActionRequiredWorkflowRuns(
     context,
     pullRequest.data.number,

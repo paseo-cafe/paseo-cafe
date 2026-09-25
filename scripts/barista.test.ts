@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   type CheckRun,
+  dispatchRegistryAdmission,
   handleSubmissionIssue,
   hasActiveChangesRequest,
   hasRequiredSuccessfulChecks,
@@ -226,6 +227,7 @@ describe("Barista issue updates", () => {
 function reconciliationContext(heads: string[]) {
   vi.stubEnv("BARISTA_APP_SLUG", "barista")
   const createReview = vi.fn()
+  const createWorkflowDispatch = vi.fn()
   const merge = vi.fn()
   const approveWorkflowRun = vi.fn()
   const listFiles = vi.fn()
@@ -258,20 +260,33 @@ function reconciliationContext(heads: string[]) {
       }
       if (method === listWorkflowRunsForRepo) {
         workflowParameters.push(parameters as Record<string, unknown>)
-        return [{ id: 17, pull_requests: [{ number: 42 }] }]
+        return [
+          { id: 17, name: "CI", pull_requests: [{ number: 42 }] },
+          { id: 18, name: "Deploy", pull_requests: [{ number: 42 }] },
+        ]
       }
       if (method === listForRef) return successfulChecks
       if (method === listReviews) return []
       throw new Error("Unexpected paginated endpoint")
     }),
     rest: {
-      actions: { approveWorkflowRun, listWorkflowRunsForRepo },
+      actions: {
+        approveWorkflowRun,
+        createWorkflowDispatch,
+        listWorkflowRunsForRepo,
+      },
       checks: { listForRef },
       pulls,
     },
   }
   return {
-    calls: { approveWorkflowRun, createReview, merge, workflowParameters },
+    calls: {
+      approveWorkflowRun,
+      createReview,
+      createWorkflowDispatch,
+      merge,
+      workflowParameters,
+    },
     context: {
       octokit,
       payload: { repository: { default_branch: "main" } },
@@ -281,6 +296,20 @@ function reconciliationContext(heads: string[]) {
 }
 
 describe("Barista privileged reconciliation", () => {
+  it("dispatches Registry admission for an Actions-authored submission PR", async () => {
+    const { calls, context } = reconciliationContext(["head"])
+
+    await dispatchRegistryAdmission(context as never, 42)
+
+    expect(calls.createWorkflowDispatch).toHaveBeenCalledWith({
+      owner: "paseo-cafe",
+      repo: "paseo-cafe",
+      workflow_id: "plugin-security.yml",
+      ref: "main",
+      inputs: { pr_number: "42" },
+    })
+  })
+
   it("approves the held submission run, then approves and merges the current head", async () => {
     const { calls, context } = reconciliationContext(["head", "head", "head"])
 
@@ -294,6 +323,7 @@ describe("Barista privileged reconciliation", () => {
     expect(calls.workflowParameters).toEqual([
       expect.objectContaining({ head_sha: "head", status: "action_required" }),
     ])
+    expect(calls.approveWorkflowRun).toHaveBeenCalledTimes(1)
     expect(calls.createReview).toHaveBeenCalledWith(
       expect.objectContaining({ commit_id: "head", event: "APPROVE" })
     )
