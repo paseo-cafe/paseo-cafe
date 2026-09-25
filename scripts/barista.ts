@@ -58,6 +58,34 @@ export type PullRequestReview = {
   user: { login: string } | null
 }
 
+export type WorkflowRunReference = {
+  display_title?: string
+  event: string
+  name: string | null
+  pull_requests: Array<{ number: number } | null>
+}
+
+/** Resolves associated PRs, including trusted admission dispatch run titles. */
+export function workflowRunPullRequestNumbers(
+  workflowRun: WorkflowRunReference
+): number[] {
+  const pullNumbers = new Set(
+    workflowRun.pull_requests.flatMap((pullRequest) =>
+      pullRequest ? [pullRequest.number] : []
+    )
+  )
+  if (
+    workflowRun.name === "Registry admission" &&
+    workflowRun.event === "workflow_dispatch"
+  ) {
+    const match = /^Registry admission PR #([1-9][0-9]*)$/.exec(
+      workflowRun.display_title ?? ""
+    )
+    if (match?.[1]) pullNumbers.add(Number(match[1]))
+  }
+  return [...pullNumbers]
+}
+
 /** Returns whether any reviewer's latest decision still requests changes. */
 export function hasActiveChangesRequest(reviews: PullRequestReview[]): boolean {
   const latestReviewByUser = new Map<string, string>()
@@ -548,8 +576,10 @@ export const barista: ApplicationFunction = (app) => {
       ) {
         return
       }
-      for (const pullRequest of context.payload.workflow_run.pull_requests) {
-        if (pullRequest) await reconcilePullRequest(context, pullRequest.number)
+      for (const pullNumber of workflowRunPullRequestNumbers(
+        context.payload.workflow_run
+      )) {
+        await reconcilePullRequest(context, pullNumber)
       }
     }
   )

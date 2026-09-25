@@ -9,6 +9,8 @@ import {
   isRegistryOnlyPullRequest,
   type PullRequestReview,
   reconcilePullRequest,
+  type WorkflowRunReference,
+  workflowRunPullRequestNumbers,
 } from "./barista.ts"
 
 const successfulChecks: CheckRun[] = [
@@ -152,6 +154,28 @@ describe("Barista held-run approval policy", () => {
     expect(
       isActionsSubmissionPullRequest("github-actions[bot]", "feature/registry")
     ).toBe(false)
+  })
+})
+
+describe("Barista workflow-run association", () => {
+  it("recovers the PR number from a dispatched admission run title", () => {
+    const workflowRun: WorkflowRunReference = {
+      display_title: "Registry admission PR #42",
+      event: "workflow_dispatch",
+      name: "Registry admission",
+      pull_requests: [],
+    }
+    expect(workflowRunPullRequestNumbers(workflowRun)).toEqual([42])
+  })
+
+  it("does not trust unrelated dispatched run titles", () => {
+    const workflowRun: WorkflowRunReference = {
+      display_title: "Deploy PR #42",
+      event: "workflow_dispatch",
+      name: "Deploy",
+      pull_requests: [],
+    }
+    expect(workflowRunPullRequestNumbers(workflowRun)).toEqual([])
   })
 })
 
