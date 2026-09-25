@@ -1,0 +1,15 @@
+{
+  "repo": "hungcuong9125/paseo-prompt-kit",
+  "package": "paseo-prompt-kit",
+  "categories": ["productivity", "provider"],
+  "platforms": [],
+  "caveats": [
+    "Rewrites in place on Desktop and Web; on mobile the pill opens a sheet instead.",
+    "Reads the Composer through its DOM or React tree, so a Paseo UI update can break it.",
+    "Never sends on its own: you review the rewrite and send it yourself.",
+    "Direct API calls do not stream and hit the daemon's 30-second plugin-call cap.",
+    "API endpoints use a static key read from an environment variable or secrets.json; no OAuth.",
+    "Provider CLI mode needs that provider's CLI on the Paseo daemon's PATH."
+  ],
+  "submittedBy": "hungcuong9125"
+}

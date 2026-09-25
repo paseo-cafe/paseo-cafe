@@ -1,0 +1,10 @@
+{
+  "repo": "denny64/paseo-github-kanban",
+  "package": "paseo-github-kanban",
+  "categories": ["github", "automation", "orchestration"],
+  "platforms": [],
+  "caveats": [
+    "Requires the gh CLI installed and signed in on the daemon machine. Shows up to 500 open and 30 recently closed issues per repo"
+  ],
+  "submittedBy": "denny64"
+}

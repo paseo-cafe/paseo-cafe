@@ -4,7 +4,7 @@
   "categories": ["provider"],
   "caveats": [
     "Experimental: requires Paseo 0.8.x or 0.9.0-beta.1, daemon Node >=22.19, and a separately installed official DSH with credentials.",
-    "Only DSH 0.1.5-rc.1, 0.1.5-rc.2, and 0.1.6-alpha.2 are accepted; plugins and DSH tools are trusted, unsandboxed code.",
+    "Accepted DSH: 0.1.5-rc.1, 0.1.5-rc.2, 0.1.6-alpha.2, 0.1.7-alpha.2, 0.1.7-rc.1; trusted, unsandboxed tools.",
     "Resumes native DSH context without transcript replay; Paseo retains displayed history.",
     "No raw token deltas, slash commands, steering, plans or terminal UI; real vision/MCP services are untested.",
     "Discovery can leave empty DSH sessions; DSH profiles are authoritative and Paseo's extra system prompt is not injected.",

@@ -3,7 +3,7 @@
   "path": "plugins/maka",
   "categories": ["provider"],
   "caveats": [
-    "Experimental: requires Paseo 0.9.0-beta.1, Node >=22.19, configured MaKa; signed Desktop/CLI dev39 tested.",
+    "Unmaintained since 2026-09-24: last tested with signed MaKa Desktop/CLI dev39, Paseo 0.9, Node >=22.19; newer MaKa is not tracked.",
     "Keep Desktop/CLI compatible: dev40-43 require schema 19, unsupported by dev39 Desktop; candidates checked only in isolated profiles.",
     "ACP tool cards work when emitted; .41-.43 include mapper, but live .43 tools remain unverified.",
     "Standard tool approvals are forwarded when emitted; questions/forms, MCP, and usage updates remain unsupported.",

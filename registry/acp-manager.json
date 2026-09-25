@@ -1,5 +1,6 @@
 {
   "repo": "alhassanaraouf/paseo-acp-manager",
+  "package": "@alhassanaraouf/paseo-acp-manager",
   "categories": ["provider", "productivity"],
   "caveats": [
     "Reload Paseo runs the `paseo` CLI on the daemon host, so `paseo` must be on its PATH",

@@ -1,0 +1,16 @@
+{
+  "repo": "hieunt286/paseo-bm",
+  "path": "plugin",
+  "package": "paseo-bm-plugin",
+  "categories": ["orchestration", "productivity"],
+  "platforms": ["macos", "linux"],
+  "caveats": [
+    "Install with `npx paseo-bm`: it also registers the three bm-* agent roles the plugin needs. There is no other supported install.",
+    "Installed straight from this page the screens load, but the three bm-* agent roles are missing, so the Manager cannot create a Worker.",
+    "Prerelease 0.3.0-alpha: commands, flags, exit codes and the --json shape can still change.",
+    "Requires Paseo 0.8.0+, Node 22+, the paseo CLI on PATH, macOS or Linux (no Windows), plus the br and bv Beads CLIs.",
+    "Enabling Paseo's agent tools grants them to every agent on the machine, not only paseo-bm's roles.",
+    "The Worker runs without permission prompts; its limits are role instructions only, so review git diff before you commit."
+  ],
+  "submittedBy": "hieunt286"
+}

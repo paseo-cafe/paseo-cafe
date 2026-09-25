@@ -1,0 +1,11 @@
+{
+  "repo": "kapybara-org/zerosub",
+  "package": "@kapybara/zerosub",
+  "categories": ["provider", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "ChatGPT conversations can't change accounts, so switching one continues it in a new agent with a transcript.",
+    "MCP servers that use OAuth keep their tokens per Claude account, so sign in to them once per account."
+  ],
+  "submittedBy": "sanjaydotpro"
+}

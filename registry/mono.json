@@ -1,0 +1,9 @@
+{
+  "repo": "koinzhang/paseo-plugins",
+  "path": "mono",
+  "package": "@koinzhang/paseo-plugin-mono",
+  "categories": ["theme", "productivity"],
+  "platforms": [],
+  "caveats": ["Requires Paseo 0.9.0 or later."],
+  "submittedBy": "koinzhang"
+}

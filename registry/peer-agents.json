@@ -1,0 +1,11 @@
+{
+  "repo": "Vokturz/paseo-plugins",
+  "path": "peer-agents",
+  "package": "paseo-peer-agents",
+  "categories": ["orchestration", "productivity"],
+  "caveats": [
+    "Requires Paseo 0.9.1 in the 0.9 line, Node.js 22 or newer, and the Paseo CLI on the daemon host.",
+    "Pi sessions are not supported by the injected tools on Paseo 0.9.1."
+  ],
+  "submittedBy": "Vokturz"
+}
