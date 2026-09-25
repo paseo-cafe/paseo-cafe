@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.8.0...v0.9.0) (2026-09-25)
+
+
+### Features
+
+* **plugin:** auto-update installed plugins by release channel ([#255](https://github.com/paseo-cafe/paseo-cafe/issues/255)) ([5aa86f8](https://github.com/paseo-cafe/paseo-cafe/commit/5aa86f80c047c0fa0c536944ec1a43dcbe4cd7f4))
+
 ## [0.8.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.7.1...v0.8.0) (2026-09-22)
 
 
