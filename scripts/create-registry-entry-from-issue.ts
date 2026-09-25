@@ -38,7 +38,11 @@ export type GeneratedRegistryEntry = {
   content: string
 }
 
-/** Labels are metadata, not proof that an issue came from the submission form. */
+/**
+ * Matches the "Add plugin: " title prefix and all expected field markers.
+ * Labels are metadata, not proof that an issue came from the submission form.
+ * Field contents and confirmations are not validated here.
+ */
 export function isPluginSubmissionIssue(title: string, body: string): boolean {
   return (
     title.startsWith("Add plugin: ") &&
@@ -46,7 +50,10 @@ export function isPluginSubmissionIssue(title: string, body: string): boolean {
   )
 }
 
-/** Issue forms render each field as "### <label>" followed by the answer. */
+/**
+ * Reads the first "### <label>" answer, trimmed, up to the next field or body end.
+ * Returns an empty string for a missing field or the "_No response_" placeholder.
+ */
 function extractField(body: string, label: string): string {
   const pattern = new RegExp(
     `### ${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n+([\\s\\S]*?)(?=\\n### |$)`
@@ -74,7 +81,12 @@ function splitLines(value: string): string[] {
     .filter(Boolean)
 }
 
-/** Parses and validates issue-form fields into canonical registry JSON. */
+/**
+ * Parses and validates issue-form fields into a registry ID and JSON content
+ * indented by two spaces with a trailing newline, without writing a file.
+ * A nonempty author is included as the submittedBy GitHub username.
+ * @throws If categories, the registry ID, or entry fields fail validation.
+ */
 export function generateRegistryEntryFromIssue(
   body: string,
   author: string
@@ -131,7 +143,13 @@ export function generateRegistryEntryFromIssue(
   }
 }
 
-/** Preserves the standalone generator used by local tooling and recovery. */
+/**
+ * Writes an entry from ISSUE_BODY and ISSUE_AUTHOR to REGISTRY_DIR (default:
+ * registry/ under the working directory) and prints REGISTRY_ID for tooling.
+ * Creates the directory if needed and rejects an already-existing entry path.
+ * @throws On validation, an existing entry, or filesystem errors; the CLI wrapper
+ * reports the error and sets exit code 1.
+ */
 function main(): void {
   const registryDir = process.env.REGISTRY_DIR ?? DEFAULT_REGISTRY_DIR
   const generated = generateRegistryEntryFromIssue(

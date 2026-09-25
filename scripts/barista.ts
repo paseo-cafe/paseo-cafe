@@ -29,7 +29,7 @@ const APPROVABLE_WORKFLOWS: Record<string, string> = {
 
 const ACTIONS_APP_SLUG = "github-actions"
 
-/** Identifies PRs created from the deterministic issue-submission workflow. */
+/** Matches the Actions bot author and a positive issue-number submission branch. */
 export function isActionsSubmissionPullRequest(
   author: string | undefined,
   headRef: string
@@ -86,7 +86,11 @@ export function workflowRunPullRequestNumbers(
   return [...pullNumbers]
 }
 
-/** Returns whether any reviewer's latest decision still requests changes. */
+/**
+ * Returns whether any reviewer's latest decision still requests changes.
+ * Reviews must be ordered oldest first; comments and reviews without a login
+ * are ignored, while approvals and dismissals supersede earlier requests.
+ */
 export function hasActiveChangesRequest(reviews: PullRequestReview[]): boolean {
   const latestReviewByUser = new Map<string, string>()
   for (const review of reviews) {
@@ -104,7 +108,7 @@ export function hasActiveChangesRequest(reviews: PullRequestReview[]): boolean {
   )
 }
 
-/** Restricts automatic merging to newly added, flat registry JSON entries. */
+/** Restricts automatic merging to 1–20 newly added, flat registry JSON entries. */
 export function isRegistryOnlyPullRequest(files: PullRequestFile[]): boolean {
   return (
     files.length > 0 &&
@@ -118,7 +122,11 @@ export function isRegistryOnlyPullRequest(files: PullRequestFile[]): boolean {
   )
 }
 
-/** Requires both trusted GitHub Actions checks to pass on the current head. */
+/**
+ * Requires successful, completed GitHub Actions checks named "All checks passed"
+ * and "Registry admission". Callers must supply checks for the intended head;
+ * the first matching check for each name determines its result.
+ */
 export function hasRequiredSuccessfulChecks(checks: CheckRun[]): boolean {
   return Object.keys(REQUIRED_CHECKS).every((name) => {
     const check = checks.find(
@@ -133,7 +141,10 @@ type BaristaContext = Context<"issues" | "pull_request" | "workflow_run">
 type RestOctokit = Context["octokit"] & Api
 let submissionClient: Octokit | undefined
 
-/** Returns the Actions-token client used only to author submission branches and PRs. */
+/**
+ * Returns the cached Actions-token client used to author submission branches and PRs.
+ * @throws If GITHUB_PR_CREATOR_TOKEN is missing, even when a client is cached.
+ */
 function submissionOctokit(): Octokit {
   const token = process.env.GITHUB_PR_CREATOR_TOKEN
   if (!token)
@@ -153,7 +164,10 @@ function repository(context: BaristaContext) {
   return { owner, repo }
 }
 
-/** Lists every changed file in a pull request, following API pagination. */
+/**
+ * Lists changed PR files across all available API pages.
+ * @throws Propagates GitHub API errors.
+ */
 async function listPullRequestFiles(
   context: BaristaContext,
   pullNumber: number
@@ -165,7 +179,11 @@ async function listPullRequestFiles(
   })
 }
 
-/** Lists the latest check runs attached to one exact commit. */
+/**
+ * Lists the latest check runs for a Git ref across all API pages.
+ * Pass a commit SHA to pin the results to one head.
+ * @throws Propagates GitHub API errors.
+ */
 async function listCheckRuns(
   context: BaristaContext,
   ref: string
@@ -177,7 +195,12 @@ async function listCheckRuns(
     filter: "latest",
   })
 }
-/** Approves only allowlisted action-required runs bound to this PR and head. */
+/**
+ * Approves only allowlisted action-required runs bound to this PR and head.
+ * With waitForRuns, polls ten times with a three-second delay between polls;
+ * otherwise checks once. Resolves even if no eligible runs appear.
+ * @throws Propagates GitHub API errors, stopping further polling.
+ */
 async function approveActionRequiredWorkflowRuns(
   context: BaristaContext,
   pullNumber: number,
@@ -215,7 +238,11 @@ async function approveActionRequiredWorkflowRuns(
     if (attempt + 1 < attempts) await sleep(3_000)
   }
 }
-/** Dispatches trusted registry admission and its head-bound synthetic check. */
+/**
+ * Dispatches registry admission for a PR using the default branch's workflow.
+ * Resolves after dispatch without waiting for admission or its synthetic check.
+ * @throws Propagates GitHub API errors.
+ */
 export async function dispatchRegistryAdmission(
   context: BaristaContext,
   pullNumber: number
@@ -228,7 +255,15 @@ export async function dispatchRegistryAdmission(
   })
 }
 
-/** Atomically creates or updates the generated registry entry commit. */
+/**
+ * Commits the entry to the submission branch, starting from the default branch
+ * if the submission branch is absent. Removes previousRegistryId when it differs.
+ * Returns false when previousRegistryId matches registryId and the existing
+ * branch's entry has identical content;
+ * otherwise returns true after creating or advancing the branch without force.
+ * @throws If the submission token is missing or a GitHub API request fails,
+ * except that a 404 for the submission ref is treated as an absent branch.
+ */
 async function upsertSubmissionCommit(
   context: Context<"issues">,
   branch: string,
@@ -323,7 +358,16 @@ async function upsertSubmissionCommit(
   return true
 }
 
-/** Validates a submission issue and creates or updates its deterministic PR. */
+/**
+ * Labels an open submission issue and creates or updates its deterministic PR.
+ * Skips non-submissions, missing authors, and merged submissions. Closed PRs,
+ * invalid form fields, and conflicting registry IDs produce a comment and return.
+ * Changed entries trigger admission dispatch and polling for held-run approvals;
+ * unchanged entries return without updating the PR or dispatching checks.
+ * @throws Propagates invalid issue/PR state, unexpected existing registry paths,
+ * missing submission-token errors, and API failures. A registry lookup's 404
+ * means the ID is available; form-generation errors are reported as comments.
+ */
 export async function handleSubmissionIssue(
   context: Context<"issues">
 ): Promise<void> {
@@ -450,7 +494,15 @@ export async function handleSubmissionIssue(
   )
 }
 
-/** Approves and merges an eligible registry PR after revalidating mutable state. */
+/**
+ * Reviews and squash-merges an open, non-draft registry-only PR targeting the
+ * default branch once required checks pass and no active changes request remains.
+ * Eligible Actions submissions may have held runs approved before checks pass.
+ * Comments instead of approving when Barista authored the PR, and avoids
+ * repeating its existing review for the head. Rechecks the head, open state,
+ * files, and checks before merging; returns when an eligibility check fails.
+ * @throws If BARISTA_APP_SLUG is missing when review is reached, or an API fails.
+ */
 export async function reconcilePullRequest(
   context: Context<"pull_request" | "workflow_run">,
   pullNumber: number
@@ -585,7 +637,13 @@ export const barista: ApplicationFunction = (app) => {
   )
 }
 
-/** Replays the current Actions event through the one-shot Probot application. */
+/**
+ * Replays the current Actions event through the one-shot Probot application,
+ * treating pull_request_target as pull_request.
+ * @throws If GITHUB_TOKEN, GITHUB_EVENT_PATH, or GITHUB_EVENT_NAME is missing.
+ * Errors from file reads, JSON parsing, Probot initialization, and event
+ * processing propagate.
+ */
 async function main(): Promise<void> {
   const token = process.env.GITHUB_TOKEN
   const eventPath = process.env.GITHUB_EVENT_PATH
