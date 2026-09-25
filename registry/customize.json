@@ -1,0 +1,9 @@
+{
+  "repo": "koinzhang/paseo-plugins",
+  "path": "customize",
+  "package": "@koinzhang/paseo-plugin-customize",
+  "categories": ["productivity", "provider"],
+  "platforms": [],
+  "caveats": [],
+  "submittedBy": "koinzhang"
+}
