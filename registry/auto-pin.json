@@ -1,0 +1,12 @@
+{
+  "repo": "stv1024/paseo-auto-pin",
+  "package": "paseo-auto-pin",
+  "categories": ["automation", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo >=0.9.1 <0.10.0 and Node.js/npm on the daemon host.",
+    "Uses Paseo's internal daemon client API for workspace pinning.",
+    "Rules apply to newly created workspaces only; existing pins and restored workspaces stay unchanged."
+  ],
+  "submittedBy": "stv1024"
+}

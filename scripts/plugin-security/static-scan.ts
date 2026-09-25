@@ -62,8 +62,16 @@ const CLIENT_ONLY_MODULE =
   /^(?:(?:@types\/)?react(?:-dom|-native)?|use-sync-external-store|@tanstack\/react-query)(?:\/|$)/
 type ImportResolver = (
   specifier: string,
-  importer: string
+  importer: string,
+  options?: { typeOnly?: boolean; typeReference?: boolean; require?: boolean }
 ) => string | undefined
+
+type ImportedSpecifier = {
+  specifier: string
+  typeOnly: boolean
+  typeReference?: boolean
+  require?: boolean
+}
 
 function createImportResolver(directory: string): ImportResolver {
   const configFile = ts.findConfigFile(directory, ts.sys.fileExists)
@@ -87,21 +95,103 @@ function createImportResolver(directory: string): ImportResolver {
     moduleResolution: ts.ModuleResolutionKind.Bundler,
     allowJs: true,
   }
-  const cache = ts.createModuleResolutionCache(
-    directory,
-    (file) => file,
-    options
-  )
-  return (specifier, importer) => {
-    const resolvedModule = ts.resolveModuleName(
+  return (specifier, importer, resolution = {}) => {
+    if (resolution.typeReference)
+      return ts.resolveTypeReferenceDirective(
+        specifier,
+        importer,
+        options,
+        ts.sys
+      ).resolvedTypeReferenceDirective?.resolvedFileName
+    return ts.resolveModuleName(
       specifier,
       importer,
-      options,
+      { ...options, noDtsResolution: !resolution.typeOnly },
       ts.sys,
-      cache
-    ).resolvedModule
-    return resolvedModule?.resolvedFileName
+      undefined,
+      undefined,
+      resolution.require ? ts.ModuleKind.CommonJS : ts.ModuleKind.ESNext
+    ).resolvedModule?.resolvedFileName
   }
+}
+
+function importSpecifiers(path: string, content: string): ImportedSpecifier[] {
+  const source = ts.createSourceFile(
+    path,
+    content,
+    ts.ScriptTarget.Latest,
+    true
+  )
+  const imports: ImportedSpecifier[] = []
+  const add = (
+    node: ts.Node | undefined,
+    typeOnly: boolean,
+    options: Omit<ImportedSpecifier, "specifier" | "typeOnly"> = {}
+  ) => {
+    if (node && ts.isStringLiteralLike(node))
+      imports.push({ specifier: node.text, typeOnly, ...options })
+  }
+  const onlyTypeBindings = (
+    bindings: ts.NamedImportBindings | ts.NamedExportBindings | undefined
+  ) =>
+    Boolean(
+      bindings &&
+        (ts.isNamedImports(bindings) || ts.isNamedExports(bindings)) &&
+        bindings.elements.length > 0 &&
+        bindings.elements.every((element) => element.isTypeOnly)
+    )
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node)) {
+      const clause = node.importClause
+      add(
+        node.moduleSpecifier,
+        source.isDeclarationFile ||
+          Boolean(clause?.isTypeOnly) ||
+          (!clause?.name && onlyTypeBindings(clause?.namedBindings))
+      )
+    } else if (ts.isExportDeclaration(node)) {
+      add(
+        node.moduleSpecifier,
+        source.isDeclarationFile ||
+          node.isTypeOnly ||
+          onlyTypeBindings(node.exportClause)
+      )
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument))
+      add(node.argument.literal, true)
+    else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference)
+    )
+      add(node.moduleReference.expression, node.isTypeOnly, { require: true })
+    else if (ts.isCallExpression(node)) {
+      if (node.expression.kind === ts.SyntaxKind.ImportKeyword)
+        add(node.arguments[0], false)
+      else if (
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "require"
+      )
+        add(node.arguments[0], false, { require: true })
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  for (const reference of source.referencedFiles)
+    imports.push({
+      specifier:
+        reference.fileName.startsWith(".") ||
+        isAbsolute(reference.fileName) ||
+        win32.isAbsolute(reference.fileName)
+          ? reference.fileName
+          : `./${reference.fileName}`,
+      typeOnly: true,
+    })
+  for (const reference of source.typeReferenceDirectives)
+    imports.push({
+      specifier: reference.fileName,
+      typeOnly: true,
+      typeReference: true,
+    })
+  return imports
 }
 
 /**
@@ -521,15 +611,16 @@ function importedModule(
   base: string,
   path: string,
   specifier: string,
-  resolveImport: ImportResolver
+  resolveImport: ImportResolver,
+  resolution: Omit<ImportedSpecifier, "specifier">
 ): ImportedModule {
   if (win32.isAbsolute(specifier) && !isAbsolute(specifier))
     return { location: "invalid" }
   const resolvedImport = specifier.startsWith(".")
-    ? resolveImport(specifier, resolve(base, path))
+    ? resolveImport(specifier, resolve(base, path), resolution)
     : isAbsolute(specifier)
       ? specifier
-      : resolveImport(specifier, resolve(base, path))
+      : resolveImport(specifier, resolve(base, path), resolution)
   const importedPath = resolvedImport
     ? relative(base, resolvedImport)
     : specifier.startsWith(".")
@@ -616,22 +707,9 @@ function scanBoundaries(
 
   const content = readScannedFile(base, path, state, findings)
   if (content === undefined) return
-  const imports = ts.preProcessFile(content, true, true)
-  const specifiers = [
-    ...imports.importedFiles.map(({ fileName }) => fileName),
-    ...imports.referencedFiles.map(({ fileName }) =>
-      fileName.startsWith(".") ||
-      isAbsolute(fileName) ||
-      win32.isAbsolute(fileName)
-        ? fileName
-        : `./${fileName}`
-    ),
-    ...imports.typeReferenceDirectives.flatMap(({ fileName }) => [
-      fileName,
-      `@types/${fileName.replace(/^@/, "").replace("/", "__")}`,
-    ]),
-  ]
-  for (const specifier of specifiers) {
+  const specifiers = importSpecifiers(path, content)
+  for (const importedSpecifier of specifiers) {
+    const { specifier } = importedSpecifier
     const ruleId = runtimeSpecifierViolation(owner, specifier)
     if (ruleId) {
       findings.push(
@@ -647,7 +725,13 @@ function scanBoundaries(
       continue
     }
     if (isHostProvidedModule(specifier)) continue
-    const imported = importedModule(base, path, specifier, resolveImport)
+    const imported = importedModule(
+      base,
+      path,
+      specifier,
+      resolveImport,
+      importedSpecifier
+    )
     if (imported.location === "invalid")
       findings.push(
         finding(

@@ -1,0 +1,15 @@
+{
+  "repo": "fxbing/paseo-workboard",
+  "package": "paseo-workboard",
+  "categories": ["productivity", "automation"],
+  "platforms": ["macos"],
+  "caveats": [
+    "Requires Paseo app and daemon 0.9.1; the internal bridge must be revalidated before widening compatibility.",
+    "Runs as trusted, unsandboxed plugin code on the Paseo daemon host.",
+    "Automatic archive is opt-in and may stop agents or terminals and remove a Paseo-managed worktree.",
+    "Missing conversation history, active work, or unsafe Git state defer automatic archive.",
+    "Archive timeouts require manual verification; Workboard does not restore deleted worktrees.",
+    "Verified on macOS; native iOS and Android interactions have not been tested."
+  ],
+  "submittedBy": "fxbing"
+}
