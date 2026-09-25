@@ -148,7 +148,7 @@ async function approveActionRequiredWorkflowRuns(
 ): Promise<void> {
   const repo = repository(context)
   const approvedRunIds = new Set<number>()
-  const attempts = waitForRuns ? 5 : 1
+  const attempts = waitForRuns ? 10 : 1
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const runs = await octokit(context).paginate(
       octokit(context).rest.actions.listWorkflowRunsForRepo,
@@ -174,7 +174,7 @@ async function approveActionRequiredWorkflowRuns(
         approvedRunIds.add(run.id)
       }
     }
-    if (attempt + 1 < attempts) await sleep(1_000)
+    if (attempt + 1 < attempts) await sleep(3_000)
   }
 }
 export async function dispatchRegistryAdmission(
