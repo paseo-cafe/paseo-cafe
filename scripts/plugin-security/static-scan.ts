@@ -271,11 +271,15 @@ function readScannedFile(
 
 const MANIFEST_DESCRIPTION_MINIMUM = "0.9.0-beta.1"
 
-function rangeRequiresDescriptionSupport(range: string): boolean {
-  const minimums = new semver.Range(range).set.flatMap((comparators) => {
+function rangeMinimums(range: string): semver.SemVer[] {
+  return new semver.Range(range).set.flatMap((comparators) => {
     const minimum = semver.minVersion(comparators.map(String).join(" "))
     return minimum ? [minimum] : []
   })
+}
+
+function rangeRequiresDescriptionSupport(range: string): boolean {
+  const minimums = rangeMinimums(range)
   return (
     minimums.length > 0 &&
     minimums.every((minimum) =>
@@ -358,7 +362,10 @@ function validateManifest(
           : null
       requiresDescriptionSupport =
         range !== null && rangeRequiresDescriptionSupport(range)
-      if (!range || !semver.intersects(range, ">=0.8.0"))
+      if (
+        !range ||
+        !rangeMinimums(range).some((version) => semver.gte(version, "0.8.0"))
+      )
         findings.push(
           finding(
             "manifest",
