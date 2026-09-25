@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 import {
   existingRegistryId,
   resolveSubmissionState,
-  runCaptured,
 } from "./plugin-submission.ts"
 
 describe("plugin submission state", () => {
@@ -57,18 +56,5 @@ describe("plugin submission state", () => {
     expect(
       existingRegistryId(["registry/old-plugin.json", "unrelated-file.txt"])
     ).toBe("old-plugin")
-  })
-})
-
-describe("plugin submission command capture", () => {
-  it("surfaces stderr from an unexpected generator failure", async () => {
-    const result = await runCaptured([
-      process.execPath,
-      "-e",
-      'console.error("unexpected generator failure"); process.exit(1)',
-    ])
-
-    expect(result.exitCode).toBe(1)
-    expect(result.output).toContain("unexpected generator failure")
   })
 })

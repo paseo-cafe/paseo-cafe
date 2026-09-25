@@ -20,13 +20,34 @@ import {
   registryIdSchema,
 } from "../src/lib/registry-schema.ts"
 
-const REGISTRY_DIR = process.env.REGISTRY_DIR ?? join(process.cwd(), "registry")
+const DEFAULT_REGISTRY_DIR = join(process.cwd(), "registry")
 
-const body = process.env.ISSUE_BODY ?? ""
-const author = process.env.ISSUE_AUTHOR ?? ""
+const ISSUE_FIELD_LABELS = [
+  "Registry filename (id)",
+  "GitHub repository",
+  "Subpath (optional)",
+  "npm package",
+  "Categories",
+  "Platforms (only if platform-restricted)",
+  "Caveats",
+  "Confirmations",
+] as const
+
+export type GeneratedRegistryEntry = {
+  id: string
+  content: string
+}
+
+/** Labels are metadata, not proof that an issue came from the submission form. */
+export function isPluginSubmissionIssue(title: string, body: string): boolean {
+  return (
+    title.startsWith("Add plugin: ") &&
+    ISSUE_FIELD_LABELS.every((label) => body.includes(`### ${label}`))
+  )
+}
 
 /** Issue forms render each field as "### <label>" followed by the answer. */
-function extractField(label: string): string {
+function extractField(body: string, label: string): string {
   const pattern = new RegExp(
     `### ${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n+([\\s\\S]*?)(?=\\n### |$)`
   )
@@ -53,63 +74,85 @@ function splitLines(value: string): string[] {
     .filter(Boolean)
 }
 
-function fail(message: string): never {
-  console.log(message)
-  process.exit(1)
-}
-
-const rawId = extractField("Registry filename (id)")
-const rawRepo = extractField("GitHub repository")
-const rawPath = extractField("Subpath (optional)")
-const rawPackage = extractField("npm package")
-const rawCategories = extractField("Categories")
-const rawPlatforms = extractField("Platforms (only if platform-restricted)")
-const rawCaveats = extractField("Caveats")
-
-const categories = splitList(rawCategories)
-const unknownCategories = categories.filter(
-  (category) => !(CATEGORIES as readonly string[]).includes(category)
-)
-if (unknownCategories.length > 0) {
-  fail(
-    `Unknown categories: ${unknownCategories.join(", ")}. Valid categories: ${CATEGORIES.join(", ")}.`
+export function generateRegistryEntryFromIssue(
+  body: string,
+  author: string
+): GeneratedRegistryEntry {
+  const rawId = extractField(body, "Registry filename (id)")
+  const rawRepo = extractField(body, "GitHub repository")
+  const rawPath = extractField(body, "Subpath (optional)")
+  const rawPackage = extractField(body, "npm package")
+  const rawCategories = extractField(body, "Categories")
+  const rawPlatforms = extractField(
+    body,
+    "Platforms (only if platform-restricted)"
   )
-}
+  const rawCaveats = extractField(body, "Caveats")
 
-const idResult = registryIdSchema.safeParse(rawId)
-if (!idResult.success) {
-  fail(
-    `Registry filename "${rawId}" is invalid: ${idResult.error.issues[0]?.message}`
+  const categories = splitList(rawCategories)
+  const unknownCategories = categories.filter(
+    (category) => !(CATEGORIES as readonly string[]).includes(category)
   )
-}
-const id = idResult.data
+  if (unknownCategories.length > 0) {
+    throw new Error(
+      `Unknown categories: ${unknownCategories.join(", ")}. Valid categories: ${CATEGORIES.join(", ")}.`
+    )
+  }
 
-const registryPath = join(REGISTRY_DIR, `${id}.json`)
-if (existsSync(registryPath)) {
-  fail(
-    `registry/${id}.json already exists. Pick a different id or edit it in a PR instead.`
+  const idResult = registryIdSchema.safeParse(rawId)
+  if (!idResult.success) {
+    throw new Error(
+      `Registry filename "${rawId}" is invalid: ${idResult.error.issues[0]?.message}`
+    )
+  }
+  const id = idResult.data
+
+  const entryResult = registryEntrySchema.safeParse({
+    repo: rawRepo,
+    ...(rawPath ? { path: rawPath } : {}),
+    package: rawPackage,
+    categories,
+    platforms: splitList(rawPlatforms),
+    caveats: splitLines(rawCaveats),
+    ...(author ? { submittedBy: author } : {}),
+  })
+
+  if (!entryResult.success) {
+    const issues = entryResult.error.issues
+      .map((issue) => `- ${issue.path.join(".") || "entry"}: ${issue.message}`)
+      .join("\n")
+    throw new Error(`Registry entry is invalid:\n${issues}`)
+  }
+
+  return {
+    id,
+    content: `${JSON.stringify(entryResult.data, null, 2)}\n`,
+  }
+}
+
+function main(): void {
+  const registryDir = process.env.REGISTRY_DIR ?? DEFAULT_REGISTRY_DIR
+  const generated = generateRegistryEntryFromIssue(
+    process.env.ISSUE_BODY ?? "",
+    process.env.ISSUE_AUTHOR ?? ""
   )
+  const registryPath = join(registryDir, `${generated.id}.json`)
+  if (existsSync(registryPath)) {
+    throw new Error(
+      `registry/${generated.id}.json already exists. Pick a different id or edit it in a PR instead.`
+    )
+  }
+
+  mkdirSync(registryDir, { recursive: true })
+  writeFileSync(registryPath, generated.content)
+  console.log(`REGISTRY_ID=${generated.id}`)
 }
 
-const entryResult = registryEntrySchema.safeParse({
-  repo: rawRepo,
-  ...(rawPath ? { path: rawPath } : {}),
-  package: rawPackage,
-  categories,
-  platforms: splitList(rawPlatforms),
-  caveats: splitLines(rawCaveats),
-  ...(author ? { submittedBy: author } : {}),
-})
-
-if (!entryResult.success) {
-  const issues = entryResult.error.issues
-    .map((issue) => `- ${issue.path.join(".") || "entry"}: ${issue.message}`)
-    .join("\n")
-  fail(`Registry entry is invalid:\n${issues}`)
+if (import.meta.main) {
+  try {
+    main()
+  } catch (error) {
+    console.log(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }
-
-mkdirSync(REGISTRY_DIR, { recursive: true })
-writeFileSync(registryPath, `${JSON.stringify(entryResult.data, null, 2)}\n`)
-
-// Consumed by the workflow to name the branch/PR and report success back.
-console.log(`REGISTRY_ID=${id}`)
