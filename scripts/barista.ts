@@ -22,9 +22,9 @@ const REQUIRED_CHECKS: Record<string, true> = {
   "All checks passed": true,
   "Registry admission": true,
 }
-const APPROVABLE_WORKFLOWS: Record<string, true> = {
-  CI: true,
-  "Registry admission": true,
+const APPROVABLE_WORKFLOWS: Record<string, string> = {
+  CI: ".github/workflows/ci.yml",
+  "Registry admission": ".github/workflows/plugin-security.yml",
 }
 
 const ACTIONS_APP_SLUG = "github-actions"
@@ -162,7 +162,7 @@ async function approveActionRequiredWorkflowRuns(
     for (const run of runs) {
       if (
         !approvedRunIds.has(run.id) &&
-        APPROVABLE_WORKFLOWS[run.name ?? ""] &&
+        APPROVABLE_WORKFLOWS[run.name ?? ""] === run.path &&
         run.pull_requests?.some(
           (pullRequest) => pullRequest.number === pullNumber
         )

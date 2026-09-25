@@ -261,8 +261,18 @@ function reconciliationContext(heads: string[]) {
       if (method === listWorkflowRunsForRepo) {
         workflowParameters.push(parameters as Record<string, unknown>)
         return [
-          { id: 17, name: "CI", pull_requests: [{ number: 42 }] },
-          { id: 18, name: "Deploy", pull_requests: [{ number: 42 }] },
+          {
+            id: 17,
+            name: "CI",
+            path: ".github/workflows/ci.yml",
+            pull_requests: [{ number: 42 }],
+          },
+          {
+            id: 18,
+            name: "CI",
+            path: ".github/workflows/deploy-pages.yml",
+            pull_requests: [{ number: 42 }],
+          },
         ]
       }
       if (method === listForRef) return successfulChecks
