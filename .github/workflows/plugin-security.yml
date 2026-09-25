@@ -1,4 +1,5 @@
 name: Registry admission
+run-name: "Registry admission PR #${{ github.event.pull_request.number || inputs.pr_number }}"
 
 on:
   pull_request_target:

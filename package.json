@@ -62,6 +62,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
+    "@octokit/rest": "^22.0.0",
     "@resvg/resvg-js": "^2.6.2",
     "@tanstack/devtools-vite": "latest",
     "@testing-library/dom": "^10.4.1",
@@ -75,6 +76,7 @@
     "jsdom": "^28",
     "nitro": "^3.0.260903-beta",
     "pacote": "^22.0.0",
+    "probot": "^14.3.2",
     "satori": "^0.33.4",
     "typescript": "^6",
     "vite": "^8",

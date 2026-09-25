@@ -13,6 +13,7 @@ type WorkflowStep = {
 }
 
 type Workflow = {
+  "run-name": string
   on: Record<string, unknown>
   permissions: Record<string, string>
   jobs: {
@@ -42,6 +43,9 @@ describe("registry admission workflow", () => {
     expect(workflow.on).toHaveProperty("pull_request_target")
     expect(workflow.on).toHaveProperty("workflow_dispatch")
     expect(workflow.jobs.admission.name).toBe("Registry admission")
+    expect(workflow["run-name"]).toBe(
+      `Registry admission PR #${expression("github.event.pull_request.number || inputs.pr_number")}`
+    )
     expect(workflow.permissions.checks).toBe("write")
 
     const createCheck = steps.find(
