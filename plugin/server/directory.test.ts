@@ -1547,6 +1547,17 @@ describe("automatic update planning", () => {
     ])
   })
 
+  it("omits installations that cannot receive automatic updates", () => {
+    expect(
+      planAutomaticPluginUpdates(
+        [npmEntry],
+        [gitInstallation({ id: "review" })],
+        new Set(),
+        new Set()
+      )
+    ).toEqual([])
+  })
+
   it("starts Paseo Cafe updates through the detached handoff", async () => {
     const cafe = {
       ...installation,

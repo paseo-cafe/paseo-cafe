@@ -52,6 +52,10 @@ import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 const DIRECTORY_QUERY_KEY = "paseo-cafe-directory"
 const UPDATE_STATUS_QUERY_KEY = "paseo-cafe-update-status"
 
+export function canQueueAutomaticUpdatePreference(status: string): boolean {
+  return status !== "error" && status !== "invalid"
+}
+
 type ReleaseChannel = "stable" | "preview"
 
 function applyPreviewPreference(
@@ -695,6 +699,10 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     installationId: string,
     enabled: boolean
   ) => {
+    if (!canQueueAutomaticUpdatePreference(settings.status)) {
+      toast.error("Failed to save automatic update preference.")
+      return
+    }
     setPendingAutomaticPreference({ installationId, enabled, attempts: 0 })
     if (!settingsValues) void reloadSettings()
   }
@@ -1369,7 +1377,11 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         }
         autoUpdateOptOuts={settingsValues?.autoUpdateOptOuts ?? []}
         onAutoUpdateChange={saveAutomaticUpdatePreference}
-        autoUpdateSaving={settingsSaving || pendingAutomaticPreference !== null}
+        autoUpdateSaving={
+          settings.status !== "ready" ||
+          settingsSaving ||
+          pendingAutomaticPreference !== null
+        }
         onOpenGallery={() => setGalleryEntry(detailEntry)}
         onBack={() => {
           setLastOpenedPluginId(null)

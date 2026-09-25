@@ -542,15 +542,9 @@ export function planAutomaticPluginUpdates(
       installation.source !== "npm" ||
       installation.management !== "reviewed"
     ) {
-      return [
-        {
-          installationId: installation.id,
-          channel,
-          status: "skipped",
-          message: "Automatic updates require a reviewed npm installation.",
-        },
-      ]
+      return []
     }
+
     if (!entry || entry.package !== installation.packageName) {
       return [
         {
