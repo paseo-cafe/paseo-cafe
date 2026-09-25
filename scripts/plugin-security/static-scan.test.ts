@@ -57,6 +57,22 @@ describe("scanStaticFiles", () => {
     ])
   })
 
+  it("accepts a valid Paseo 0.8 manifest", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    writeFileSync(
+      join(root, "paseo-plugin.json"),
+      JSON.stringify({
+        id: "plugin",
+        requirements: { paseo: ">=0.8.0 <0.9.0" },
+      })
+    )
+    writeFileSync(
+      join(root, "index.server.ts"),
+      "export default () => () => {}"
+    )
+
+    expect(scanStaticFiles({ root, registryId: "plugin" }).findings).toEqual([])
+  })
 
   it("rejects requirements that only target pre-0.8 Paseo", () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
@@ -101,6 +117,7 @@ describe("scanStaticFiles", () => {
     for (const paseo of [
       ">=0.9.0",
       "^0.9.1",
+      ">=0.9.2",
       ">=0.9.0-beta.1",
       "0.9.0-beta.1",
       "0.9.0-beta.1 || >=0.9.0",
