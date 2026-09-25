@@ -1,0 +1,9 @@
+{
+  "repo": "xpufx/paseo",
+  "path": "plugins/wellbeing",
+  "package": "@xpufx/paseo-wellbeing",
+  "categories": ["other"],
+  "platforms": [],
+  "caveats": ["Work in progress"],
+  "submittedBy": "xpufx"
+}
