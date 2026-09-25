@@ -1,0 +1,13 @@
+{
+  "repo": "gpambrozio/paseo-plugins",
+  "path": "firstmate",
+  "package": "@gpambrozio/paseo-firstmate",
+  "categories": ["orchestration", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.9.0 or newer on both the daemon and the device running the app",
+    "Paseo's agent tools must be turned on (they ship off); the panel offers a one-press switch",
+    "The first mate needs a capable model: Claude Sonnet or better, or a comparable Codex model"
+  ],
+  "submittedBy": "gpambrozio"
+}
