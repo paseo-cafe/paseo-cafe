@@ -10,6 +10,7 @@ export type SubmissionState = {
   pullRequestNumber?: number
 }
 
+/** Derives the one stable branch reserved for an issue submission. */
 export function submissionBranch(issueNumber: number): string {
   if (!Number.isSafeInteger(issueNumber) || issueNumber <= 0) {
     throw new Error("ISSUE_NUMBER must be a positive integer")
@@ -17,6 +18,7 @@ export function submissionBranch(issueNumber: number): string {
   return `plugin-submission/issue-${issueNumber}`
 }
 
+/** Resolves whether the issue should create, update, stop, or no-op. */
 export function resolveSubmissionState(
   issueNumber: number,
   pullRequests: SubmissionPullRequest[]
@@ -52,6 +54,7 @@ export function resolveSubmissionState(
   }
 }
 
+/** Extracts the sole generated registry ID from an existing submission PR. */
 export function existingRegistryId(changedPaths: string[]): string {
   const registryPaths = changedPaths
     .filter(Boolean)

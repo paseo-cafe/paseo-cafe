@@ -74,6 +74,7 @@ function splitLines(value: string): string[] {
     .filter(Boolean)
 }
 
+/** Parses and validates issue-form fields into canonical registry JSON. */
 export function generateRegistryEntryFromIssue(
   body: string,
   author: string
@@ -130,6 +131,7 @@ export function generateRegistryEntryFromIssue(
   }
 }
 
+/** Preserves the standalone generator used by local tooling and recovery. */
 function main(): void {
   const registryDir = process.env.REGISTRY_DIR ?? DEFAULT_REGISTRY_DIR
   const generated = generateRegistryEntryFromIssue(

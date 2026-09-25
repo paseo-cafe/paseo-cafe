@@ -29,6 +29,7 @@ const APPROVABLE_WORKFLOWS: Record<string, string> = {
 
 const ACTIONS_APP_SLUG = "github-actions"
 
+/** Identifies PRs created from the deterministic issue-submission workflow. */
 export function isActionsSubmissionPullRequest(
   author: string | undefined,
   headRef: string
@@ -57,6 +58,7 @@ export type PullRequestReview = {
   user: { login: string } | null
 }
 
+/** Returns whether any reviewer's latest decision still requests changes. */
 export function hasActiveChangesRequest(reviews: PullRequestReview[]): boolean {
   const latestReviewByUser = new Map<string, string>()
   for (const review of reviews) {
@@ -74,6 +76,7 @@ export function hasActiveChangesRequest(reviews: PullRequestReview[]): boolean {
   )
 }
 
+/** Restricts automatic merging to newly added, flat registry JSON entries. */
 export function isRegistryOnlyPullRequest(files: PullRequestFile[]): boolean {
   return (
     files.length > 0 &&
@@ -87,6 +90,7 @@ export function isRegistryOnlyPullRequest(files: PullRequestFile[]): boolean {
   )
 }
 
+/** Requires both trusted GitHub Actions checks to pass on the current head. */
 export function hasRequiredSuccessfulChecks(checks: CheckRun[]): boolean {
   return Object.keys(REQUIRED_CHECKS).every((name) => {
     const check = checks.find(
@@ -101,6 +105,7 @@ type BaristaContext = Context<"issues" | "pull_request" | "workflow_run">
 type RestOctokit = Context["octokit"] & Api
 let submissionClient: Octokit | undefined
 
+/** Returns the Actions-token client used only to author submission branches and PRs. */
 function submissionOctokit(): Octokit {
   const token = process.env.GITHUB_PR_CREATOR_TOKEN
   if (!token)
@@ -109,15 +114,18 @@ function submissionOctokit(): Octokit {
   return submissionClient
 }
 
+/** Exposes Probot's authenticated REST endpoint methods with their concrete type. */
 function octokit(context: Context): RestOctokit {
   return context.octokit as RestOctokit
 }
 
+/** Extracts repository coordinates from any Barista event context. */
 function repository(context: BaristaContext) {
   const { owner, repo } = context.repo()
   return { owner, repo }
 }
 
+/** Lists every changed file in a pull request, following API pagination. */
 async function listPullRequestFiles(
   context: BaristaContext,
   pullNumber: number
@@ -129,6 +137,7 @@ async function listPullRequestFiles(
   })
 }
 
+/** Lists the latest check runs attached to one exact commit. */
 async function listCheckRuns(
   context: BaristaContext,
   ref: string
@@ -140,6 +149,7 @@ async function listCheckRuns(
     filter: "latest",
   })
 }
+/** Approves only allowlisted action-required runs bound to this PR and head. */
 async function approveActionRequiredWorkflowRuns(
   context: BaristaContext,
   pullNumber: number,
@@ -177,6 +187,7 @@ async function approveActionRequiredWorkflowRuns(
     if (attempt + 1 < attempts) await sleep(3_000)
   }
 }
+/** Dispatches trusted registry admission and its head-bound synthetic check. */
 export async function dispatchRegistryAdmission(
   context: BaristaContext,
   pullNumber: number
@@ -189,6 +200,7 @@ export async function dispatchRegistryAdmission(
   })
 }
 
+/** Atomically creates or updates the generated registry entry commit. */
 async function upsertSubmissionCommit(
   context: Context<"issues">,
   branch: string,
@@ -283,6 +295,7 @@ async function upsertSubmissionCommit(
   return true
 }
 
+/** Validates a submission issue and creates or updates its deterministic PR. */
 export async function handleSubmissionIssue(
   context: Context<"issues">
 ): Promise<void> {
@@ -409,6 +422,7 @@ export async function handleSubmissionIssue(
   )
 }
 
+/** Approves and merges an eligible registry PR after revalidating mutable state. */
 export async function reconcilePullRequest(
   context: Context<"pull_request" | "workflow_run">,
   pullNumber: number
@@ -512,6 +526,7 @@ export async function reconcilePullRequest(
   })
 }
 
+/** Registers Barista's issue, pull-request, and workflow-run handlers. */
 export const barista: ApplicationFunction = (app) => {
   app.on(["issues.opened", "issues.edited"], handleSubmissionIssue)
   app.on(
@@ -540,6 +555,7 @@ export const barista: ApplicationFunction = (app) => {
   )
 }
 
+/** Replays the current Actions event through the one-shot Probot application. */
 async function main(): Promise<void> {
   const token = process.env.GITHUB_TOKEN
   const eventPath = process.env.GITHUB_EVENT_PATH
