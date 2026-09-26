@@ -1,0 +1,14 @@
+{
+  "repo": "maxwell-01/maxs-paseo-plugins",
+  "path": "cross-daemon",
+  "package": "paseo-cross-daemon",
+  "categories": ["orchestration", "productivity"],
+  "caveats": [
+    "Requires Paseo 0.9.2 or newer on every daemon and on the app",
+    "Install it on every daemon that takes part, then switch each one on from the Cross-daemon sidebar page",
+    "The Paseo app must be open for daemons to exchange links",
+    "Switched-on daemons hold each other's pairing links, which grant full control of that daemon",
+    "Messages from Codex agents cannot be replied to"
+  ],
+  "submittedBy": "maxwell-01"
+}
