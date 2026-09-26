@@ -1,0 +1,17 @@
+{
+  "repo": "xpufx/paseo",
+  "path": "plugins/uppidi-fleet",
+  "package": "@xpufx/paseo-uppidi-fleet",
+  "categories": [
+    "automation",
+    "monitoring",
+    "productivity",
+    "orchestration",
+    "git"
+  ],
+  "platforms": [],
+  "caveats": [
+    "WIP progress. Many moving parts."
+  ],
+  "submittedBy": "xpufx"
+}
