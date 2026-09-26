@@ -171,7 +171,7 @@ describe("Barista workflow-run association", () => {
     const workflowRun: WorkflowRunReference = {
       display_title: "Registry admission PR #42",
       event: "workflow_dispatch",
-      name: "Registry admission",
+      name: "Registry admission PR #42",
       pull_requests: [],
     }
     expect(workflowRunPullRequestNumbers(workflowRun)).toEqual([42])

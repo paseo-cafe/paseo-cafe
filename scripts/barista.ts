@@ -77,12 +77,9 @@ export function workflowRunPullRequestNumbers(
       pullRequest ? [pullRequest.number] : []
     )
   )
-  if (
-    workflowRun.name === "Registry admission" &&
-    workflowRun.event === "workflow_dispatch"
-  ) {
+  if (workflowRun.event === "workflow_dispatch") {
     const match = /^Registry admission PR #([1-9][0-9]*)$/.exec(
-      workflowRun.display_title ?? ""
+      workflowRun.display_title ?? workflowRun.name ?? ""
     )
     if (match?.[1]) pullNumbers.add(Number(match[1]))
   }
