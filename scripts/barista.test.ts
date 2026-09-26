@@ -177,6 +177,16 @@ describe("Barista workflow-run association", () => {
     expect(workflowRunPullRequestNumbers(workflowRun)).toEqual([42])
   })
 
+  it("recovers the PR number when only the run name matches", () => {
+    const workflowRun: WorkflowRunReference = {
+      display_title: "Registry admission",
+      event: "workflow_dispatch",
+      name: "Registry admission PR #42",
+      pull_requests: [],
+    }
+    expect(workflowRunPullRequestNumbers(workflowRun)).toEqual([42])
+  })
+
   it("does not trust unrelated dispatched run titles", () => {
     const workflowRun: WorkflowRunReference = {
       display_title: "Deploy PR #42",
