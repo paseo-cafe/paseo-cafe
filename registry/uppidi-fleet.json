@@ -10,8 +10,6 @@
     "git"
   ],
   "platforms": [],
-  "caveats": [
-    "WIP progress. Many moving parts."
-  ],
+  "caveats": ["WIP progress. Many moving parts."],
   "submittedBy": "xpufx"
 }
