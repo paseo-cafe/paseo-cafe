@@ -12,7 +12,9 @@
  * On failure, prints a human-readable error to stdout and exits non-zero; the
  * workflow posts that message back to the issue and stops before touching git.
  */
+import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import { join } from "node:path"
 import {
   CATEGORIES,
@@ -21,6 +23,20 @@ import {
 } from "../src/lib/registry-schema.ts"
 
 const DEFAULT_REGISTRY_DIR = join(process.cwd(), "registry")
+
+const require = createRequire(import.meta.url)
+const biomeCli = require.resolve("@biomejs/biome/bin/biome")
+
+function formatRegistryEntry(content: string, id: string): string {
+  return execFileSync(
+    process.execPath,
+    [biomeCli, "format", "--stdin-file-path", `registry/${id}.json`],
+    {
+      encoding: "utf8",
+      input: content,
+    }
+  )
+}
 
 const ISSUE_FIELD_LABELS = [
   "Registry filename (id)",
@@ -125,9 +141,10 @@ export function generateRegistryEntryFromIssue(
     throw new Error(`Registry entry is invalid:\n${issues}`)
   }
 
+  const content = `${JSON.stringify(entryResult.data, null, 2)}\n`
   return {
     id,
-    content: `${JSON.stringify(entryResult.data, null, 2)}\n`,
+    content: formatRegistryEntry(content, id),
   }
 }
 

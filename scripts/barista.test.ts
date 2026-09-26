@@ -13,6 +13,12 @@ import {
   workflowRunPullRequestNumbers,
 } from "./barista.ts"
 
+const registryAdmissionCheck: CheckRun = {
+  name: "Registry admission",
+  status: "completed",
+  conclusion: "success",
+  app: { slug: "github-actions" },
+}
 const successfulChecks: CheckRun[] = [
   {
     name: "All checks passed",
@@ -20,12 +26,7 @@ const successfulChecks: CheckRun[] = [
     conclusion: "success",
     app: { slug: "github-actions" },
   },
-  {
-    name: "Registry admission",
-    status: "completed",
-    conclusion: "success",
-    app: { slug: "github-actions" },
-  },
+  registryAdmissionCheck,
 ]
 
 const submissionBody = `### Registry filename (id)
@@ -111,6 +112,14 @@ describe("Barista check policy", () => {
     expect(hasRequiredSuccessfulChecks(successfulChecks)).toBe(true)
   })
 
+  it("allows generated submissions to rely on Registry admission", () => {
+    expect(
+      hasRequiredSuccessfulChecks([registryAdmissionCheck], {
+        "Registry admission": true,
+      })
+    ).toBe(true)
+  })
+
   it("fails closed for missing, pending, or foreign checks", () => {
     expect(hasRequiredSuccessfulChecks(successfulChecks.slice(0, 1))).toBe(
       false
@@ -162,7 +171,17 @@ describe("Barista workflow-run association", () => {
     const workflowRun: WorkflowRunReference = {
       display_title: "Registry admission PR #42",
       event: "workflow_dispatch",
-      name: "Registry admission",
+      name: "Registry admission PR #42",
+      pull_requests: [],
+    }
+    expect(workflowRunPullRequestNumbers(workflowRun)).toEqual([42])
+  })
+
+  it("recovers the PR number when only the run name matches", () => {
+    const workflowRun: WorkflowRunReference = {
+      display_title: "Registry admission",
+      event: "workflow_dispatch",
+      name: "Registry admission PR #42",
       pull_requests: [],
     }
     expect(workflowRunPullRequestNumbers(workflowRun)).toEqual([42])
@@ -248,7 +267,10 @@ describe("Barista issue updates", () => {
     )
   })
 })
-function reconciliationContext(heads: string[]) {
+function reconciliationContext(
+  heads: string[],
+  checks: CheckRun[] = successfulChecks
+) {
   vi.stubEnv("BARISTA_APP_SLUG", "barista")
   const createReview = vi.fn()
   const createWorkflowDispatch = vi.fn()
@@ -299,7 +321,7 @@ function reconciliationContext(heads: string[]) {
           },
         ]
       }
-      if (method === listForRef) return successfulChecks
+      if (method === listForRef) return checks
       if (method === listReviews) return []
       throw new Error("Unexpected paginated endpoint")
     }),
@@ -358,6 +380,22 @@ describe("Barista privileged reconciliation", () => {
       expect.objectContaining({ head_sha: "head", status: "action_required" }),
     ])
     expect(calls.approveWorkflowRun).toHaveBeenCalledTimes(1)
+    expect(calls.createReview).toHaveBeenCalledWith(
+      expect.objectContaining({ commit_id: "head", event: "APPROVE" })
+    )
+    expect(calls.merge).toHaveBeenCalledWith(
+      expect.objectContaining({ merge_method: "squash", sha: "head" })
+    )
+  })
+
+  it("approves generated submissions after Registry admission without a CI run", async () => {
+    const { calls, context } = reconciliationContext(
+      ["head", "head", "head"],
+      [registryAdmissionCheck]
+    )
+
+    await reconcilePullRequest(context as never, 42)
+
     expect(calls.createReview).toHaveBeenCalledWith(
       expect.objectContaining({ commit_id: "head", event: "APPROVE" })
     )
