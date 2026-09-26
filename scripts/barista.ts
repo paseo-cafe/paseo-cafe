@@ -22,6 +22,9 @@ const REQUIRED_CHECKS: Record<string, true> = {
   "All checks passed": true,
   "Registry admission": true,
 }
+const REQUIRED_GENERATED_SUBMISSION_CHECKS: Record<string, true> = {
+  "Registry admission": true,
+}
 const APPROVABLE_WORKFLOWS: Record<string, string> = {
   CI: ".github/workflows/ci.yml",
   "Registry admission": ".github/workflows/plugin-security.yml",
@@ -118,9 +121,12 @@ export function isRegistryOnlyPullRequest(files: PullRequestFile[]): boolean {
   )
 }
 
-/** Requires both trusted GitHub Actions checks to pass on the current head. */
-export function hasRequiredSuccessfulChecks(checks: CheckRun[]): boolean {
-  return Object.keys(REQUIRED_CHECKS).every((name) => {
+/** Requires every requested trusted GitHub Actions check on the current head. */
+export function hasRequiredSuccessfulChecks(
+  checks: CheckRun[],
+  requiredChecks: Record<string, true> = REQUIRED_CHECKS
+): boolean {
+  return Object.keys(requiredChecks).every((name) => {
     const check = checks.find(
       (candidate) =>
         candidate.name === name && candidate.app?.slug === ACTIONS_APP_SLUG
@@ -470,15 +476,22 @@ export async function reconcilePullRequest(
   const headSha = pullRequest.data.head.sha
   const files = await listPullRequestFiles(context, pullNumber)
   if (!isRegistryOnlyPullRequest(files)) return
-  if (
-    isActionsSubmissionPullRequest(
-      pullRequest.data.user?.login,
-      pullRequest.data.head.ref
-    )
-  ) {
+  const generatedSubmission = isActionsSubmissionPullRequest(
+    pullRequest.data.user?.login,
+    pullRequest.data.head.ref
+  )
+  const requiredChecks = generatedSubmission
+    ? REQUIRED_GENERATED_SUBMISSION_CHECKS
+    : REQUIRED_CHECKS
+  if (generatedSubmission) {
     await approveActionRequiredWorkflowRuns(context, pullNumber, headSha)
   }
-  if (!hasRequiredSuccessfulChecks(await listCheckRuns(context, headSha))) {
+  if (
+    !hasRequiredSuccessfulChecks(
+      await listCheckRuns(context, headSha),
+      requiredChecks
+    )
+  ) {
     return
   }
 
@@ -543,7 +556,12 @@ export async function reconcilePullRequest(
   }
   const finalFiles = await listPullRequestFiles(context, pullNumber)
   if (!isRegistryOnlyPullRequest(finalFiles)) return
-  if (!hasRequiredSuccessfulChecks(await listCheckRuns(context, headSha))) {
+  if (
+    !hasRequiredSuccessfulChecks(
+      await listCheckRuns(context, headSha),
+      requiredChecks
+    )
+  ) {
     return
   }
   await octokit(context).rest.pulls.merge({
