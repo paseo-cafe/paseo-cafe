@@ -1,0 +1,12 @@
+{
+  "repo": "omercnet/paseo-plugins",
+  "path": "context-mode",
+  "package": "@omercnet/paseo-context-mode",
+  "categories": ["productivity", "monitoring"],
+  "platforms": [],
+  "caveats": [
+    "Requires Node.js 24 or later.",
+    "Context Mode is a separate dependency distributed under the Elastic License 2.0"
+  ],
+  "submittedBy": "omercnet"
+}
