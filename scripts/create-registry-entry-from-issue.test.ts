@@ -45,18 +45,15 @@ describe("plugin submission issue form", () => {
     ).toBe(true)
     expect(generateRegistryEntryFromIssue(issueBody, "contributor")).toEqual({
       id: "example-plugin",
-      content: `${JSON.stringify(
-        {
-          repo: "example/example-plugin",
-          package: "example-plugin",
-          categories: ["github", "productivity"],
-          platforms: [],
-          caveats: ["Requires a token"],
-          submittedBy: "contributor",
-        },
-        null,
-        2
-      )}\n`,
+      content: `{
+  "repo": "example/example-plugin",
+  "package": "example-plugin",
+  "categories": ["github", "productivity"],
+  "platforms": [],
+  "caveats": ["Requires a token"],
+  "submittedBy": "contributor"
+}
+`,
     })
   })
 
