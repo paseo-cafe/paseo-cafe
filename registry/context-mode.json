@@ -2,10 +2,7 @@
   "repo": "omercnet/paseo-plugins",
   "path": "context-mode",
   "package": "@omercnet/paseo-context-mode",
-  "categories": [
-    "productivity",
-    "monitoring"
-  ],
+  "categories": ["productivity", "monitoring"],
   "platforms": [],
   "caveats": [
     "Requires Node.js 24 or later.",
