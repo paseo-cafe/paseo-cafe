@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
+  barista,
   type CheckRun,
   dispatchRegistryAdmission,
   handleSubmissionIssue,
@@ -195,6 +196,43 @@ describe("Barista workflow-run association", () => {
       pull_requests: [],
     }
     expect(workflowRunPullRequestNumbers(workflowRun)).toEqual([])
+  })
+
+  it("reconciles a dispatched admission run with a dynamic name", async () => {
+    const { calls, context } = reconciliationContext(["head", "head", "head"])
+    const handlers: Record<string, (event: never) => Promise<void>> = {}
+    barista(
+      {
+        on: (
+          events: string | string[],
+          handler: (event: never) => Promise<void>
+        ) => {
+          for (const event of Array.isArray(events) ? events : [events]) {
+            handlers[event] = handler
+          }
+        },
+      } as never,
+      {} as never
+    )
+    const handler = handlers["workflow_run.completed"]
+    if (!handler) throw new Error("workflow_run.completed handler is missing")
+
+    await handler({
+      ...context,
+      payload: {
+        repository: { default_branch: "main" },
+        workflow_run: {
+          display_title: "Registry admission",
+          event: "workflow_dispatch",
+          name: "Registry admission PR #42",
+          pull_requests: [],
+        },
+      },
+    } as never)
+
+    expect(calls.createReview).toHaveBeenCalledWith(
+      expect.objectContaining({ commit_id: "head", event: "APPROVE" })
+    )
   })
 })
 
