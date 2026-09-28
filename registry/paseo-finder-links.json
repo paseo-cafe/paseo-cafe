@@ -1,0 +1,7 @@
+{
+  "repo": "themattvision/paseo-finder-links",
+  "categories": ["productivity"],
+  "platforms": ["macos", "windows"],
+  "caveats": ["Desktop clients only; Linux is not supported in version 0.1.0."],
+  "submittedBy": "themattvision"
+}
