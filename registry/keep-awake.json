@@ -1,0 +1,14 @@
+{
+  "repo": "hichamboushaba/paseo-plugins",
+  "path": "keep-awake",
+  "package": "paseo-keep-awake",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Can't stop a MacBook from sleeping when its lid is closed without an external display.",
+    "Linux needs systemd; auto-suspend is held on GNOME and KDE, not yet on XFCE or Cinnamon.",
+    "Windows support is untested.",
+    "Background shell commands started by agents don't keep the host awake on their own."
+  ],
+  "submittedBy": "hichamboushaba"
+}
