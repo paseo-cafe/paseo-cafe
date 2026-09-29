@@ -1,6 +1,7 @@
 {
   "repo": "stevecastaneda/paseo-plugins",
   "path": "progress",
+  "package": "@stevecastaneda/paseo-progress",
   "categories": ["monitoring", "productivity"],
   "caveats": [
     "Installs a paseo-progress command on the daemon host, which needs Node.js 22.18 or later",
