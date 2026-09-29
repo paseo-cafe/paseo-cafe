@@ -1,0 +1,11 @@
+{
+  "repo": "stevecastaneda/paseo-plugins",
+  "path": "progress",
+  "categories": ["monitoring", "productivity"],
+  "caveats": [
+    "Installs a paseo-progress command on the daemon host, which needs Node.js 22.18 or later",
+    "Agents need the bundled skill and must run the command as they work",
+    "Writes its data to .scratch/ in each worktree"
+  ],
+  "submittedBy": "stevecastaneda"
+}
