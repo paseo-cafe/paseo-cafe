@@ -1,0 +1,12 @@
+{
+  "repo": "keefeere/paseo-terminal-integration",
+  "package": "paseo-terminal-integration",
+  "categories": ["automation", "productivity"],
+  "platforms": ["macos", "linux"],
+  "caveats": [
+    "Requires Paseo 0.10.1 or later",
+    "Needs bash on the daemon host, plus python3 or node for those code blocks",
+    "Runs commands in a real terminal on the daemon host, only when you press Run or submit /run"
+  ],
+  "submittedBy": "keefeere"
+}
