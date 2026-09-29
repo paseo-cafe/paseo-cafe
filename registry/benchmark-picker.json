@@ -1,0 +1,11 @@
+{
+  "repo": "AStox/paseo-model-bench",
+  "package": "paseo-benchmark-picker",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "If your daemon has a password, set PASEO_PASSWORD on the daemon so the plugin can switch models.",
+    "The desktop picker takeover relies on Paseo test IDs and falls back to the normal dropdown if they change."
+  ],
+  "submittedBy": "AStox"
+}
