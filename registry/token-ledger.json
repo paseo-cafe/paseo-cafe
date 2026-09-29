@@ -1,0 +1,11 @@
+{
+  "repo": "stv1024/token-ledger",
+  "package": "paseo-token-ledger",
+  "categories": ["monitoring", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.9.1–0.9.x (daemon and app)",
+    "Paseo's public usage API omits cache-write tokens and provider-internal subagent usage, so those are not counted"
+  ],
+  "submittedBy": "stv1024"
+}
