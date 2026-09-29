@@ -1,0 +1,13 @@
+{
+  "repo": "keefeere/paseo-quote",
+  "package": "paseo-quote",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.10.1 or later",
+    "Works in the desktop and web apps only; iOS and Android cannot extend the text selection menu",
+    "Uses the Paseo app's chat markup because there is no message box API, so a later release may need an update",
+    "A side chat sees the quote and the last 8 turns of the main chat, not the whole conversation"
+  ],
+  "submittedBy": "keefeere"
+}
