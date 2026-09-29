@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/paseo-cafe/paseo-cafe/compare/v0.9.0...v0.9.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **plugin:** support Paseo 0.10.0-beta.1 and 0.10.x ([#286](https://github.com/paseo-cafe/paseo-cafe/issues/286)) ([6228b48](https://github.com/paseo-cafe/paseo-cafe/commit/6228b481c752a80c4f981e459ebf32da0d184f94))
+
 ## [0.9.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.8.0...v0.9.0) (2026-09-25)
 
 

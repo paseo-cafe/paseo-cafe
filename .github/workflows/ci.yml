@@ -129,7 +129,7 @@ jobs:
           VITE_BASE_PATH: /paseo-cafe
 
   plugin:
-    name: Plugin (${{ matrix.os }})
+    name: Plugin (${{ matrix.os }}, Paseo ${{ matrix.paseo_version }})
     needs: changes
     if: needs.changes.outputs.plugin == 'true'
     runs-on: ${{ matrix.os }}
@@ -141,6 +141,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        paseo_version: [0.9.0-beta.2, 0.10.0-beta.1]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -183,11 +184,19 @@ jobs:
         run: npm run test
 
       - name: Install Paseo CLI for self-update integration
-        run: npm install --global @getpaseo/cli@0.9.0-beta.2 --no-audit --no-fund
+        run: npm install --global @getpaseo/cli@${{ matrix.paseo_version }} --no-audit --no-fund
 
       - name: Test self-update against an isolated daemon
+        if: matrix.paseo_version == '0.9.0-beta.2'
         working-directory: plugin
         run: bun run server/self-update.integration.ts
+
+      - name: Test Paseo compatibility against an isolated daemon
+        if: matrix.paseo_version == '0.10.0-beta.1'
+        working-directory: plugin
+        run: bun run server/self-update.integration.ts
+        env:
+          PASEO_CAFE_REQUIREMENTS_ONLY: "1"
   plugin-preview:
     name: Publish plugin preview
     needs: [changes, plugin]

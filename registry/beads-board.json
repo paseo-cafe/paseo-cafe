@@ -1,0 +1,15 @@
+{
+  "repo": "jmkelly/paseo-beads-board",
+  "package": "paseo-beads-board",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires the beads `bd` CLI on the daemon host; set PASEO_BEADS_BD_BIN if it is not on PATH.",
+    "Server code runs `bd` as the daemon user and can modify any beads database that user can reach.",
+    "Pre-1.0 release: versions are 0.x, so a minor bump may contain breaking changes.",
+    "No drag and drop: move beads with the status buttons in the bead detail sheet.",
+    "Board only; beads-web's GitOps, PR, memory, and worktree panels are not included.",
+    "Boards load at most 5000 beads per project, and long bead text is fetched on demand."
+  ],
+  "submittedBy": "jmkelly"
+}

@@ -3,11 +3,11 @@
   "path": "plugins/agent-activity",
   "categories": ["productivity"],
   "caveats": [
-    "Experimental beta for Paseo 0.8/0.9 (0.9.0-beta.1 tested), Full detail only; Summary is unsupported.",
+    "Experimental beta for Paseo 0.8+ (SDK-tested to 0.10.0-beta.1), Full detail only; Summary is unsupported.",
     "All connected clients must use Full detail; disable before switching to Summary.",
     "Do not enable alongside another tool-call or Thinking timeline replacement.",
     "Show all and serialization can be expensive for very large payloads.",
-    "macOS host tested; native iOS/Android untested."
+    "macOS host and web client tested, including live 0.10.0-beta.1; native iOS/Android untested."
   ],
   "submittedBy": "geoqiao"
 }

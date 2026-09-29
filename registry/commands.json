@@ -1,0 +1,12 @@
+{
+  "repo": "koinzhang/paseo-plugins",
+  "path": "commands",
+  "package": "@koinzhang/paseo-plugin-commands",
+  "categories": ["productivity", "automation"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.9.0 or later.",
+    "Password-protected local daemons require PASEO_PASSWORD for setting changes."
+  ],
+  "submittedBy": "koinzhang"
+}
