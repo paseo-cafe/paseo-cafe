@@ -1,0 +1,12 @@
+{
+  "repo": "koinzhang/paseo-plugins",
+  "path": "inbox",
+  "package": "@koinzhang/paseo-plugin-inbox",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.9.0 or later.",
+    "Password-protected local daemons require PASEO_PASSWORD to unarchive agents."
+  ],
+  "submittedBy": "koinzhang"
+}
