@@ -1,0 +1,13 @@
+{
+  "repo": "stevecastaneda/paseo-plugins",
+  "path": "history",
+  "package": "@stevecastaneda/paseo-history",
+  "categories": ["monitoring", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Supports Codex, Claude Code, and OpenCode",
+    "Reads saved session files on the daemon host and never rewrites them",
+    "OpenCode history needs the opencode command on the daemon PATH"
+  ],
+  "submittedBy": "stevecastaneda"
+}
