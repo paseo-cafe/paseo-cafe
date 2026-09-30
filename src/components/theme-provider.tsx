@@ -11,6 +11,7 @@ interface ThemeProviderProps {
 
 interface ThemeProviderState {
   theme: Theme
+  resolvedTheme: "light" | "dark"
   setTheme: (theme: Theme) => void
 }
 
@@ -40,14 +41,16 @@ function applyTheme(theme: Theme) {
       : theme
   root.classList.add(resolved)
   root.style.colorScheme = resolved
+  return resolved
 }
 
 export function ThemeProvider({
   children,
-  defaultTheme = "dark",
+  defaultTheme = "system",
   storageKey = "theme",
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(defaultTheme)
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light")
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -62,13 +65,13 @@ export function ThemeProvider({
 
   useEffect(() => {
     if (!mounted) return
-    applyTheme(theme)
+    setResolvedTheme(applyTheme(theme))
   }, [theme, mounted])
 
   useEffect(() => {
     if (!mounted || theme !== "system") return
     const media = window.matchMedia("(prefers-color-scheme: dark)")
-    const onChange = () => applyTheme("system")
+    const onChange = () => setResolvedTheme(applyTheme("system"))
     media.addEventListener("change", onChange)
     return () => media.removeEventListener("change", onChange)
   }, [theme, mounted])
@@ -79,7 +82,7 @@ export function ThemeProvider({
   }
 
   return (
-    <ThemeProviderContext.Provider value={{ theme, setTheme }}>
+    <ThemeProviderContext.Provider value={{ theme, resolvedTheme, setTheme }}>
       <ScriptOnce>{getThemeScript(storageKey, defaultTheme)}</ScriptOnce>
       {children}
     </ThemeProviderContext.Provider>

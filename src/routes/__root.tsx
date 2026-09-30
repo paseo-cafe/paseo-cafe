@@ -82,7 +82,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="flex min-h-svh flex-col">
-        <ThemeProvider defaultTheme="dark" storageKey="theme">
+        <ThemeProvider storageKey="theme">
           <SiteHeader />
           <div className="flex-1">{children}</div>
           <SiteFooter />
