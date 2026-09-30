@@ -1,0 +1,13 @@
+{
+  "repo": "keefeere/paseo-continuity",
+  "package": "paseo-continuity",
+  "categories": ["orchestration", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.10.1 or later",
+    "Creates a new agent/chat for each provider transition because the public Plugin API cannot change an existing agent provider",
+    "A fallback provider must already be configured and ready in Paseo",
+    "Runs as a trusted daemon plugin and reads agent timelines to transfer bounded context"
+  ],
+  "submittedBy": "keefeere"
+}
