@@ -1,6 +1,7 @@
 {
   "repo": "stevecastaneda/paseo-plugins",
   "path": "setup-monitor",
+  "package": "@stevecastaneda/paseo-setup-monitor",
   "categories": ["monitoring", "productivity"],
   "submittedBy": "stevecastaneda"
 }

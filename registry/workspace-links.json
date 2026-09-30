@@ -1,9 +1,10 @@
 {
   "repo": "stevecastaneda/paseo-plugins",
   "path": "workspace-links",
+  "package": "@stevecastaneda/paseo-workspace-links",
   "categories": ["productivity"],
   "caveats": [
-    "Links open in the default browser on the daemon host, not the device viewing Paseo"
+    "Links open in the browser on the device viewing Paseo, so localhost means that device"
   ],
   "submittedBy": "stevecastaneda"
 }

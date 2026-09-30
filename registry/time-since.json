@@ -1,6 +1,7 @@
 {
   "repo": "stevecastaneda/paseo-plugins",
   "path": "time-since",
+  "package": "@stevecastaneda/paseo-time-since",
   "categories": ["productivity"],
   "submittedBy": "stevecastaneda"
 }
