@@ -453,7 +453,7 @@ export async function handleSubmissionIssue(
   )
 }
 
-/** Approves and merges an eligible registry PR after revalidating mutable state. */
+/** Approves an eligible registry PR and merges it once required checks pass. */
 export async function reconcilePullRequest(
   context: Context<"pull_request" | "workflow_run">,
   pullNumber: number
@@ -561,12 +561,24 @@ export async function reconcilePullRequest(
   ) {
     return
   }
-  await octokit(context).rest.pulls.merge({
-    ...repo,
-    pull_number: pullNumber,
-    sha: headSha,
-    merge_method: "squash",
-  })
+  if (finalPullRequest.data.auto_merge) return
+  try {
+    await octokit(context).graphql(
+      `mutation($id: ID!, $sha: GitObjectID!) {
+        enablePullRequestAutoMerge(input: { pullRequestId: $id, expectedHeadOid: $sha, mergeMethod: SQUASH }) { clientMutationId }
+      }`,
+      { id: finalPullRequest.data.node_id, sha: headSha }
+    )
+  } catch (error) {
+    // GitHub refuses auto-merge when the PR is already mergeable; merge it now.
+    if (!/is in (clean|unstable) status/i.test(String(error))) throw error
+    await octokit(context).rest.pulls.merge({
+      ...repo,
+      pull_number: pullNumber,
+      sha: headSha,
+      merge_method: "squash",
+    })
+  }
 }
 
 /** Registers Barista's issue, pull-request, and workflow-run handlers. */

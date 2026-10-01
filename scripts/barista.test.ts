@@ -63,7 +63,10 @@ _No response_
 - [x] Confirmed
 `
 
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => {
+  vi.clearAllMocks()
+  vi.unstubAllEnvs?.()
+})
 
 describe("Barista registry path policy", () => {
   it("accepts only added flat registry entries", () => {
@@ -309,7 +312,7 @@ function reconciliationContext(
   heads: string[],
   checks: CheckRun[] = successfulChecks
 ) {
-  vi.stubEnv("BARISTA_APP_SLUG", "barista")
+  process.env.BARISTA_APP_SLUG = "barista"
   const createReview = vi.fn()
   const createWorkflowDispatch = vi.fn()
   const merge = vi.fn()
@@ -322,12 +325,14 @@ function reconciliationContext(
     createReview,
     get: vi.fn(async () => ({
       data: {
+        auto_merge: false,
         base: { ref: "main" },
         draft: false,
         head: {
           ref: "plugin-submission/issue-42",
           sha: heads.shift() ?? "head",
         },
+        node_id: "PR_kwDOJPmEoc4Axxx",
         state: "open",
         user: { login: "github-actions[bot]" },
       },
@@ -337,6 +342,7 @@ function reconciliationContext(
     merge,
   }
   const workflowParameters: Record<string, unknown>[] = []
+  const graphql = vi.fn()
   const octokit = {
     paginate: vi.fn(async (method, parameters) => {
       if (method === listFiles) {
@@ -363,6 +369,7 @@ function reconciliationContext(
       if (method === listReviews) return []
       throw new Error("Unexpected paginated endpoint")
     }),
+    graphql,
     rest: {
       actions: {
         approveWorkflowRun,
@@ -378,6 +385,7 @@ function reconciliationContext(
       approveWorkflowRun,
       createReview,
       createWorkflowDispatch,
+      graphql,
       merge,
       workflowParameters,
     },
@@ -421,8 +429,9 @@ describe("Barista privileged reconciliation", () => {
     expect(calls.createReview).toHaveBeenCalledWith(
       expect.objectContaining({ commit_id: "head", event: "APPROVE" })
     )
-    expect(calls.merge).toHaveBeenCalledWith(
-      expect.objectContaining({ merge_method: "squash", sha: "head" })
+    expect(calls.graphql).toHaveBeenCalledWith(
+      expect.stringContaining("enablePullRequestAutoMerge"),
+      expect.objectContaining({ id: "PR_kwDOJPmEoc4Axxx", sha: "head" })
     )
   })
 
@@ -437,6 +446,32 @@ describe("Barista privileged reconciliation", () => {
     expect(calls.createReview).toHaveBeenCalledWith(
       expect.objectContaining({ commit_id: "head", event: "APPROVE" })
     )
+    expect(calls.graphql).toHaveBeenCalledWith(
+      expect.stringContaining("enablePullRequestAutoMerge"),
+      expect.objectContaining({ id: "PR_kwDOJPmEoc4Axxx", sha: "head" })
+    )
+  })
+
+  it("enables auto-merge after approving eligible PRs", async () => {
+    const { calls, context } = reconciliationContext(["head", "head", "head"])
+
+    await reconcilePullRequest(context as never, 42)
+
+    expect(calls.graphql).toHaveBeenCalledWith(
+      expect.stringContaining("enablePullRequestAutoMerge"),
+      expect.objectContaining({ id: "PR_kwDOJPmEoc4Axxx", sha: "head" })
+    )
+  })
+
+  it("falls back to direct merge when auto-merge is already enabled", async () => {
+    const { calls, context } = reconciliationContext(["head", "head", "head"])
+    const graphqlMock = calls.graphql as unknown as {
+      mockRejectedValueOnce(error: Error): unknown
+    }
+    graphqlMock.mockRejectedValueOnce(new Error("is in clean status"))
+
+    await reconcilePullRequest(context as never, 42)
+
     expect(calls.merge).toHaveBeenCalledWith(
       expect.objectContaining({ merge_method: "squash", sha: "head" })
     )
