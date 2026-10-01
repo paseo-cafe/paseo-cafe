@@ -1,16 +1,16 @@
 {
   "repo": "hieunt286/paseo-bm",
-  "path": "plugin",
+  "path": "plugin-package",
   "package": "paseo-bm-plugin",
   "categories": ["orchestration", "productivity"],
   "platforms": ["macos", "linux"],
   "caveats": [
-    "Install from this page or with `paseo plugin add npm:paseo-bm-plugin`; the three bm-* agent roles are created the first time you open it.",
-    "Requires Paseo 0.9.0+ and the br and bv Beads CLIs (Setup offers to install them). macOS or Linux only, no Windows.",
-    "Setup asks before each grant: Paseo agent tools (given to every agent on the machine) and skills via a third-party CLI.",
-    "Removing the plugin without Setup → Remove paseo-bm's settings leaves the bm-* config and the agent-tools switch behind.",
-    "Installed with npx paseo-bm before? Installing here fails (\"already configured\") until you run `npx paseo-bm@0.4.0` once.",
-    "The Worker runs without permission prompts; its limits are role instructions only, so review git diff before you commit."
+    "Install here or with `paseo plugin add npm:paseo-bm-plugin`; its four bm-* agent roles are created the first time you open it.",
+    "Requires Paseo 0.9.0+ and the br and bv Beads CLIs (Tools & skills offers to install them); macOS or Linux only, no Windows.",
+    "It asks before each grant: Paseo agent tools (given to every agent on the machine) and skills via a third-party CLI.",
+    "The optional Orchestrator, started only by you, reads every paseo-bm project (secrets masked) and spends tokens on its provider.",
+    "Workers run without permission prompts unless a project turns on Hold risky actions (off by default); review git diff before committing.",
+    "Remove via Settings → More → Data → Remove paseo-bm's settings first, or the bm-* config and agent-tools switch stay behind."
   ],
   "submittedBy": "hieunt286"
 }

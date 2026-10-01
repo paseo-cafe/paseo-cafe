@@ -1,0 +1,15 @@
+{
+  "repo": "lefos13/paseo-workspace-snippets",
+  "package": "paseo-workspace-snippets",
+  "categories": ["productivity", "automation"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.10.2 or newer on both the daemon and the app.",
+    "Shows whether a snippet's terminal is open, not whether its command is still running or how it exited.",
+    "Detects scripts from the root package.json only; monorepo packages are not scanned.",
+    "Snippets live in host-wide plugin settings shared by every client of the daemon, so do not put secrets in them.",
+    "Running from the sidebar screen reuses or creates the project's Local workspace, never a worktree.",
+    "Verified end to end on macOS only."
+  ],
+  "submittedBy": "lefos13"
+}
