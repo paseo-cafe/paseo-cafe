@@ -53,9 +53,9 @@ detached handoff. **Settings → Plugins → Paseo Cafe → Check now** runs the
 paseo plugin add paseo-cafe/paseo-cafe:plugin
 ```
 
-Supports Paseo 0.8, 0.9, and 0.10 releases; the manifest declares `requirements.paseo` as
-`>=0.8.0 <0.10.0 || >=0.10.0-beta.1 <0.11.0`. The prerelease comparator is required because
-npm semver rules do not match `0.10.0-beta.1` with a plain `>=0.10.0` range.
+Supports Paseo 0.8, 0.9, 0.10, and 0.11 releases; the manifest declares `requirements.paseo` as
+`>=0.8.0 <0.11.0 || >=0.11.0-beta.1 <0.12.0`. The prerelease comparator is required because
+npm semver rules do not match `0.11.0-beta.1` with a plain `>=0.11.0` range.
 
 By default the catalog is read from `https://paseo.cafe/api/plugins`. Point **Settings →
 Plugins → Paseo Cafe** at another deployment (a local `bun run dev`, a staging build, or a
