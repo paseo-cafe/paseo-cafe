@@ -47,10 +47,10 @@ import {
 } from "./self-update"
 import { dateBadgeForSortMode, type SortMode, sortEntries } from "./sort"
 import { ThemePreviewCard } from "./ThemePreviewCard"
+import { updateStatusQueryKey } from "./update-status"
 import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
 
 const DIRECTORY_QUERY_KEY = "paseo-cafe-directory"
-const UPDATE_STATUS_QUERY_KEY = "paseo-cafe-update-status"
 
 export function canQueueAutomaticUpdatePreference(status: string): boolean {
   return status !== "error" && status !== "invalid"
@@ -619,11 +619,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const previewOptIns = settingsValues?.previewOptIns ?? []
   const settingsPending = settings.status === "loading"
   const queryKey = [DIRECTORY_QUERY_KEY, baseUrl]
-  const updateStatusQueryKey = [
-    UPDATE_STATUS_QUERY_KEY,
-    baseUrl,
-    previewOptIns.join("\u0000"),
-  ]
+  const statusQueryKey = updateStatusQueryKey(baseUrl, previewOptIns)
 
   const directoryQuery = useQuery<DirectoryListResult>({
     queryKey,
@@ -638,7 +634,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   })
   const inventoryAvailable = directoryQuery.data?.installations !== undefined
   const updateStatusQuery = useQuery<UpdateStatusResult>({
-    queryKey: updateStatusQueryKey,
+    queryKey: statusQueryKey,
     queryFn: async (): Promise<UpdateStatusResult> =>
       listUpdateStatus({
         baseUrl,
@@ -823,7 +819,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       }
       await queryClient.invalidateQueries({ queryKey, exact: true })
       await queryClient.invalidateQueries({
-        queryKey: updateStatusQueryKey,
+        queryKey: statusQueryKey,
         exact: true,
       })
     },
@@ -960,7 +956,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
       }
       await queryClient.invalidateQueries({ queryKey, exact: true })
       await queryClient.invalidateQueries({
-        queryKey: updateStatusQueryKey,
+        queryKey: statusQueryKey,
         exact: true,
       })
     },
@@ -992,7 +988,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     onSuccess: async ({ key, result }) => {
       queryClient.setQueryData(key, result)
       await queryClient.invalidateQueries({
-        queryKey: updateStatusQueryKey,
+        queryKey: statusQueryKey,
         exact: true,
       })
       toast.show("Paseo Cafe refreshed.", { variant: "success" })
