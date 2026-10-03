@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.10.0...v0.11.0) (2026-10-03)
+
+
+### Features
+
+* **plugin:** show available plugin updates on the sidebar row ([#322](https://github.com/paseo-cafe/paseo-cafe/issues/322)) ([9ea01b7](https://github.com/paseo-cafe/paseo-cafe/commit/9ea01b71be27ba40a00d9f9d754dda55ac8f68a9))
+
 ## [0.10.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.9.1...v0.10.0) (2026-10-02)
 
 
