@@ -1,0 +1,10 @@
+{
+  "repo": "Gabsplat/paseo-theme-studio",
+  "package": "paseo-theme-studio",
+  "categories": ["theme"],
+  "caveats": [
+    "Code components and pack export need a checkout install with pnpm",
+    "The live preview replicates Paseo 0.9.2"
+  ],
+  "submittedBy": "Gabsplat"
+}
