@@ -1,0 +1,11 @@
+{
+  "repo": "dutchakdev/paseo-plugin-mermaid",
+  "package": "paseo-plugin-mermaid",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Supports flowcharts and sequence diagrams; unsupported diagram types fall back to source.",
+    "Messages containing diagrams use the plugin’s limited Markdown renderer for surrounding prose."
+  ],
+  "submittedBy": "dutchakdev"
+}
