@@ -1,0 +1,12 @@
+{
+  "repo": "dutchakdev/paseo-plugin-account-switcher",
+  "package": "paseo-plugin-account-switcher",
+  "categories": ["provider", "monitoring"],
+  "platforms": ["macos", "linux"],
+  "caveats": [
+    "Requires macOS or Linux, Node.js 22.12+, and the official Claude Code, Codex, and Paseo CLIs.",
+    "Manual account switching reloads the agent; API keys and automatic rotation are unsupported.",
+    "Provider sign-in and usage formats may change with CLI versions."
+  ],
+  "submittedBy": "dutchakdev"
+}
