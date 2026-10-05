@@ -6,7 +6,7 @@
   "caveats": [
     "Requires a macOS daemon; Linux and Windows metric collection are unsupported.",
     "Docker controls require an installed container engine.",
-    "Process visibility is limited by the daemon user’s permissions."
+    "Process visibility is limited by the daemon user's permissions."
   ],
   "submittedBy": "dutchakdev"
 }
