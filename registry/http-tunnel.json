@@ -1,0 +1,14 @@
+{
+  "repo": "lyhu/paseo-plugin-tunnel",
+  "package": "paseo-plugin-tunnel",
+  "categories": ["productivity", "other"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.8 or newer on every managed host.",
+    "Only forwards HTTP and HTTPS; no raw TCP, UDP, CONNECT, or WebSocket upgrade.",
+    "Egress listens on plaintext HTTP; terminate TLS at a reverse proxy for internet-facing use.",
+    "Requires Git, Node.js 22+, and npm on the daemon host with registry access.",
+    "iOS and Android UI flows are unverified; desktop and browser are tested"
+  ],
+  "submittedBy": "lyhu"
+}
