@@ -1,6 +1,6 @@
 {
   "repo": "xpufx/paseo",
-  "path": "plugins/antigravity-paseo",
+  "path": "plugins/antigravity-claude",
   "package": "@xpufx/paseo-antigravity-claude",
   "categories": ["provider"],
   "platforms": [],
