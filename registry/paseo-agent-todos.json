@@ -1,0 +1,13 @@
+{
+  "repo": "abhi-wan-kenobi/paseo-agent-todos",
+  "package": "paseo-agent-todos",
+  "categories": ["orchestration", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Completion tracking needs the agent to write the TODO-STATUS lines from the launch prompt; if it doesn't, the run stays \"Waiting for you\".",
+    "Google Tasks sync is optional and needs an existing Google OAuth credentials file with the Tasks scope.",
+    "Subtasks are not synced to Google Tasks.",
+    "Agent permission mode is fixed at launch and cannot be changed afterwards."
+  ],
+  "submittedBy": "abhi-wan-kenobi"
+}
