@@ -1,0 +1,13 @@
+{
+  "repo": "lyhu/paseo-plugin-chat-view",
+  "package": "paseo-plugin-chat-view",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Sticky questions require a DOM and are unavailable on native mobile; compact activity and Mermaid still work there.",
+    "Prompt enhancement needs its own OpenAI-compatible endpoint configured in settings and is off by default.",
+    "Do not enable alongside compact-agent-activity, reasoning-display, or paseo-plugin-mermaid — the timeline transformers conflict.",
+    "Enabling a host switch hides the matching control immediately; allow up to 2s for it to apply across clients."
+  ],
+  "submittedBy": "lyhu"
+}
