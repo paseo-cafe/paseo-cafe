@@ -1,5 +1,6 @@
 {
-  "repo": "maxwell-01/paseo-beam",
+  "repo": "maxwell-01/maxs-paseo-plugins",
+  "path": "beam",
   "categories": ["git", "productivity", "automation"],
   "caveats": [
     "Only one beam can be active at a time; beam out before beaming another workspace.",
