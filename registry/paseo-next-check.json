@@ -1,0 +1,13 @@
+{
+  "repo": "summerisgood1/paseo-next-check",
+  "package": "@summerisgood/paseo-next-check",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires plugin 0.1.1+ and Paseo app/daemon 0.11.0-beta.4 or a compatible newer version.",
+    "Mark as unread uses the desktop/web workspace menu and targets its latest eligible chat, which may differ from the open chat.",
+    "The menu bridge requires a visible sidebar workspace; its final native desktop click has not been verified.",
+    "If automatic unread selection is unavailable, the workspace menu stays open with an informational notice."
+  ],
+  "submittedBy": "summerisgood1"
+}
