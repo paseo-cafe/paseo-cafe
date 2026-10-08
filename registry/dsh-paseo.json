@@ -1,0 +1,14 @@
+{
+  "repo": "liuxing7954/paseo-dsh",
+  "path": "paseo-plugin",
+  "categories": ["provider"],
+  "platforms": ["macos", "linux", "windows"],
+  "caveats": [
+    "Experimental; requires Paseo >= 0.9.2 and a separately installed official DSH (dsh on PATH).",
+    "Install via the repo's install.sh: it creates the DSH paseo profile and links the stdio bridge the plugin needs.",
+    "Model routes live in ~/.dsh/profiles/paseo/cordis.patch.yml; a vision route must declare an image input modality.",
+    "Plugins and DSH tools are trusted, unsandboxed code.",
+    "macOS verified end to end; Linux and Windows untested."
+  ],
+  "submittedBy": "liuxing7954"
+}
