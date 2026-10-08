@@ -1,0 +1,11 @@
+{
+  "repo": "cprecioso/paseo-gh-stack",
+  "package": "@cprecioso/paseo-gh-stack",
+  "categories": ["git", "github"],
+  "platforms": [],
+  "caveats": [
+    "Requires the GitHub CLI and the gh-stack extension (gh extension install github/gh-stack) on the daemon host.",
+    "Switching fails when uncommitted changes would be overwritten or the branch is checked out in another worktree."
+  ],
+  "submittedBy": "cprecioso"
+}
