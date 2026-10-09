@@ -1,0 +1,9 @@
+{
+  "repo": "cprecioso/paseo-worktreeinclude",
+  "categories": ["git", "automation"],
+  "caveats": [
+    "Requires Paseo 0.10.3 or newer",
+    "Copy runs on workspace.created and does not block agent startup, so an agent reading these files immediately may race the copy"
+  ],
+  "submittedBy": "cprecioso"
+}
