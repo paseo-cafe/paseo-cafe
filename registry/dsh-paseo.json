@@ -1,0 +1,15 @@
+{
+  "repo": "liuxing7954/paseo-dsh",
+  "path": "paseo-plugin",
+  "package": "paseo-dsh",
+  "categories": ["provider"],
+  "platforms": ["macos", "linux", "windows"],
+  "caveats": [
+    "Experimental; requires Paseo >= 0.9.2 and a separately installed official DSH (dsh on PATH).",
+    "Self-provisions ~/.dsh/profiles/paseo on first load; set your model route in that profile's cordis.patch.yml.",
+    "A vision route must declare an image input modality, or images arrive as a text placeholder.",
+    "Plugins and DSH tools are trusted, unsandboxed code, run on the daemon host.",
+    "Native direct provider (not ACP): question cards, plan mode, thinking levels, steering, images, slash menu."
+  ],
+  "submittedBy": "liuxing7954"
+}
