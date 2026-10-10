@@ -1,0 +1,13 @@
+{
+  "repo": "stevecastaneda/paseo-plugins",
+  "path": "playwright-pulse",
+  "package": "@stevecastaneda/paseo-playwright-pulse",
+  "categories": ["monitoring", "browser"],
+  "platforms": [],
+  "caveats": [
+    "Needs Paseo 0.11 or later",
+    "Playwright reports to it only after you add the plugin's reporter to playwright.config.ts",
+    "Stop sends the test run Ctrl+C on the daemon host; a second press forces it, like a second Ctrl+C"
+  ],
+  "submittedBy": "stevecastaneda"
+}
