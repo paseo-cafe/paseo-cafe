@@ -1,0 +1,12 @@
+{
+  "repo": "me0w2en/paseo-korean-voice",
+  "package": "paseo-korean-voice",
+  "categories": ["productivity"],
+  "platforms": ["macos"],
+  "caveats": [
+    "Requires a Groq or OpenAI API key for Whisper transcription.",
+    "Speech settings must be merged into config.json and the daemon restarted.",
+    "Text-to-speech uses the macOS say command, so the daemon must run on macOS."
+  ],
+  "submittedBy": "me0w2en"
+}
