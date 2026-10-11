@@ -1,0 +1,11 @@
+{
+  "repo": "Jecvay/paseo-dsh-direct",
+  "package": "paseo-dsh-direct",
+  "categories": ["provider"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.11 or newer and a separately installed DeepSeek Harness (dsh) on the 0.2 line, configured with its own API key.",
+    "The plugin starts dsh as a child process and loads a bridge plugin into it; it makes no network requests itself."
+  ],
+  "submittedBy": "Jecvay"
+}
