@@ -1,0 +1,12 @@
+{
+  "repo": "me0w2en/paseo-pet",
+  "path": "plugin",
+  "package": "paseo-pet-bridge",
+  "categories": ["productivity", "monitoring"],
+  "platforms": ["macos"],
+  "caveats": [
+    "Requires building the companion PaseoPet macOS app from the same repository.",
+    "The PaseoPet app is not code-signed."
+  ],
+  "submittedBy": "me0w2en"
+}
