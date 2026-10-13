@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/paseo-cafe/paseo-cafe/compare/v1.0.0...v1.0.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **plugin:** ship without runtime dependencies ([#371](https://github.com/paseo-cafe/paseo-cafe/issues/371)) ([bdb2a44](https://github.com/paseo-cafe/paseo-cafe/commit/bdb2a442882a0aa28ae47dec79777cdf17cca784))
+
 ## [1.0.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.11.0...v1.0.0) (2026-10-13)
 
 

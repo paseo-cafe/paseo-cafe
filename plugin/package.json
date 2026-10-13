@@ -1,7 +1,7 @@
 {
   "name": "paseo-cafe",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "Apache-2.0",
   "description": "Browse the official Paseo plugin directory inside Paseo and install plugins without leaving the app.",
   "scripts": {
