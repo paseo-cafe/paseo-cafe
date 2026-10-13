@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { PluginUpdate } from "../shared/directory"
-import { hasAvailableUpdate } from "./update-status"
+import { hasAvailableUpdate, summarizeAutomaticUpdates } from "./update-status"
 
 const UPDATES = new Map<string, PluginUpdate>(
   (
@@ -36,5 +36,35 @@ describe("hasAvailableUpdate", () => {
 
   it("is false without installations", () => {
     expect(hasAvailableUpdate([], UPDATES)).toBe(false)
+  })
+})
+
+describe("summarizeAutomaticUpdates", () => {
+  it("does not treat plugins with automatic updates off as a failure", () => {
+    expect(
+      summarizeAutomaticUpdates([
+        { status: "updated" },
+        {
+          status: "skipped",
+          message: "Automatic updates are off for this plugin.",
+        },
+      ])
+    ).toEqual({
+      failed: false,
+      message: "Updated 1 plugin. 1 skipped (automatic updates off).",
+    })
+  })
+
+  it("reports a failure with its message and still counts skips", () => {
+    expect(
+      summarizeAutomaticUpdates([
+        { status: "failed", message: "registry offline" },
+        { status: "skipped" },
+      ])
+    ).toEqual({
+      failed: true,
+      message:
+        "Updated 0 plugins; 1 failed. 1 skipped (automatic updates off). registry offline",
+    })
   })
 })

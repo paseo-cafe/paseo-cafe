@@ -262,6 +262,10 @@ export const pluginUpdateSchema = z.object({
 })
 export type PluginUpdate = z.infer<typeof pluginUpdateSchema>
 
+/** Output limits of `directory.list`; the server trims what the registry serves to fit. */
+export const MAX_DIRECTORY_CATEGORIES = 64
+export const MAX_DIRECTORY_FEATURED = 100
+
 export const directoryListRpc = defineRpc({
   name: "directory.list",
   input: z.object({
@@ -271,8 +275,8 @@ export const directoryListRpc = defineRpc({
   output: z.object({
     registryName: z.string().max(200),
     plugins: z.array(directoryEntrySchema).max(2_000),
-    categories: z.array(directoryCategorySchema).max(64),
-    featured: z.array(z.string().max(100)).max(100),
+    categories: z.array(directoryCategorySchema).max(MAX_DIRECTORY_CATEGORIES),
+    featured: z.array(z.string().max(100)).max(MAX_DIRECTORY_FEATURED),
     /** Entries the registry served that failed validation; shown, never silently dropped. */
     invalidCount: z.number().int().nonnegative(),
     fetchedAt: z.iso.datetime({ offset: true, local: true }),

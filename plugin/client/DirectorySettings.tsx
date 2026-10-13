@@ -16,6 +16,7 @@ import {
   isTrustedRegistryUrl,
   registryBase,
 } from "../shared/directory"
+import { summarizeAutomaticUpdates } from "./update-status"
 
 const REGISTRY_INFO =
   "Paseo Cafe browses the official Paseo plugin directory. To browse another registry, it must serve the Paseo registry protocol v1 documents (index.json and plugins/<owner>/<slug>.json) over HTTPS, or HTTP on localhost. The registry decides what the paseo CLI installs, so only use one you trust. Installing from a custom registry also needs an HTTPS URL without a path."
@@ -83,32 +84,9 @@ export function DirectorySettings() {
     setCheckingUpdates(true)
     try {
       const { outcomes } = await runAutomaticUpdates({})
-      const updated = outcomes.filter(
-        (outcome) => outcome.status === "updated"
-      ).length
-      const failed = outcomes.filter(
-        (outcome) => outcome.status === "failed"
-      ).length
-      const skipped = outcomes.filter(
-        (outcome) => outcome.status === "skipped"
-      ).length
-
-      if (failed > 0 || skipped > 0) {
-        const firstProblem = outcomes.find(
-          (outcome) =>
-            outcome.status === "failed" || outcome.status === "skipped"
-        )?.message
-        toast.error(
-          `Updated ${updated} plugin${updated === 1 ? "" : "s"}; ${failed} failed; ${skipped} skipped.${firstProblem ? ` ${firstProblem}` : ""}`
-        )
-      } else {
-        toast.show(
-          updated > 0
-            ? `Updated ${updated} plugin${updated === 1 ? "" : "s"}.`
-            : "No automatic updates available.",
-          { variant: "success" }
-        )
-      }
+      const summary = summarizeAutomaticUpdates(outcomes)
+      if (summary.failed) toast.error(summary.message)
+      else toast.show(summary.message, { variant: "success" })
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Automatic update run failed."

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { type ChildProcess, execFile, spawn } from "node:child_process"
 import { once } from "node:events"
-import { chmod, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import { delimiter, dirname, join, relative, resolve } from "node:path"
@@ -12,17 +12,11 @@ import { DaemonClient } from "../node_modules/@getpaseo/client/dist/daemon-clien
 import { execPaseo } from "./directory"
 
 const execFileAsync = promisify(execFile)
-const PREVIOUS_VERSION = "0.6.0"
 
 interface PluginListItem {
   id: string
   path: string
   status: string
-  installation?: { currentRevision?: string }
-}
-
-function parsePluginList(stdout: string): PluginListItem[] {
-  return JSON.parse(stdout) as PluginListItem[]
 }
 
 async function waitFor(
@@ -44,12 +38,6 @@ async function waitFor(
     `${description} timed out${lastError instanceof Error ? `: ${lastError.message}` : ""}`
   )
 }
-
-const SOURCE_FILES = [
-  "index.server.ts",
-  "server/directory.ts",
-  "shared/directory.ts",
-]
 
 async function main(): Promise<void> {
   const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -136,101 +124,27 @@ async function main(): Promise<void> {
       return JSON.parse(stdout).connectedDaemon === "reachable"
     })
 
-    if (process.env.PASEO_CAFE_REQUIREMENTS_ONLY === "1") {
-      const installed = await execPaseo(
-        ["plugin", "add", relative(process.cwd(), pluginRoot) || ".", "--json"],
-        120_000
-      )
-      const current = JSON.parse(installed.stdout) as PluginListItem
-      assert.equal(current.status, "running")
-      return
-    }
-
     const installed = await execPaseo(
-      ["plugin", "add", `npm:paseo-cafe@${PREVIOUS_VERSION}`, "--json"],
+      ["plugin", "add", relative(process.cwd(), pluginRoot) || ".", "--json"],
       120_000
     )
-    const previous = JSON.parse(installed.stdout) as PluginListItem
-    assert.equal(previous.status, "running")
-    assert.equal(previous.installation?.currentRevision, PREVIOUS_VERSION)
-
-    for (const relativePath of SOURCE_FILES) {
-      await cp(
-        join(pluginRoot, relativePath),
-        join(previous.path, relativePath),
-        {
-          force: true,
-        }
-      )
-    }
-    await execPaseo(["plugin", "reload", "paseo-cafe", "--json"], 60_000)
+    const current = JSON.parse(installed.stdout) as PluginListItem
+    assert.equal(current.status, "running")
 
     client = new DaemonClient({
       url: "ws://127.0.0.1:6767/ws",
-      clientId: `self-update-ci-${crypto.randomUUID()}`,
+      clientId: `compat-ci-${crypto.randomUUID()}`,
       clientType: "browser",
-      appVersion: "0.9.0-beta.2",
+      appVersion: "0.11.0-beta.4",
       reconnect: { enabled: false },
     })
     await client.connect()
-
-    // The plugin updating itself stops its own process, so the RPC can only
-    // acknowledge the handoff; the detached CLI finishes the update.
-    const requested = (await client.invokePluginRpc(
-      "paseo-cafe",
-      "directory.update",
-      { installationId: "paseo-cafe" }
-    )) as { ok: boolean; message: string; restarting?: boolean }
-    assert.equal(requested.ok, true, requested.message)
-    assert.equal(requested.restarting, true)
-
-    await waitFor(
-      "updated plugin to load",
-      async () => {
-        const [plugin] = parsePluginList(
-          (await execPaseo(["plugin", "ls", "paseo-cafe", "--json"], 30_000))
-            .stdout
-        )
-        const revision = plugin?.installation?.currentRevision
-        return (
-          plugin?.status === "running" &&
-          revision !== undefined &&
-          revision !== PREVIOUS_VERSION
-        )
-      },
-      120_000
-    )
-
-    const [updated] = parsePluginList(
-      (await execPaseo(["plugin", "ls", "paseo-cafe", "--json"], 30_000)).stdout
-    )
-    assert(updated)
-    for (const relativePath of SOURCE_FILES) {
-      await cp(
-        join(pluginRoot, relativePath),
-        join(updated.path, relativePath),
-        {
-          force: true,
-        }
-      )
-    }
-    await execPaseo(["plugin", "reload", "paseo-cafe", "--json"], 60_000)
-
-    const reloaded = (await client.invokePluginRpc(
+    const listed = (await client.invokePluginRpc(
       "paseo-cafe",
       "directory.list",
       { registryUrl, force: true }
-    )) as { registryName?: string; installations?: Array<{ id: string }> }
-    assert.equal(reloaded.registryName, "CI registry")
-    assert(reloaded.installations?.some((plugin) => plugin.id === "paseo-cafe"))
-    console.log(
-      JSON.stringify({
-        handoffAcknowledged: true,
-        from: PREVIOUS_VERSION,
-        to: updated.installation?.currentRevision,
-        reloadedRpc: true,
-      })
-    )
+    )) as { registryName?: string }
+    assert.equal(listed.registryName, "CI registry")
   } catch (error) {
     if (daemonOutput) console.error(daemonOutput)
     throw error

@@ -25,6 +25,8 @@ import {
   getSiteUrl,
   installedPluginSchema,
   isTrustedRegistryUrl,
+  MAX_DIRECTORY_CATEGORIES,
+  MAX_DIRECTORY_FEATURED,
   pluginUpdateSchema,
   REGISTRY_ID_PATTERN,
   registryBase,
@@ -286,17 +288,21 @@ async function fetchRegistryFromNetwork(
     if (parsed.success) plugins.push(parsed.data)
     else invalidCount += 1
   }
-  const categories = index.categories.flatMap((candidate) => {
-    const parsed = directoryCategorySchema.safeParse(candidate)
-    return parsed.success ? [parsed.data] : []
-  })
+  // The RPC output has tighter limits than the index; one oversized list must
+  // not turn a valid directory into an error.
+  const categories = index.categories
+    .flatMap((candidate) => {
+      const parsed = directoryCategorySchema.safeParse(candidate)
+      return parsed.success ? [parsed.data] : []
+    })
+    .slice(0, MAX_DIRECTORY_CATEGORIES)
   const result: RegistryCacheEntry = {
     receivedAt,
     fetchedAt: index.generatedAt ?? new Date(receivedAt).toISOString(),
     registryName: index.registry.name,
     plugins,
     categories,
-    featured: index.featured,
+    featured: index.featured.slice(0, MAX_DIRECTORY_FEATURED),
     invalidCount,
   }
   registryCache.set(base, result)

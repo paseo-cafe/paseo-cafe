@@ -82,6 +82,25 @@ afterEach(() => {
 })
 
 describe("listDirectory", () => {
+  it("trims oversized category and featured lists to the RPC output limits", async () => {
+    const categories = Array.from({ length: 100 }, (_, i) => ({
+      slug: `c${i}`,
+      label: `Category ${i}`,
+    }))
+    const featured = Array.from({ length: 250 }, (_, i) => `acme/p${i}`)
+    globalThis.fetch = vi.fn(async () =>
+      Response.json(index([entry()], { categories, featured }))
+    ) as typeof fetch
+
+    const listed = await listDirectory({
+      registryUrl: "https://oversized.example.test/",
+      force: true,
+    })
+
+    expect(listed.categories).toHaveLength(64)
+    expect(listed.featured).toHaveLength(100)
+  })
+
   it("fetches the registry index, validates it, and caches by registry", async () => {
     const fetcher = vi.fn(async () => Response.json(index([entry()])))
     globalThis.fetch = fetcher as typeof fetch
