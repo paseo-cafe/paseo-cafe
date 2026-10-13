@@ -46,6 +46,10 @@ describe("preparePluginPackage", () => {
     expect(await readFile(join(destination, "LICENSE"), "utf8")).toContain(
       "Apache License"
     )
+    // The registry refuses to list a version whose package has no author overview.
+    expect(await readFile(join(destination, "OVERVIEW.md"), "utf8")).toContain(
+      "Paseo Cafe"
+    )
   })
 
   it("rejects staging inside the plugin source", async () => {

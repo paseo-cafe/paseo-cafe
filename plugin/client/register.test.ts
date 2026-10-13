@@ -9,50 +9,39 @@ vi.mock("./SidebarItem", () => ({
 
 import { registerDirectory } from "./register"
 
-function fakeClient(withSidebarHeaderItem: boolean) {
-  const calls: string[] = []
-  const record =
-    (name: string) =>
-    (...args: unknown[]) => {
-      calls.push(name)
-      return args
-    }
+function fakeClient() {
   const client = {
-    addScreen: record("addScreen"),
-    addSurface: record("addSurface"),
-    addSidebarItem: record("addSidebarItem"),
+    addScreen: vi.fn(),
+    addSidebarHeaderItem: vi.fn(),
     addCommandCenterItem: vi.fn(),
-    ...(withSidebarHeaderItem
-      ? { addSidebarHeaderItem: record("addSidebarHeaderItem") }
-      : {}),
   }
-  return { client: client as unknown as PluginClientContext, calls }
+  return {
+    client: client as unknown as PluginClientContext,
+    ...client,
+  }
 }
 
 describe("registerDirectory", () => {
-  it("uses a sidebar header item, which can carry the badge, when the app has it", () => {
-    const { client, calls } = fakeClient(true)
+  it("registers the directory screen and a sidebar header item that can carry the badge", () => {
+    const { client, addScreen, addSidebarHeaderItem } = fakeClient()
     registerDirectory(client)
-    expect(calls).toEqual(["addScreen", "addSidebarHeaderItem"])
+    expect(addScreen).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "directory", title: "Paseo Cafe" })
+    )
+    expect(addSidebarHeaderItem).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "directory", title: "Paseo Cafe" })
+    )
   })
 
-  it("keeps the legacy surface and sidebar item on apps without sidebar header items", () => {
-    const { client, calls } = fakeClient(false)
+  it("opens the directory screen from the command center", () => {
+    const { client, addCommandCenterItem } = fakeClient()
     registerDirectory(client)
-    expect(calls).toEqual(["addSurface", "addSidebarItem"])
-  })
-
-  it("opens the directory with whichever navigation the app provides", () => {
-    const { client } = fakeClient(true)
-    registerDirectory(client)
-    const [{ onSelect }] = vi.mocked(client.addCommandCenterItem).mock
-      .calls[0] as [{ onSelect(context: unknown): void }]
+    const [{ title, onSelect }] = addCommandCenterItem.mock.calls[0] as [
+      { title: string; onSelect(context: unknown): void },
+    ]
     const openScreen = vi.fn()
-    const openSurface = vi.fn()
-    onSelect({ openScreen, openSurface })
+    onSelect({ openScreen })
+    expect(title).toBe("Browse Paseo Cafe")
     expect(openScreen).toHaveBeenCalledWith({ screenId: "directory" })
-    expect(openSurface).not.toHaveBeenCalled()
-    onSelect({ openSurface })
-    expect(openSurface).toHaveBeenCalledWith("directory")
   })
 })

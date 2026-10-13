@@ -4,12 +4,12 @@ import { basename, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 const PACKAGE_FILES = [
   "client",
-  "images",
   "server",
   "shared",
   "index.client.tsx",
   "index.server.ts",
   "README.md",
+  "OVERVIEW.md",
 ] as const
 
 export async function preparePluginPackage(

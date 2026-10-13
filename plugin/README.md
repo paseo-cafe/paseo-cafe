@@ -1,79 +1,56 @@
 # Paseo Cafe
 
-Browse the [paseo.cafe](https://paseo.cafe) plugin catalog from inside Paseo, and install
-plugins without leaving the app.
+Browse the official [Paseo plugin directory](https://paseo.sh/plugins) from inside Paseo, and
+install plugins without leaving the app.
 
-The plugin adds a **Paseo Cafe** sidebar surface listing every plugin in the catalog with its
-package version, description, categories, platforms, Paseo version requirement, caveats, health
-checks, and screenshots. npm-backed plugins appear before Git-only plugins and rank by 30-day
-downloads then exact-version publish date; Git-only plugins retain their star-based ordering.
-Search and filtering happen on the client. Installs run
-`paseo plugin add` on the daemon host behind a confirmation step. A **Paseo plugin** composer
-attachment source can attach the plugin's full listing to a prompt for agent review before you
-trust it.
+The plugin adds a **Paseo Cafe** sidebar surface that lists every plugin in the directory with its
+description, author, categories, install count, screenshots, and README. Featured plugins and the
+most recently updated ones lead the default view; search, category, installation-state, and sort
+controls narrow it down. Installs run `paseo plugin add owner/slug` on the daemon host behind a
+confirmation step that shows the exact reviewed package or Git commit, so Paseo installs the
+artifact the directory approved and nothing else. A **Paseo plugin** composer attachment source can
+attach a plugin's listing to a prompt for agent review before you trust it.
 
-Update availability is based on package semver. The catalog accepts packages from npmjs only and
-pins the scanner-resolved version; Paseo resolves that exact package/version through the daemon
-host's npm configuration. Paseo 0.8 installs the exact security-scanned Git commit instead; those
-legacy installs remain pinned until reinstalled or moved to Paseo 0.9. Existing installations
-always update from their installed source using the exact catalog version or commit.
+Update availability comes from `paseo plugin update --all --check`, so it follows the same rules as
+the CLI: a plugin installed from the directory moves to the directory's current pin, and one
+installed from npm or Git moves to its source's latest release. The sidebar shows a badge when
+updates are available.
 
-When a package publishes a distinct `next` dist-tag, the detail page offers that exact scanned
-version as an opt-in Preview. Stable remains the default. Preview users receive updates from the
-preview channel until they explicitly return to stable.
-
-Automatic updates are enabled by default for every reviewed npm installation. Disable them per
-installation from the plugin detail page when a plugin should stay pinned; Cafe checks shortly
-after startup and every six hours, always following that installation's selected Stable or Preview
-channel. Updates install the exact security-scanned catalog version, never downgrade, and isolate
-failures between plugins. Cafe updates itself through the same policy using its restart-safe
-detached handoff. **Settings → Plugins → Paseo Cafe → Check now** runs the policy immediately.
-
-## Screenshots
-
-### Browse the Catppuccin theme cards
-
-![Paseo Cafe catalog filtered to the Catppuccin theme card, with search, sort, installation-state, category, and platform filters](images/catalog-browse.webp)
-
-### Review a plugin before installation
-
-![Paseo Cafe installation review dialog showing the source repository, install command, freshness, health, security status, and caveats](images/install-review.webp)
-
-### Inspect plugin details and theme previews
-
-![Paseo Cafe plugin detail page showing metadata, trust guidance, caveats, and included theme previews](images/plugin-detail.webp)
-
-### Browse a plugin's screenshot gallery
-
-![Paseo Cafe screenshot gallery showing a single app screenshot inside the gallery view](images/screenshot-gallery.webp)
+Automatic updates are on by default for every plugin. Turn them off per installation from the
+plugin detail page when a plugin should stay put; Cafe checks shortly after startup and every six
+hours, isolates failures between plugins, and rechecks your choice before each update.
+Cafe updates itself through a restart-safe detached handoff. **Settings → Plugins → Paseo Cafe →
+Run now** runs the policy immediately.
 
 ## Install
 
 ```bash
-paseo plugin add paseo-cafe/paseo-cafe:plugin
+paseo plugin add paseo-cafe/cafe
 ```
 
-Supports Paseo 0.8, 0.9, 0.10, and 0.11 releases; the manifest declares `requirements.paseo` as
-`>=0.8.0 <0.11.0 || >=0.11.0-beta.1 <0.12.0`. The prerelease comparator is required because
-npm semver rules do not match `0.11.0-beta.1` with a plain `>=0.11.0` range.
+Requires Paseo 0.11.0-beta.4 or later: the daemon needs to resolve `owner/slug` directory ids. The
+manifest declares `requirements.paseo` as `>=0.11.0-beta.4`. The prerelease comparator is required
+because npm semver rules do not match `0.11.0-beta.4` with a plain `>=0.11.0` range.
 
-By default the catalog is read from `https://paseo.cafe/api/plugins`. Point **Settings →
-Plugins → Paseo Cafe** at another deployment (a local `bun run dev`, a staging build, or a
-self-hosted fork) that serves the same shape. `PASEO_CAFE_DIRECTORY_URL` on the daemon is a
-lower-priority fallback for hosts that cannot persist plugin settings.
+By default the directory is read from `https://plugins.paseo.sh/index.json`. **Settings → Plugins →
+Paseo Cafe** can point at another registry that serves the
+[Paseo registry protocol v1](https://github.com/getpaseo/plugins/blob/main/PROTOCOL.md) documents.
+A custom registry must use HTTPS, or HTTP on loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
+`[::1]`). The registry picks which package or Git commit the install button hands to the `paseo`
+CLI, so anyone able to rewrite a plaintext response chooses what gets installed on the daemon host.
 
-A custom catalog must use HTTPS, or HTTP on loopback (`localhost`, `*.localhost`,
-`127.0.0.0/8`, `[::1]`). The catalog picks which public npmjs package or GitHub repository the
-install button hands to the `paseo` CLI, so anyone able to rewrite a plaintext response chooses
-what gets installed on the daemon host.
+The daemon resolves `owner/slug` only against its own default registry, or `host/owner/slug`
+against a registry at a host root over HTTPS. For a registry served under a path prefix, or over
+loopback HTTP, set `PASEO_PLUGIN_REGISTRY` in the daemon's environment and install from the CLI;
+Cafe shows that instead of an install button.
 
 ## Limitations
 
-- Plugins listed here are community-submitted and are not vetted by paseo.cafe. They are
+- Listed plugins are community-submitted and reviewed by the directory maintainers. They are still
   trusted, unsandboxed code on your daemon host: read the source before installing.
 - Installing shells out to the `paseo` CLI, so that binary must be on the daemon's `PATH`.
 - Git installs and updates of this companion plugin run `npm ci --omit=dev` so its server-side
   semver dependency is available in the managed checkout.
-- On Paseo 0.8, composer attachment searches use the default catalog because that server API
-  cannot read plugin settings. Paseo 0.9 attachment searches honor the configured Catalog URL.
-- Catalog responses are cached on the daemon for five minutes. **Refresh** bypasses that cache.
+- Directory responses are cached on the daemon for five minutes. **Refresh** bypasses that cache.
+- Plugins installed from npm or Git before the directory existed have no directory identity. Cafe
+  recognizes them by package name, or by Git remote and plugin path, and shows them as installed.

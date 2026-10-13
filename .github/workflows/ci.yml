@@ -60,7 +60,6 @@ jobs:
 
             plugin_package:
               - "plugin/client/**"
-              - "plugin/images/**"
               - "plugin/server/**"
               - "plugin/shared/**"
               - "plugin/index.client.tsx"
@@ -68,6 +67,7 @@ jobs:
               - "plugin/package.json"
               - "plugin/paseo-plugin.json"
               - "plugin/README.md"
+              - "plugin/OVERVIEW.md"
   app:
     name: App
     needs: changes
