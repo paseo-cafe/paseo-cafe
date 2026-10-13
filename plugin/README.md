@@ -49,8 +49,6 @@ Cafe shows that instead of an install button.
 - Listed plugins are community-submitted and reviewed by the directory maintainers. They are still
   trusted, unsandboxed code on your daemon host: read the source before installing.
 - Installing shells out to the `paseo` CLI, so that binary must be on the daemon's `PATH`.
-- Git installs and updates of this companion plugin run `npm ci --omit=dev` so its server-side
-  semver dependency is available in the managed checkout.
 - Directory responses are cached on the daemon for five minutes. **Refresh** bypasses that cache.
 - Plugins installed from npm or Git before the directory existed have no directory identity. Cafe
   recognizes them by package name, or by Git remote and plugin path, and shows them as installed.

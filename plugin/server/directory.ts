@@ -2,7 +2,6 @@ import { execFile, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { promisify } from "node:util"
 import type { RpcInput, RpcOutput } from "@getpaseo/plugin"
-import * as semver from "semver"
 import { z } from "zod"
 import type {
   directoryDetailRpc,
@@ -33,6 +32,7 @@ import {
   SELF_INSTALLATION_ID,
   sameArtifact,
 } from "../shared/directory"
+import { isVersionAtLeast } from "./semver"
 
 const execFileAsync = promisify(execFile)
 
@@ -139,8 +139,7 @@ export async function startDetachedPaseo(
 }
 
 export function supportsRegistryInstall(versionText: string): boolean {
-  const version = semver.valid(versionText.trim())
-  return version !== null && semver.gte(version, MIN_REGISTRY_INSTALL_VERSION)
+  return isVersionAtLeast(versionText, MIN_REGISTRY_INSTALL_VERSION)
 }
 
 export async function probeRegistryInstall(
