@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.11.0...v1.0.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plugin:** requires Paseo 0.11.0-beta.4 or later (the daemon must resolve owner/slug ids). The Cafe catalog URL, Preview channel opt-ins and the pending self-update record are dropped when settings migrate to v5. Older Paseo versions keep running the previous Cafe release.
+
+### Features
+
+* **plugin:** browse the official Paseo plugin directory ([#369](https://github.com/paseo-cafe/paseo-cafe/issues/369)) ([f5a671e](https://github.com/paseo-cafe/paseo-cafe/commit/f5a671ece82fbb1a53b2a87383719da404efe4a2))
+
 ## [0.11.0](https://github.com/paseo-cafe/paseo-cafe/compare/v0.10.0...v0.11.0) (2026-10-03)
 
 
