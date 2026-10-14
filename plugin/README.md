@@ -22,6 +22,28 @@ hours, isolates failures between plugins, and rechecks your choice before each u
 Cafe updates itself through a restart-safe detached handoff. **Settings → Plugins → Paseo Cafe →
 Run now** runs the policy immediately.
 
+## Screenshots
+
+### Browse the plugin directory
+
+![Paseo Cafe directory on the Plugins tab, with search, category chips, featured plugins and the full plugin list](images/catalog-browse.webp)
+
+### Browse themes
+
+![Paseo Cafe directory on the Themes tab, showing each theme as a card with its first screenshot, author and install count](images/themes-browse.webp)
+
+### Inspect a listing
+
+![Paseo Cafe detail page for the Catppuccin theme, with its hero screenshot, description, gallery and Review & install button](images/plugin-detail.webp)
+
+### Review the exact artifact before installing
+
+![Paseo Cafe install review dialog showing the source repository, Git commit, plugin path and install command, with the trusted-code warning](images/install-review.webp)
+
+### Browse a listing's screenshot gallery
+
+![Paseo Cafe gallery page showing a theme's screenshots at full width](images/screenshot-gallery.webp)
+
 ## Install
 
 ```bash

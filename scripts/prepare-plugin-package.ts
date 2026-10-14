@@ -10,6 +10,7 @@ const PACKAGE_FILES = [
   "index.server.ts",
   "README.md",
   "OVERVIEW.md",
+  "images",
 ] as const
 
 export async function preparePluginPackage(
