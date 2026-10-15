@@ -5,11 +5,11 @@
   "categories": ["provider"],
   "platforms": ["macos", "linux", "windows"],
   "caveats": [
-    "Experimental; requires Paseo >= 0.9.2 and a separately installed official DSH (dsh on PATH).",
-    "Self-provisions ~/.dsh/profiles/paseo on first load; set your model route in that profile's cordis.patch.yml.",
-    "A vision route must declare an image input modality, or images arrive as a text placeholder.",
-    "Plugins and DSH tools are trusted, unsandboxed code, run on the daemon host.",
-    "Native direct provider (not ACP): question cards, plan mode, thinking levels, steering, images, slash menu."
+    "Experimental; needs Paseo >= 0.9.2 and the official dsh on PATH. 实验性：需 Paseo >= 0.9.2，且 daemon 的 PATH 上有官方 dsh。",
+    "Self-provisions ~/.dsh/profiles/paseo on load; set your model route in that profile. 首次加载自动创建该 profile，模型路由写在里面。",
+    "A vision route must declare an image input modality, or images become placeholder text. 视觉路由需声明图片输入模态，否则图片会变成占位文本。",
+    "Plugins and DSH tools are trusted, unsandboxed code on the daemon host. 插件与 DSH 工具都是运行在 daemon 主机上的受信任、无沙箱代码。",
+    "Native direct provider (not ACP): question cards, plan, thinking, steering, images, slash menu. 原生直连（非 ACP）：提问卡片/计划/思考档位/插话/图片/斜杠菜单。"
   ],
   "submittedBy": "liuxing7954"
 }
