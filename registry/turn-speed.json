@@ -1,6 +1,6 @@
 {
   "repo": "Drenalol/paseo-turn-speed",
-  "package": "@drenalol/paseo-turn-speed",
+  "package": "paseo-turn-speed",
   "categories": ["monitoring", "productivity"],
   "platforms": [],
   "caveats": [
