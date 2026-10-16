@@ -1,34 +1,99 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server"
 import { describe, expect, it, vi } from "vitest"
-import contribute, { readDirectoryUrl } from "./index.server"
+import contribute from "./index.server"
 import type { runAutomaticPluginUpdates } from "./server/directory"
 
-import { directoryRunAutomaticUpdatesRpc } from "./shared/directory"
+import {
+  DEFAULT_REGISTRY_URL,
+  directoryRunAutomaticUpdatesRpc,
+  directorySearchRpc,
+} from "./shared/directory"
 
-describe("server catalog settings", () => {
-  it("uses a ready catalog URL", async () => {
-    await expect(
-      readDirectoryUrl({
-        read: async () => ({
-          status: "ready",
-          values: { directoryUrl: "https://catalog.example/plugins" },
-        }),
-      })
-    ).resolves.toBe("https://catalog.example/plugins")
+function fakeServer(
+  read: () => Promise<unknown>,
+  handlers = new Map<string, (input: unknown) => unknown>()
+) {
+  return {
+    handlers,
+    server: {
+      registerSettings: () => ({ read }),
+      handle: (
+        contract: { name: string },
+        handler: (input: unknown) => unknown
+      ) => {
+        handlers.set(contract.name, handler)
+      },
+    } as unknown as PluginServerContext,
+  }
+}
+
+const READY = {
+  status: "ready" as const,
+  revision: "1",
+  values: {
+    registryUrl: "https://registry.example.test",
+    autoUpdateOptOuts: [],
+    browse: {},
+  },
+}
+
+describe("registry settings", () => {
+  const registry = () =>
+    Response.json({
+      schemaVersion: 1,
+      registry: { name: "Test" },
+      categories: [],
+      featured: [],
+      plugins: [],
+    })
+
+  it("searches the registry configured in settings", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => registry())
+    vi.stubGlobal("fetch", fetcher)
+    vi.useFakeTimers()
+    try {
+      const { server, handlers } = fakeServer(async () => READY)
+      const cleanup = contribute(server)
+
+      await handlers.get(directorySearchRpc.name)?.({ query: "" })
+
+      expect(fetcher.mock.calls[0]?.[0]).toBe(
+        "https://registry.example.test/index.json"
+      )
+      cleanup()
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    }
   })
 
-  it("falls back when settings are invalid or unreadable", async () => {
-    await expect(
-      readDirectoryUrl({ read: async () => ({ status: "invalid" }) })
-    ).resolves.toBeUndefined()
-    await expect(
-      readDirectoryUrl({
-        read: async () => {
+  it("falls back to the official registry when settings are invalid or unreadable", async () => {
+    // The registry cache is per base URL, so the second read is a cache hit:
+    // what matters is that neither failure mode throws or picks another URL.
+    const fetcher = vi.fn<typeof fetch>(async () => registry())
+    vi.stubGlobal("fetch", fetcher)
+    vi.useFakeTimers()
+    try {
+      for (const read of [
+        async () => ({ status: "invalid" }),
+        async () => {
           throw new Error("storage unavailable")
         },
-      })
-    ).resolves.toBeUndefined()
-    await expect(readDirectoryUrl(undefined)).resolves.toBeUndefined()
+      ]) {
+        const { server, handlers } = fakeServer(read)
+        const cleanup = contribute(server)
+        await expect(
+          handlers.get(directorySearchRpc.name)?.({ query: "" })
+        ).resolves.toEqual({ items: [] })
+        cleanup()
+      }
+      expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+        `${DEFAULT_REGISTRY_URL}/index.json`,
+      ])
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    }
   })
 })
 
@@ -43,11 +108,9 @@ describe("automatic update lifecycle", () => {
             status: "ready" as const,
             revision: "1",
             values: {
-              directoryUrl: "https://catalog.example/plugins",
-              previewOptIns: [],
+              registryUrl: "https://registry.example.test",
               autoUpdateOptOuts: [],
               browse: {},
-              pendingSelfUpdate: null,
             },
           }),
         }),
@@ -99,11 +162,9 @@ describe("automatic update lifecycle", () => {
               status: "ready" as const,
               revision: "1",
               values: {
-                directoryUrl: "https://catalog.example/plugins",
-                previewOptIns: [],
+                registryUrl: "https://registry.example.test",
                 autoUpdateOptOuts: [],
                 browse: {},
-                pendingSelfUpdate: null,
               },
             }),
           }),

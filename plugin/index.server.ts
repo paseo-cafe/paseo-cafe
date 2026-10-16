@@ -1,33 +1,26 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server"
 import {
-  applyDirectorySelfUpdate,
+  getDirectoryDetail,
   installDirectoryPlugin,
   listDirectory,
   listDirectoryUpdateStatus,
   runAutomaticPluginUpdates,
   searchDirectory,
-  searchDirectoryManifests,
-  searchDirectoryReadmes,
-  searchDirectorySecurity,
   updateDirectoryPlugin,
 } from "./server/directory"
 import {
-  directoryApplySelfUpdateRpc,
+  directoryDetailRpc,
   directoryInstallRpc,
   directoryListRpc,
-  directoryManifestSearchRpc,
-  directoryReadmeSearchRpc,
   directoryRunAutomaticUpdatesRpc,
   directorySearchRpc,
-  directorySecuritySearchRpc,
   directorySettings,
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
 } from "./shared/directory"
 
 interface DirectorySettingsValues {
-  directoryUrl: string
-  previewOptIns?: string[]
+  registryUrl: string
   autoUpdateOptOuts?: string[]
 }
 interface DirectorySettingsReader {
@@ -48,18 +41,6 @@ async function readDirectorySettings(
   }
 }
 
-export async function readDirectoryUrl(
-  settings: DirectorySettingsReader | undefined
-): Promise<string | undefined> {
-  if (!settings) return undefined
-  try {
-    const current = await settings.read()
-    return current.status === "ready" ? current.values.directoryUrl : undefined
-  } catch {
-    return undefined
-  }
-}
-
 interface AutomaticUpdateLifecycleDependencies {
   run: typeof runAutomaticPluginUpdates
 }
@@ -71,7 +52,8 @@ export default function contribute(
   }
 ) {
   const settings = server.registerSettings(directorySettings)
-  const directoryUrl = () => readDirectoryUrl(settings)
+  const registryUrl = async () =>
+    (await readDirectorySettings(settings))?.registryUrl
   let disposed = false
   const automaticUpdateAbort = new AbortController()
 
@@ -79,11 +61,7 @@ export default function contribute(
     if (disposed) return undefined
     const current = await readDirectorySettings(settings)
     if (!current || disposed) return undefined
-    return {
-      baseUrl: current.directoryUrl,
-      previewOptIns: current.previewOptIns ?? [],
-      autoUpdateOptOuts: current.autoUpdateOptOuts ?? [],
-    }
+    return { autoUpdateOptOuts: current.autoUpdateOptOuts ?? [] }
   }
   const runAutomaticUpdates = () =>
     dependencies.run(
@@ -99,6 +77,7 @@ export default function contribute(
   const interval = setInterval(runScheduledAutomaticUpdates, 6 * 60 * 60_000)
 
   server.handle(directoryListRpc, (input) => listDirectory(input))
+  server.handle(directoryDetailRpc, (input) => getDirectoryDetail(input))
   server.handle(directoryUpdateStatusRpc, (input) =>
     listDirectoryUpdateStatus(input)
   )
@@ -106,26 +85,10 @@ export default function contribute(
     outcomes: await runAutomaticUpdates(),
   }))
   server.handle(directorySearchRpc, async (input) =>
-    searchDirectory(input, await directoryUrl())
+    searchDirectory(input, await registryUrl())
   )
-  server.handle(directoryManifestSearchRpc, async (input) =>
-    searchDirectoryManifests(input, await directoryUrl())
-  )
-  server.handle(directoryReadmeSearchRpc, async (input) =>
-    searchDirectoryReadmes(input, await directoryUrl())
-  )
-  server.handle(directorySecuritySearchRpc, async (input) =>
-    searchDirectorySecurity(input, await directoryUrl())
-  )
-  server.handle(directoryInstallRpc, async (input) =>
-    installDirectoryPlugin(input, await directoryUrl())
-  )
-  server.handle(directoryUpdateRpc, async (input) =>
-    updateDirectoryPlugin(input, await directoryUrl())
-  )
-  server.handle(directoryApplySelfUpdateRpc, (input) =>
-    applyDirectorySelfUpdate(input)
-  )
+  server.handle(directoryInstallRpc, (input) => installDirectoryPlugin(input))
+  server.handle(directoryUpdateRpc, (input) => updateDirectoryPlugin(input))
   return () => {
     disposed = true
     automaticUpdateAbort.abort()

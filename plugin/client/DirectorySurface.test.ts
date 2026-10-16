@@ -6,21 +6,28 @@ vi.mock("@getpaseo/plugin/client", () => ({
 }))
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
   FlatList: () => null,
-  Icon: () => null,
   Modal: Object.assign(() => null, { Content: () => null }),
   ScrollView: () => null,
   TextInput: () => null,
-  copyText: async () => undefined,
   useToast: () => ({ error: () => undefined, show: () => undefined }),
 }))
 vi.mock("react-native", () => ({
-  Image: () => null,
-  Linking: { openURL: async () => undefined },
   Platform: { OS: "web" },
   Pressable: () => null,
   Text: () => null,
+  useWindowDimensions: () => ({ width: 1024, height: 768 }),
   View: () => null,
 }))
+vi.mock("./PluginDetailPage", () => ({ PluginDetailPage: () => null }))
+vi.mock("./PluginGalleryPage", () => ({ PluginGalleryPage: () => null }))
+vi.mock("./PluginRow", () => ({ PluginRow: () => null }))
+vi.mock("./Skeleton", () => ({
+  RowSkeleton: () => null,
+  ThemeGridSkeleton: () => null,
+}))
+vi.mock("./StateMessage", () => ({ StateMessage: () => null }))
+vi.mock("./ThemeCard", () => ({ ThemeCard: () => null }))
+vi.mock("./web", () => ({ openExternal: async () => undefined }))
 
 import { canQueueAutomaticUpdatePreference } from "./DirectorySurface"
 

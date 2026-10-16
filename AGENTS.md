@@ -65,18 +65,15 @@ the other by hand**:
    can't show formatting — `<meta>` descriptions, JSON-LD, OG images — use
    `inlineMarkdownToPlainText` on the same nodes. Neither client ships a
    markdown parser; don't add one, and don't hand-roll one in `shared/`.
-2. **Visual language.** The website's design system — JetBrains Mono
-   monospace everywhere (`src/styles.css`), `rounded-none` flat-bordered
-   controls and badges (`src/components/ui/{button,badge,card}.tsx`),
-   uppercase tracked section labels — is the canonical brand identity.
-   Changing the website's fonts, radii, spacing scale, or color roles
-   without a matching pass over the plugin's React Native surfaces
-   (`plugin/client/DirectorySurface.tsx`, `PluginRow.tsx`,
-   `PluginDetailPage.tsx`, `PluginGalleryPage.tsx`, using the shared tokens
-   in `plugin/client/visual.ts` plus Paseo's `theme.colors`/
-   `layout.compact`) leaves the plugin visually stale. Do the matching pass
-   in the same change.
-   The brand mark is the same story with one twist: its geometry lives in
+2. **Visual language.** The plugin follows the Paseo host UI, not the
+   website: the platform system font for body text (monospace only for
+   ids, versions and commands), 6/8/12px corners, filled accent for
+   controls and never accent-coloured text. The constants live in
+   `plugin/client/visual.ts` (`radius`, `space`, `MONO_FONT`, `MIN_TOUCH`)
+   next to Paseo's `theme.colors`/`layout.compact`. The website's
+   JetBrains Mono, `rounded-none` look is its own identity and no longer
+   needs a matching pass in the plugin.
+   The brand mark is generated: its geometry lives in
    `src/lib/brand-mark.ts` (website + scripts), and `bun run icons:build`
    generates every derived asset from it — `public/favicon.*`,
    `public/apple-touch-icon.png`, and `plugin/shared/brand-mark.ts` (a

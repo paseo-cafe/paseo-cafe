@@ -1,0 +1,10 @@
+{
+  "repo": "g0rdonL/plane-to-paseo",
+  "package": "@aightto/plane-to-paseo",
+  "categories": ["productivity"],
+  "caveats": [
+    "Requires a self-hosted Plane instance (v1 API) and a personal access token",
+    "Optional write-back on hand-off changes the work item's state and assignees and posts a comment"
+  ],
+  "submittedBy": "g0rdonL"
+}

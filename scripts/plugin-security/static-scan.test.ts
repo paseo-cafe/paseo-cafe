@@ -139,6 +139,52 @@ describe("scanStaticFiles", () => {
     expect(descriptionRuleIds({ paseo: ">=0.8.0" }, true)).toEqual([])
   })
 
+  it("allows manifest name, icon and media only for Paseo 0.11.0 or newer", () => {
+    const manifestRuleIds = (
+      fields: Record<string, unknown>,
+      requirements?: unknown
+    ) => {
+      const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+      writeFileSync(
+        join(root, "paseo-plugin.json"),
+        JSON.stringify({ id: "plugin", ...fields, requirements })
+      )
+      writeFileSync(
+        join(root, "index.server.ts"),
+        "export default () => () => {}"
+      )
+      return scanStaticFiles({ root, registryId: "plugin" })
+        .findings.filter(({ tool }) => tool === "manifest")
+        .map(({ ruleId }) => ruleId)
+    }
+    const presentation = {
+      name: "Plugin",
+      icon: "assets/icon.png",
+      media: ["assets/shot.png", "https://example.com/demo.gif"],
+    }
+
+    for (const paseo of [">=0.11.0", "^0.11.2", ">=0.11.0 <0.12.0"])
+      expect(manifestRuleIds(presentation, { paseo })).toEqual([])
+
+    for (const paseo of [">=0.10.0", ">=0.11.0-beta.4", ">=0.8.0"])
+      expect(manifestRuleIds(presentation, { paseo })).toEqual([
+        "unknown:name",
+        "unknown:icon",
+        "unknown:media",
+      ])
+
+    const paseo = { paseo: ">=0.11.0" }
+    expect(manifestRuleIds({ name: " " }, paseo)).toEqual(["name"])
+    for (const icon of ["icon.svg", "/abs/icon.png", "../icon.png", "a\\b.png"])
+      expect(manifestRuleIds({ icon }, paseo)).toEqual(["icon"])
+    for (const media of [
+      "shot.png",
+      ["http://example.com/a.png"],
+      ["../a.png"],
+    ])
+      expect(manifestRuleIds({ media }, paseo)).toEqual(["media"])
+  })
+
   it("rejects invalid descriptions when the key is supported", () => {
     const descriptionRuleIds = (
       description: unknown,
