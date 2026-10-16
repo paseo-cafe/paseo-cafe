@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { type ChildProcess, execFile, spawn } from "node:child_process"
 import { once } from "node:events"
-import { chmod, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import { delimiter, dirname, join, relative, resolve } from "node:path"
@@ -9,29 +9,14 @@ import { setTimeout as delay } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { DaemonClient } from "../node_modules/@getpaseo/client/dist/daemon-client.js"
-import {
-  getSelfUpdateRecoveryState,
-  type InstalledPlugin,
-  type PendingSelfUpdate,
-} from "../shared/directory"
 import { execPaseo } from "./directory"
 
 const execFileAsync = promisify(execFile)
-const PREVIOUS_VERSION = "0.6.0"
-const TARGET_VERSION = "0.7.0"
-const TARGET_INTEGRITY =
-  // biome-ignore lint/security/noSecrets: Public npm package integrity, not a credential.
-  "sha512-FpXJo2Dlu+CA4oSG3AWjfUH7GY8dHp2Vctd66JWGdU5goWcK2WGEsAG4yzRX9xmGPeTYSmm063C2IGQibgsytg=="
 
 interface PluginListItem {
   id: string
   path: string
   status: string
-  installation?: { currentRevision?: string }
-}
-
-function parsePluginList(stdout: string): PluginListItem[] {
-  return JSON.parse(stdout) as PluginListItem[]
 }
 
 async function waitFor(
@@ -59,57 +44,36 @@ async function main(): Promise<void> {
   const home = await mkdtemp(join(tmpdir(), "paseo cafe ci self update-"))
   const binDir = join(home, "bin")
   const originalPath = process.env.PATH
-  const originalDirectoryUrl = process.env.PASEO_CAFE_DIRECTORY_URL
   let daemon: ChildProcess | undefined
   let client: DaemonClient | undefined
   let daemonOutput = ""
 
-  const catalog = {
-    generatedAt: "2026-09-19T00:00:00.000Z",
-    plugins: [
-      {
-        id: "paseo-cafe",
-        repo: "paseo-cafe/paseo-cafe",
-        path: "plugin",
-        package: "paseo-cafe",
-        url: "https://github.com/paseo-cafe/paseo-cafe",
-        name: "Paseo Cafe",
-        description: "Self-update integration fixture",
-        categories: ["productivity"],
-        platforms: [],
-        caveats: [],
-        version: TARGET_VERSION,
-        npm: {
-          package: "paseo-cafe",
-          version: TARGET_VERSION,
-          integrity: TARGET_INTEGRITY,
-        },
-        npmSecurity: {
-          status: "passed",
-          blockingFindings: 0,
-          advisoryFindings: 0,
-          version: TARGET_VERSION,
-          integrity: TARGET_INTEGRITY,
-        },
-      },
-    ],
-  }
-  const catalogServer = createServer((request, response) => {
-    if (request.url !== "/api/plugins") {
+  // An empty registry: the updated plugin only has to answer directory.list.
+  const registryServer = createServer((request, response) => {
+    if (request.url !== "/index.json") {
       response.writeHead(404).end()
       return
     }
     response.setHeader("content-type", "application/json")
-    response.end(JSON.stringify(catalog))
+    response.end(
+      JSON.stringify({
+        schemaVersion: 1,
+        registry: { name: "CI registry", url: "http://127.0.0.1" },
+        categories: [],
+        featured: [],
+        plugins: [],
+        generatedAt: "2026-09-19T00:00:00.000Z",
+      })
+    )
   })
 
   try {
     await mkdir(binDir)
-    catalogServer.listen(0, "127.0.0.1")
-    await once(catalogServer, "listening")
-    const address = catalogServer.address()
+    registryServer.listen(0, "127.0.0.1")
+    await once(registryServer, "listening")
+    const address = registryServer.address()
     assert(address && typeof address !== "string")
-    const catalogUrl = `http://127.0.0.1:${address.port}/api/plugins`
+    const registryUrl = `http://127.0.0.1:${address.port}`
     await writeFile(
       join(home, "config.json"),
       JSON.stringify({
@@ -141,7 +105,6 @@ async function main(): Promise<void> {
     )
     if (process.platform !== "win32") await chmod(shim, 0o755)
     process.env.PATH = `${binDir}${delimiter}${originalPath ?? ""}`
-    process.env.PASEO_CAFE_DIRECTORY_URL = catalogUrl
 
     const isWindows = process.platform === "win32"
     daemon = spawn(isWindows ? `"${shim}"` : shim, ["daemon", "run"], {
@@ -161,219 +124,27 @@ async function main(): Promise<void> {
       return JSON.parse(stdout).connectedDaemon === "reachable"
     })
 
-    if (process.env.PASEO_CAFE_REQUIREMENTS_ONLY === "1") {
-      const installed = await execPaseo(
-        ["plugin", "add", relative(process.cwd(), pluginRoot) || ".", "--json"],
-        120_000
-      )
-      const current = JSON.parse(installed.stdout) as PluginListItem
-      assert.equal(current.status, "running")
-      return
-    }
-
     const installed = await execPaseo(
-      ["plugin", "add", `npm:paseo-cafe@${PREVIOUS_VERSION}`, "--json"],
+      ["plugin", "add", relative(process.cwd(), pluginRoot) || ".", "--json"],
       120_000
     )
-    const previous = JSON.parse(installed.stdout) as PluginListItem
-    assert.equal(previous.status, "running")
-    assert.equal(previous.installation?.currentRevision, PREVIOUS_VERSION)
-
-    for (const relativePath of [
-      "index.server.ts",
-      "server/directory.ts",
-      "shared/catalog.ts",
-      "shared/directory.ts",
-      "shared/inline-markdown.ts",
-    ]) {
-      await cp(
-        join(pluginRoot, relativePath),
-        join(previous.path, relativePath),
-        {
-          force: true,
-        }
-      )
-    }
-    await execPaseo(["plugin", "reload", "paseo-cafe", "--json"], 60_000)
+    const current = JSON.parse(installed.stdout) as PluginListItem
+    assert.equal(current.status, "running")
 
     client = new DaemonClient({
       url: "ws://127.0.0.1:6767/ws",
-      clientId: `self-update-ci-${crypto.randomUUID()}`,
+      clientId: `compat-ci-${crypto.randomUUID()}`,
       clientType: "browser",
-      appVersion: "0.9.0-beta.2",
+      appVersion: "0.11.0-beta.4",
       reconnect: { enabled: false },
     })
     await client.connect()
-    const initialSettings = (await client.invokePluginRpc(
-      "paseo-cafe",
-      "settings.directory-settings.read",
-      {}
-    )) as {
-      status: "ready"
-      revision: string
-      values: Record<string, unknown>
-    }
-    assert.equal(initialSettings.status, "ready")
-    const configuredCatalog = (await client.invokePluginRpc(
-      "paseo-cafe",
-      "settings.directory-settings.write",
-      {
-        revision: initialSettings.revision,
-        values: { ...initialSettings.values, directoryUrl: catalogUrl },
-      }
-    )) as { status: string }
-    assert.equal(configuredCatalog.status, "saved")
-    const prepared = (await client.invokePluginRpc(
-      "paseo-cafe",
-      "directory.update",
-      {
-        entryId: "paseo-cafe",
-        installationId: "paseo-cafe",
-        channel: "stable",
-        expectedRepo: "paseo-cafe/paseo-cafe",
-        expectedPath: "plugin",
-        expectedPackage: "paseo-cafe",
-        expectedVersion: TARGET_VERSION,
-        expectedIntegrity: TARGET_INTEGRITY,
-      }
-    )) as {
-      ok: boolean
-      message: string
-      selfUpdateToken?: string
-      selfUpdateRequestedAt?: string
-    }
-    assert.equal(prepared.ok, true, prepared.message)
-    assert.match(prepared.selfUpdateToken ?? "", /^[0-9a-f]{64}$/)
-    assert.match(prepared.selfUpdateRequestedAt ?? "", /^\d{4}-\d{2}-\d{2}T/)
-    const pendingSelfUpdate: PendingSelfUpdate = {
-      installationId: "paseo-cafe",
-      source: "npm",
-      targetRevision: TARGET_VERSION,
-      requestedAt: prepared.selfUpdateRequestedAt ?? "",
-    }
-    const settingsBefore = (await client.invokePluginRpc(
-      "paseo-cafe",
-      "settings.directory-settings.read",
-      {}
-    )) as {
-      status: "ready"
-      revision: string
-      values: Record<string, unknown>
-    }
-    assert.equal(settingsBefore.status, "ready")
-    const savedEvidence = (await client.invokePluginRpc(
-      "paseo-cafe",
-      "settings.directory-settings.write",
-      {
-        revision: settingsBefore.revision,
-        values: { ...settingsBefore.values, pendingSelfUpdate },
-      }
-    )) as { status: string }
-    assert.equal(savedEvidence.status, "saved")
-
-    const beforeApply = parsePluginList(
-      (await execPaseo(["plugin", "ls", "paseo-cafe", "--json"], 30_000)).stdout
-    )[0]
-    assert.equal(beforeApply?.status, "running")
-    assert.equal(beforeApply?.installation?.currentRevision, PREVIOUS_VERSION)
-
-    const applied = await client.invokePluginRpc(
-      "paseo-cafe",
-      "directory.apply-self-update",
-      { token: prepared.selfUpdateToken }
-    )
-    assert.deepEqual(applied, { accepted: true })
-
-    await waitFor(
-      "updated plugin to load",
-      async () => {
-        const [plugin] = parsePluginList(
-          (await execPaseo(["plugin", "ls", "paseo-cafe", "--json"], 30_000))
-            .stdout
-        )
-        return (
-          plugin?.status === "running" &&
-          plugin.installation?.currentRevision === TARGET_VERSION
-        )
-      },
-      120_000
-    )
-
-    const [updated] = parsePluginList(
-      (await execPaseo(["plugin", "ls", "paseo-cafe", "--json"], 30_000)).stdout
-    )
-    assert(updated)
-    for (const relativePath of [
-      "index.server.ts",
-      "server/directory.ts",
-      "shared/catalog.ts",
-      "shared/directory.ts",
-      "shared/inline-markdown.ts",
-    ]) {
-      await cp(
-        join(pluginRoot, relativePath),
-        join(updated.path, relativePath),
-        {
-          force: true,
-        }
-      )
-    }
-    await execPaseo(["plugin", "reload", "paseo-cafe", "--json"], 60_000)
-
-    const reloaded = (await client.invokePluginRpc(
+    const listed = (await client.invokePluginRpc(
       "paseo-cafe",
       "directory.list",
-      { baseUrl: catalogUrl, force: true }
-    )) as {
-      plugins?: Array<{ id?: string }>
-      installations?: InstalledPlugin[]
-    }
-    assert(reloaded.plugins?.some((plugin) => plugin.id === "paseo-cafe"))
-    assert.equal(
-      getSelfUpdateRecoveryState(
-        pendingSelfUpdate,
-        reloaded.installations ?? []
-      ),
-      "succeeded"
-    )
-    const settingsAfter = (await client.invokePluginRpc(
-      "paseo-cafe",
-      "settings.directory-settings.read",
-      {}
-    )) as {
-      status: "ready"
-      revision: string
-      values: Record<string, unknown> & {
-        pendingSelfUpdate?: PendingSelfUpdate | null
-      }
-    }
-    assert.deepEqual(settingsAfter.values.pendingSelfUpdate, pendingSelfUpdate)
-    const clearedEvidence = (await client.invokePluginRpc(
-      "paseo-cafe",
-      "settings.directory-settings.write",
-      {
-        revision: settingsAfter.revision,
-        values: { ...settingsAfter.values, pendingSelfUpdate: null },
-      }
-    )) as { status: string }
-    assert.equal(clearedEvidence.status, "saved")
-    const cleared = (await client.invokePluginRpc(
-      "paseo-cafe",
-      "settings.directory-settings.read",
-      {}
-    )) as { status: "ready"; values: { pendingSelfUpdate?: unknown } }
-    assert.equal(cleared.status, "ready")
-    assert.equal(cleared.values.pendingSelfUpdate, null)
-    console.log(
-      JSON.stringify({
-        prepared: true,
-        applyAcknowledged: true,
-        from: PREVIOUS_VERSION,
-        to: TARGET_VERSION,
-        reloadedRpc: true,
-        evidenceRecovered: true,
-      })
-    )
+      { registryUrl, force: true }
+    )) as { registryName?: string }
+    assert.equal(listed.registryName, "CI registry")
   } catch (error) {
     if (daemonOutput) console.error(daemonOutput)
     throw error
@@ -389,16 +160,13 @@ async function main(): Promise<void> {
         () => undefined
       )
     }
-    if (catalogServer.listening) {
-      const closed = once(catalogServer, "close")
-      catalogServer.close()
+    if (registryServer.listening) {
+      const closed = once(registryServer, "close")
+      registryServer.close()
       await closed
     }
     if (originalPath === undefined) delete process.env.PATH
     else process.env.PATH = originalPath
-    if (originalDirectoryUrl === undefined)
-      delete process.env.PASEO_CAFE_DIRECTORY_URL
-    else process.env.PASEO_CAFE_DIRECTORY_URL = originalDirectoryUrl
     await rm(home, { recursive: true, force: true })
   }
 }

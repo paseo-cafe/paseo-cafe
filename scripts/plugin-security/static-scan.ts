@@ -360,6 +360,8 @@ function readScannedFile(
 }
 
 const MANIFEST_DESCRIPTION_MINIMUM = "0.9.0-beta.1"
+// Paseo 0.11.0 added the optional manifest `name`, `icon` and `media`.
+const MANIFEST_PRESENTATION_MINIMUM = "0.11.0"
 
 function rangeMinimums(range: string): semver.SemVer[] {
   return new semver.Range(range).set.flatMap((comparators) => {
@@ -368,14 +370,36 @@ function rangeMinimums(range: string): semver.SemVer[] {
   })
 }
 
-function rangeRequiresDescriptionSupport(range: string): boolean {
+function rangeRequiresAtLeast(range: string, version: string): boolean {
   const minimums = rangeMinimums(range)
   return (
     minimums.length > 0 &&
-    minimums.every((minimum) =>
-      semver.gte(minimum, MANIFEST_DESCRIPTION_MINIMUM)
-    )
+    minimums.every((minimum) => semver.gte(minimum, version))
   )
+}
+
+// Mirrors Paseo's manifest asset path rule: a relative file path inside the
+// plugin package, written with forward slashes.
+function isPluginAssetPath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value === value.trim() &&
+    !value.startsWith("/") &&
+    !/[\\:?#\p{Cc}]/u.test(value) &&
+    !value.split("/").includes("..") &&
+    !value.endsWith("/") &&
+    value.split("/").at(-1) !== "."
+  )
+}
+
+function isHttpsUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false
+  try {
+    return new URL(value).protocol === "https:"
+  } catch {
+    return false
+  }
 }
 
 function validateManifest(
@@ -409,6 +433,7 @@ function validateManifest(
     const req = parsed.requirements
     // Paseo 0.9.0-beta.1 added the optional manifest `description`.
     let requiresDescriptionSupport = false
+    let requiresPresentationSupport = false
     if (req === undefined) {
       findings.push(
         finding(
@@ -451,7 +476,11 @@ function validateManifest(
           ? semver.validRange(paseo, { loose: false })
           : null
       requiresDescriptionSupport =
-        range !== null && rangeRequiresDescriptionSupport(range)
+        range !== null &&
+        rangeRequiresAtLeast(range, MANIFEST_DESCRIPTION_MINIMUM)
+      requiresPresentationSupport =
+        range !== null &&
+        rangeRequiresAtLeast(range, MANIFEST_PRESENTATION_MINIMUM)
       if (
         !range ||
         !rangeMinimums(range).some((version) => semver.gte(version, "0.8.0"))
@@ -485,6 +514,55 @@ function validateManifest(
           "description must be a non-empty string"
         )
       )
+    if (requiresPresentationSupport) {
+      if (
+        parsed.name !== undefined &&
+        (typeof parsed.name !== "string" || parsed.name.trim().length === 0)
+      )
+        findings.push(
+          finding(
+            "manifest",
+            "name",
+            "high",
+            true,
+            path,
+            "name must be a non-empty string"
+          )
+        )
+      if (
+        parsed.icon !== undefined &&
+        !(isPluginAssetPath(parsed.icon) && /\.png$/i.test(parsed.icon))
+      )
+        findings.push(
+          finding(
+            "manifest",
+            "icon",
+            "high",
+            true,
+            path,
+            "icon must be a relative path to a PNG inside the plugin package"
+          )
+        )
+      if (
+        parsed.media !== undefined &&
+        !(
+          Array.isArray(parsed.media) &&
+          parsed.media.every(
+            (item) => isPluginAssetPath(item) || isHttpsUrl(item)
+          )
+        )
+      )
+        findings.push(
+          finding(
+            "manifest",
+            "media",
+            "high",
+            true,
+            path,
+            "media must be an array of package-relative paths or https URLs"
+          )
+        )
+    }
     if (parsed.build !== undefined) {
       if (
         !Array.isArray(parsed.build) ||
@@ -513,7 +591,9 @@ function validateManifest(
         key === "id" ||
         key === "requirements" ||
         key === "build" ||
-        (descriptionAllowed && key === "description")
+        (descriptionAllowed && key === "description") ||
+        (requiresPresentationSupport &&
+          (key === "name" || key === "icon" || key === "media"))
       if (!allowed)
         findings.push(
           finding(

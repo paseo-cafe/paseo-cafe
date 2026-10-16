@@ -1,336 +1,238 @@
 import type { PluginTheme } from "@getpaseo/plugin"
-import { Icon } from "@getpaseo/plugin/client/react-native"
 import { useMemo } from "react"
-import { Image, Pressable, Text, View } from "react-native"
-import type { DirectoryEntry, InstalledPlugin } from "../shared/directory"
+import { Pressable, Text, View } from "react-native"
 import {
-  DIRECTORY_CATEGORY_LABELS,
-  DIRECTORY_PLATFORM_LABELS,
-  directoryDescriptionNodes,
-  formatDirectoryCompactCount,
-  formatDirectoryDownloads,
-  formatDirectoryVersion,
-  getDirectoryAddedDateBadge,
-  getDirectoryPopularityMetric,
-  getDirectoryPublishedDateBadge,
-  HEALTH_KEYS,
-  hasCompleteDirectoryNpmMetrics,
-  normalizeDirectoryCategory,
+  formatCatalogCompactCount,
+  formatCatalogDateForReader,
+} from "../shared/catalog"
+import type {
+  DirectoryEntry,
+  InstalledPlugin,
+  PluginUpdate,
 } from "../shared/directory"
-import { InlineMarkdown } from "./InlineMarkdown"
-import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
+import { countAvailableUpdates } from "../shared/directory"
+import { InstallCount } from "./InstallCount"
+import { PluginIcon } from "./PluginIcon"
+import { StatusPill } from "./StatusPill"
+import { MIN_TOUCH, mutedTextColor, radius, space } from "./visual"
 
 /**
- * Which date, if any, the list is ordered by: "recency" follows the
- * source-aware sort (an npm release date where there is one, otherwise the
- * listing date), "added" always shows the listing date. Mirrors the
- * website's PluginCard — see src/components/plugin-card.tsx.
+ * Which date, if any, the list is ordered by: "updated" follows the
+ * recently-updated sort, "added" the recently-added sort. Rows show a date
+ * only when the list is ordered by it, so the figure explains the order.
  */
-export type PluginRowDateBadge = "recency" | "added"
+export type PluginRowDateBadge = "updated" | "added"
 
-interface PluginRowProps {
+export interface PluginRowProps {
   entry: DirectoryEntry
   theme: PluginTheme
   compact: boolean
+  /** Installations of this entry only. */
   installations: readonly InstalledPlugin[]
-  /** Shows a date only when the list is ordered by that same date. */
+  /** Update check results keyed by installation id. */
+  updates: ReadonlyMap<string, PluginUpdate>
   dateBadge?: PluginRowDateBadge
   onPress: () => void
 }
 
-type BadgeColor = "muted" | "success" | "warning" | "danger" | "accent"
-
-interface BadgeTone {
+export interface PluginRowStatus {
   text: string
-  color: BadgeColor
-}
-/**
- * The popularity figure worth showing for one entry: npm downloads where the
- * catalog has complete npm metrics, otherwise Git stars. Undefined when
- * neither is available, so the row omits the badge rather than showing zero.
- */
-export function getPluginRowPopularity(entry: DirectoryEntry):
-  | {
-      source: "npm" | "git"
-      text: string
-      accessibilityLabel: string
-    }
-  | undefined {
-  const popularity = getDirectoryPopularityMetric(entry)
-  if (!popularity) return undefined
-  const text =
-    popularity.source === "npm"
-      ? formatDirectoryDownloads(popularity.count)
-      : formatDirectoryCompactCount(popularity.count)
-  return {
-    source: popularity.source,
-    text,
-    accessibilityLabel:
-      popularity.source === "npm" ? text : `${popularity.count} GitHub stars`,
-  }
+  /** "update" when at least one installation has an update waiting. */
+  tone: "update" | "installed"
 }
 
 /**
- * The single worst thing worth saying about an entry's health, or null when
- * there is nothing to flag. A scan failure outranks incomplete checks.
+ * The installed or update badge for one entry, or undefined when it is not
+ * installed. An available update outranks the plain installed state; the other
+ * update outcomes (current, newer, local, error, unknown) all read as "installed"
+ * here and are spelled out per installation on the detail page.
  */
-export function getHealthBadge(entry: DirectoryEntry): BadgeTone | null {
-  if (entry.scanError) {
-    return { text: "Scan issue", color: "danger" }
-  }
-  if (!entry.health) return null
-
-  const values = HEALTH_KEYS.map((key) => entry.health?.[key])
-  const failed = values.filter((value) => value === false).length
-  if (failed > 0) {
+export function getPluginRowStatus(
+  installations: readonly InstalledPlugin[],
+  updates: ReadonlyMap<string, PluginUpdate>
+): PluginRowStatus | undefined {
+  if (installations.length === 0) return undefined
+  const available = countAvailableUpdates(
+    installations.flatMap((installation) => updates.get(installation.id) ?? [])
+  )
+  if (available > 0) {
     return {
-      text: `Health ${failed} warning${failed === 1 ? "" : "s"}`,
-      color: "warning",
+      text:
+        available === 1 ? "Update available" : `${available} updates available`,
+      tone: "update",
     }
   }
-  if (values.some((value) => value === undefined)) {
-    return { text: "Health incomplete", color: "muted" }
+  return {
+    text:
+      installations.length === 1
+        ? "Installed"
+        : `${installations.length} installations`,
+    tone: "installed",
   }
-  return { text: "Health OK", color: "success" }
+}
+
+/** The registry's install count for one entry; undefined when the registry reports none. */
+export function getPluginRowInstalls(
+  entry: Pick<DirectoryEntry, "installs">
+): { text: string; accessibilityLabel: string } | undefined {
+  const { installs } = entry
+  if (installs === undefined) return undefined
+  const noun = installs === 1 ? "install" : "installs"
+  return {
+    text: `${formatCatalogCompactCount(installs)} ${noun}`,
+    accessibilityLabel: `${installs} ${noun}`,
+  }
+}
+
+/** "Updated Sep 11, 2026" or "Added Sep 11, 2026" for the sort in effect; undefined when there is no usable date. */
+export function getPluginRowDateBadge(
+  entry: Pick<DirectoryEntry, "updatedAt" | "publishedAt">,
+  dateBadge: PluginRowDateBadge | undefined
+): string | undefined {
+  if (dateBadge === undefined) return undefined
+  const label = dateBadge === "updated" ? "Updated" : "Added"
+  const formatted = formatCatalogDateForReader(
+    dateBadge === "updated" ? entry.updatedAt : entry.publishedAt
+  )
+  return formatted && `${label} ${formatted}`
+}
+
+/** The GitHub handle of the author, falling back to their display name. */
+export function getAuthorLabel(
+  author: DirectoryEntry["author"]
+): string | undefined {
+  return author.github.trim() || author.name?.trim() || undefined
+}
+
+/** Category display names in entry order; an unknown slug is shown as is. */
+export function getCategoryNames(
+  entry: Pick<DirectoryEntry, "categories">,
+  categoryLabels: ReadonlyMap<string, string>
+): string[] {
+  return entry.categories.map((slug) => categoryLabels.get(slug) ?? slug)
 }
 
 /**
- * One entry in the companion's directory list.
+ * The row's muted text meta, "by acme · Updated Sep 11, 2026"; undefined when
+ * the entry has neither. The install count is rendered beside it with an icon.
+ */
+export function getPluginRowMeta(
+  entry: Pick<DirectoryEntry, "author" | "updatedAt" | "publishedAt">,
+  dateBadge: PluginRowDateBadge | undefined
+): string | undefined {
+  const author = getAuthorLabel(entry.author)
+  const parts = [
+    author ? `by ${author}` : undefined,
+    getPluginRowDateBadge(entry, dateBadge),
+  ].filter((part): part is string => Boolean(part))
+  return parts.length > 0 ? parts.join(" · ") : undefined
+}
+
+/**
+ * One entry in the companion's directory list: icon tile, name, one-line
+ * description and meta, and a filled status pill when installed.
  *
- * Deliberately no per-row Install button: with the whole card opening the
- * detail page (see onPress below), a nested button here fights the card's
- * own press target. Install lives on the detail page instead.
+ * Deliberately no per-row Install button: installing goes through the detail
+ * page, where the pinned artifact is reviewed first.
  */
 export function PluginRow({
   entry,
   theme,
   compact,
   installations,
+  updates,
   dateBadge,
   onPress,
 }: PluginRowProps) {
   const styles = useMemo(
     () => ({
-      row: {
+      row: (pressed: boolean) => ({
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: space.md,
+        minHeight: compact ? MIN_TOUCH : undefined,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        padding: compact ? 12 : 14,
-        gap: 8,
+        borderRadius: radius.md,
+        padding: space.md,
         backgroundColor: theme.colors.surface1,
-      },
-      headerRow: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 8,
-        flexWrap: "wrap" as const,
-      },
-      avatar: { width: 20, height: 20, borderRadius: 10 },
+        opacity: pressed ? 0.8 : 1,
+      }),
+      body: { flex: 1, minWidth: 0, gap: 2 },
       name: {
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 16,
+        fontSize: 14,
+        lineHeight: 20,
         fontWeight: "600" as const,
-        letterSpacing: -0.2,
+      },
+      description: {
+        color: mutedTextColor(theme, theme.colors.surface1),
+        fontSize: 12,
+        lineHeight: 16,
+      },
+      descriptionEmpty: {
+        color: mutedTextColor(theme, theme.colors.surface1),
+        fontSize: 12,
+        lineHeight: 16,
+        fontStyle: "italic" as const,
+      },
+      meta: {
+        color: mutedTextColor(theme, theme.colors.surface1),
+        fontSize: 12,
+        lineHeight: 16,
         flexShrink: 1,
       },
-      statusBadge: {
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        backgroundColor: theme.colors.surface2,
-      },
-      statusText: (updateAvailable: boolean) => ({
-        color: updateAvailable
-          ? theme.colors.statusWarning
-          : theme.colors.statusSuccess,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-      }),
       metaRow: {
         flexDirection: "row" as const,
-        flexWrap: "wrap" as const,
-        gap: 6,
         alignItems: "center" as const,
-      },
-      metaBadge: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 4,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        backgroundColor: theme.colors.surface2,
-      },
-      metaBadgeText: (tone: BadgeColor) => ({
-        color:
-          tone === "success"
-            ? theme.colors.statusSuccess
-            : tone === "warning"
-              ? theme.colors.statusWarning
-              : tone === "danger"
-                ? theme.colors.statusDanger
-                : tone === "accent"
-                  ? theme.colors.accent
-                  : theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-      }),
-      description: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        lineHeight: 19,
-      },
-      tagsRow: {
-        flexDirection: "row" as const,
-        flexWrap: "wrap" as const,
-        gap: 6,
-      },
-      tag: {
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        backgroundColor: theme.colors.surface2,
-      },
-      tagText: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
+        gap: space.sm,
       },
     }),
     [theme, compact]
   )
 
-  const tags = [
-    ...entry.categories.map(
-      (category) =>
-        DIRECTORY_CATEGORY_LABELS[normalizeDirectoryCategory(category)]
-    ),
-    ...entry.platforms.map(
-      (platform) =>
-        DIRECTORY_PLATFORM_LABELS[
-          platform as keyof typeof DIRECTORY_PLATFORM_LABELS
-        ] ?? platform
-    ),
-  ]
-  const hasTagsRow = tags.length > 0
-
-  const updateCount = installations.filter(
-    (installation) => installation.updateState === "available"
-  ).length
-  const statusLabel =
-    updateCount > 0
-      ? updateCount === 1
-        ? "Update available"
-        : `${updateCount} updates available`
-      : installations.length > 0
-        ? installations.length === 1
-          ? "Installed"
-          : `${installations.length} installations`
-        : undefined
-
-  const popularity = getPluginRowPopularity(entry)
-  const dateBadgeText =
-    dateBadge === "recency" && hasCompleteDirectoryNpmMetrics(entry)
-      ? getDirectoryPublishedDateBadge(entry)
-      : dateBadge
-        ? getDirectoryAddedDateBadge(entry)
-        : undefined
-  const healthBadge = getHealthBadge(entry)
-  const versionLabel = formatDirectoryVersion(entry.version)
-  const compatibilityLabel = entry.paseoVersionRequirement
-    ? `Paseo ${entry.paseoVersionRequirement}`
-    : "Paseo any"
-  const caveatLabel =
-    entry.caveats.length > 0
-      ? entry.caveats.length === 1
-        ? "1 caveat"
-        : `${entry.caveats.length} caveats`
-      : undefined
-  const descriptionNodes = directoryDescriptionNodes(entry)
+  const status = getPluginRowStatus(installations, updates)
+  const installs = getPluginRowInstalls(entry)
+  const meta = getPluginRowMeta(entry, dateBadge)
+  const description = entry.description.trim()
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`View details for ${entry.name}${statusLabel ? `, ${statusLabel}` : ""}${popularity ? `, ${popularity.accessibilityLabel}` : ""}`}
-      style={styles.row}
+      accessibilityLabel={`View details for ${entry.name}${status ? `, ${status.text}` : ""}${installs ? `, ${installs.accessibilityLabel}` : ""}`}
+      style={({ pressed }) => styles.row(pressed)}
       onPress={onPress}
     >
-      <View style={styles.headerRow}>
-        {entry.owner?.avatarUrl ? (
-          <Image
-            accessible={false}
-            source={{ uri: entry.owner.avatarUrl }}
-            style={styles.avatar}
-          />
-        ) : null}
-        <Text style={styles.name}>{entry.name}</Text>
-        {statusLabel ? (
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText(updateCount > 0)}>
-              {statusLabel}
-            </Text>
+      <PluginIcon entry={entry} theme={theme} size={compact ? 44 : 40} />
+      <View style={styles.body}>
+        <Text numberOfLines={1} style={styles.name}>
+          {entry.name}
+        </Text>
+        <Text
+          numberOfLines={1}
+          style={description ? styles.description : styles.descriptionEmpty}
+        >
+          {description || "No description provided."}
+        </Text>
+        {meta || installs ? (
+          <View style={styles.metaRow}>
+            {meta ? (
+              <Text numberOfLines={1} style={styles.meta}>
+                {meta}
+              </Text>
+            ) : null}
+            {installs ? (
+              <InstallCount
+                installs={installs}
+                theme={theme}
+                background={theme.colors.surface1}
+              />
+            ) : null}
           </View>
         ) : null}
       </View>
-      <View style={styles.metaRow}>
-        {versionLabel ? (
-          <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText("accent")}>{versionLabel}</Text>
-          </View>
-        ) : null}
-        {popularity ? (
-          <View style={styles.metaBadge}>
-            <Icon
-              name={popularity.source === "npm" ? "Download" : "Star"}
-              size={11}
-              color={theme.colors.foregroundMuted}
-            />
-            <Text style={styles.metaBadgeText("muted")}>{popularity.text}</Text>
-          </View>
-        ) : null}
-        {dateBadgeText ? (
-          <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText("muted")}>{dateBadgeText}</Text>
-          </View>
-        ) : null}
-        <View style={styles.metaBadge}>
-          <Text style={styles.metaBadgeText("accent")}>
-            {compatibilityLabel}
-          </Text>
-        </View>
-        {caveatLabel ? (
-          <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText("warning")}>{caveatLabel}</Text>
-          </View>
-        ) : null}
-        {healthBadge ? (
-          <View style={styles.metaBadge}>
-            <Text style={styles.metaBadgeText(healthBadge.color)}>
-              {healthBadge.text}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-      {descriptionNodes.length > 0 ? (
-        <InlineMarkdown
-          nodes={descriptionNodes}
-          theme={theme}
-          style={styles.description}
-          links="text"
-          numberOfLines={2}
-        />
-      ) : null}
-      {hasTagsRow ? (
-        <View style={styles.tagsRow}>
-          {tags.map((tag) => (
-            <View key={tag} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
-            </View>
-          ))}
-        </View>
+      {status ? (
+        <StatusPill text={status.text} tone={status.tone} theme={theme} />
       ) : null}
     </Pressable>
   )

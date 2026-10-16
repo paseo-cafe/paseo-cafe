@@ -1,0 +1,15 @@
+{
+  "repo": "georgepullen/paseo",
+  "path": "plugins/paseo-remote-power",
+  "package": "paseo-remote-power",
+  "categories": ["automation", "monitoring", "orchestration"],
+  "platforms": ["macos", "linux"],
+  "caveats": [
+    "SSH status probes need key-based ssh from the daemon host to each managed host",
+    "Wake-on-LAN needs an L2 path to the target network; use the http/udp/microlink transports for routed targets",
+    "The command transport runs arbitrary shell from host config — host config is trusted",
+    "Wake secrets (bearer tokens, microlink HMAC keys) live in the plugin state dir, never in host records",
+    "Embedded MCP power tools are injected into agents by default; disable in settings if unwanted"
+  ],
+  "submittedBy": "georgepullen"
+}
