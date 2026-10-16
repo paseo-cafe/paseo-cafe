@@ -46,6 +46,21 @@ describe("preparePluginPackage", () => {
     expect(await readFile(join(destination, "LICENSE"), "utf8")).toContain(
       "Apache License"
     )
+    // The registry refuses to list a version whose package has no author overview.
+    expect(await readFile(join(destination, "OVERVIEW.md"), "utf8")).toContain(
+      "Paseo Cafe"
+    )
+    // README screenshots resolve relative to the package, so every one must ship.
+    const readme = await readFile(join(destination, "README.md"), "utf8")
+    const images = [...readme.matchAll(/\]\((images\/[^)]+)\)/g)].map(
+      (match) => match[1]
+    )
+    expect(images.length).toBeGreaterThan(0)
+    for (const image of images) {
+      await expect(readFile(join(destination, image))).resolves.toBeInstanceOf(
+        Buffer
+      )
+    }
   })
 
   it("rejects staging inside the plugin source", async () => {

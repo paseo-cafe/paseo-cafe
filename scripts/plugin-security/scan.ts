@@ -422,7 +422,21 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
   "manifest/unknown": {
     issue:
       "The manifest contains a key the current plugin format does not recognize. Paseo rejects unknown top-level keys.",
-    fix: "Remove the key. Supported top-level keys are `id`, `requirements`, and `build`, plus `description` when `requirements.paseo` requires Paseo 0.9.0-beta.1 or newer.",
+    fix: "Remove the key. Supported top-level keys are `id`, `requirements`, and `build`, plus `description` when `requirements.paseo` requires Paseo 0.9.0-beta.1 or newer, and `name`, `icon`, and `media` when it requires Paseo 0.11.0 or newer.",
+  },
+  "manifest/name": {
+    issue: "The manifest name is not a non-empty string.",
+    fix: "Set `name` to a non-empty string or remove it from `paseo-plugin.json`.",
+  },
+  "manifest/icon": {
+    issue:
+      "The manifest icon is not a relative path to a PNG inside the plugin package.",
+    fix: "Point `icon` at a `.png` file inside the plugin package with a relative, forward-slash path, or remove it.",
+  },
+  "manifest/media": {
+    issue:
+      "The manifest media list contains an entry that is neither a package-relative path nor an https URL.",
+    fix: "Make `media` an array of relative paths inside the plugin package or `https://` URLs, or remove it.",
   },
   "manifest/json": {
     issue: "The scanner could not parse `paseo-plugin.json`.",

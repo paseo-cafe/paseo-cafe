@@ -5,6 +5,7 @@ import type {
   InlineMarkdownNode,
   InlineMarkdownTextNode,
 } from "../shared/inline-markdown"
+import { MONO_FONT } from "./visual"
 import { openExternal } from "./web"
 
 interface InlineMarkdownProps {
@@ -17,7 +18,7 @@ interface InlineMarkdownProps {
   style?: TextStyle
   /**
    * "text" keeps link labels as unpressable text, for rows that are
-   * themselves one big Pressable — there, a nested press target would
+   * themselves one big Pressable, where a nested press target would
    * steal the row's own tap and send the reader somewhere they didn't aim.
    */
   links?: "press" | "text"
@@ -25,10 +26,10 @@ interface InlineMarkdownProps {
 }
 
 /**
- * Renders the inline markdown authors write in catalog text — links, bold,
- * italic, code — from the nodes the catalog already carries
- * (../shared/inline-markdown.ts). Nothing is parsed here: paseo.cafe
- * projected the markdown at scan time, and its own
+ * Renders the inline markdown authors write in catalog text (links, bold,
+ * italic, code) from the nodes the catalog already carries
+ * (../shared/inline-markdown.ts). Nothing is parsed here: the registry
+ * projects the markdown ahead of time, and the website's own
  * src/components/inline-markdown.tsx renders the very same nodes as DOM.
  */
 export function InlineMarkdown({
@@ -41,10 +42,13 @@ export function InlineMarkdown({
   const styles = useMemo(
     () => ({
       link: {
-        color: theme.colors.accent,
+        color: theme.colors.foreground,
         textDecorationLine: "underline" as const,
       },
-      code: { backgroundColor: theme.colors.surface2 },
+      code: {
+        backgroundColor: theme.colors.surface2,
+        fontFamily: MONO_FONT,
+      },
       strong: { fontWeight: "700" as const },
       emphasis: { fontStyle: "italic" as const },
     }),
@@ -62,7 +66,7 @@ export function InlineMarkdown({
       {nodes.map((node, index) =>
         node.type === "text" ? (
           <Text
-            // biome-ignore lint/suspicious/noArrayIndexKey: Nodes are positional — the same text can legitimately repeat.
+            // biome-ignore lint/suspicious/noArrayIndexKey: Nodes are positional; the same text can legitimately repeat.
             key={index}
             style={runStyle(node)}
           >
@@ -71,7 +75,7 @@ export function InlineMarkdown({
         ) : (
           // One press target per link, however many styled runs its label holds.
           <Text
-            // biome-ignore lint/suspicious/noArrayIndexKey: Nodes are positional — the same text can legitimately repeat.
+            // biome-ignore lint/suspicious/noArrayIndexKey: Nodes are positional; the same text can legitimately repeat.
             key={index}
             style={links === "press" ? styles.link : null}
             accessibilityRole={links === "press" ? "link" : undefined}
@@ -81,7 +85,7 @@ export function InlineMarkdown({
           >
             {node.children.map((child, childIndex) => (
               <Text
-                // biome-ignore lint/suspicious/noArrayIndexKey: Nodes are positional — the same text can legitimately repeat.
+                // biome-ignore lint/suspicious/noArrayIndexKey: Nodes are positional; the same text can legitimately repeat.
                 key={childIndex}
                 style={runStyle(child)}
               >

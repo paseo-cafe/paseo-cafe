@@ -60,7 +60,6 @@ jobs:
 
             plugin_package:
               - "plugin/client/**"
-              - "plugin/images/**"
               - "plugin/server/**"
               - "plugin/shared/**"
               - "plugin/index.client.tsx"
@@ -68,6 +67,7 @@ jobs:
               - "plugin/package.json"
               - "plugin/paseo-plugin.json"
               - "plugin/README.md"
+              - "plugin/OVERVIEW.md"
   app:
     name: App
     needs: changes
@@ -141,7 +141,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        paseo_version: [0.9.0-beta.2, 0.10.0-beta.1, 0.11.0-beta.3]
+        paseo_version: [0.11.0-beta.4, 0.11.2]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -154,7 +154,7 @@ jobs:
           bun-version-file: package.json
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -186,17 +186,10 @@ jobs:
       - name: Install Paseo CLI for self-update integration
         run: npm install --global @getpaseo/cli@${{ matrix.paseo_version }} --no-audit --no-fund
 
-      - name: Test self-update against an isolated daemon
-        if: matrix.paseo_version == '0.9.0-beta.2'
+      - name: Test Paseo compatibility against an isolated daemon
         working-directory: plugin
         run: bun run server/self-update.integration.ts
 
-      - name: Test Paseo compatibility against an isolated daemon
-        if: matrix.paseo_version != '0.9.0-beta.2'
-        working-directory: plugin
-        run: bun run server/self-update.integration.ts
-        env:
-          PASEO_CAFE_REQUIREMENTS_ONLY: "1"
   plugin-preview:
     name: Publish plugin preview
     needs: [changes, plugin]
@@ -223,7 +216,7 @@ jobs:
           bun-version-file: package.json
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org

@@ -1,0 +1,12 @@
+{
+  "repo": "Drenalol/paseo-turn-speed",
+  "package": "paseo-turn-speed",
+  "categories": ["monitoring", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Turns are observed live; history before a plugin reload or reconnect is not reconstructed",
+    "Exact numbers need provider usage; OpenCode/MLX models need options.includeUsage: true in the provider config",
+    "Without provider usage every number is a character estimate marked with an approximation sign"
+  ],
+  "submittedBy": "Drenalol"
+}

@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import { useMemo, useState } from "react"
 import { Pressable, Text, View } from "react-native"
 import { expandableAccessibilityLabel } from "./accessibility"
-import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
+import { MIN_TOUCH, mutedTextColor, radius, space } from "./visual"
 
 interface ExpandableSectionProps {
   title: string
@@ -14,7 +14,7 @@ interface ExpandableSectionProps {
   initiallyExpanded?: boolean
 }
 
-/** Native counterpart to the website's collapsed-by-default ExpandableSection. */
+/** Collapsed-by-default disclosure section. */
 export function ExpandableSection({
   title,
   subtitle,
@@ -28,17 +28,17 @@ export function ExpandableSection({
       container: {
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
+        borderRadius: radius.md,
         backgroundColor: theme.colors.surface1,
       },
       summary: {
-        minHeight: 44,
+        minHeight: MIN_TOUCH,
         flexDirection: "row" as const,
         alignItems: "center" as const,
         justifyContent: "space-between" as const,
-        gap: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
+        gap: space.md,
+        paddingHorizontal: space.md,
+        paddingVertical: space.sm,
       },
       titleRow: {
         minWidth: 0,
@@ -50,19 +50,17 @@ export function ExpandableSection({
       },
       title: {
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: "600" as const,
       },
       subtitle: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
+        color: mutedTextColor(theme, theme.colors.surface1),
+        fontSize: 12,
       },
       body: {
         borderTopWidth: 1,
         borderTopColor: theme.colors.border,
-        padding: 12,
+        padding: space.md,
       },
     }),
     [theme]
@@ -78,6 +76,7 @@ export function ExpandableSection({
           subtitle
         )}
         accessibilityState={{ expanded }}
+        aria-expanded={expanded}
         style={styles.summary}
         onPress={() => setExpanded((current) => !current)}
       >
