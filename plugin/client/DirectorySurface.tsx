@@ -3,69 +3,89 @@ import type { PluginSurfaceProps } from "@getpaseo/plugin/client"
 import { useRpc, useSettings } from "@getpaseo/plugin/client"
 import {
   FlatList,
+  Modal,
+  ScrollView,
   TextInput,
   useToast,
 } from "@getpaseo/plugin/client/react-native"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Pressable, Text, View } from "react-native"
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react"
+import { Pressable, Text, useWindowDimensions, View } from "react-native"
 import type {
   DirectoryBrowseSettings,
-  DirectoryCategory,
   DirectoryEntry,
   InstalledPlugin,
-  PendingSelfUpdate,
+  PluginUpdate,
 } from "../shared/directory"
 import {
-  DIRECTORY_ADDED_AT_LABEL,
-  DIRECTORY_CATEGORIES,
-  DIRECTORY_CATEGORY_LABELS,
-  DIRECTORY_PLATFORM_LABELS,
-  DIRECTORY_RECENCY_LABEL,
-  directoryApplySelfUpdateRpc,
+  DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+  DEFAULT_REGISTRY_URL,
   directoryBrowseSettingsEqual,
   directoryInstallRpc,
   directoryListRpc,
   directorySettings,
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
-  findInstallations,
-  getDirectoryThemeHighlights,
   isDefaultDirectoryBrowseView,
-  isDirectoryRecencyKnown,
-  normalizeDirectoryCategories,
+  SELF_INSTALLATION_ID,
+  SUBMIT_URL,
   setAutomaticUpdatePreference,
 } from "../shared/directory"
 import { filterAccessibilityLabel } from "./accessibility"
-import { BrandMark } from "./BrandMark"
+import {
+  categoryOptions as buildCategoryOptions,
+  countByStatus,
+  filterBySearchAndCategories,
+  filterByStatus,
+  type InstallationStatusFilter,
+  indexInstallations,
+  invalidListingsNotice,
+  recountCategories,
+  selectFeatured,
+  splitThemes,
+} from "./browse"
 import { PluginDetailPage } from "./PluginDetailPage"
 import { PluginGalleryPage } from "./PluginGalleryPage"
-import { PluginRow } from "./PluginRow"
-import {
-  resolveSelfUpdateRecoveryState,
-  startPreparedSelfUpdate,
-} from "./self-update"
+import { PluginRow, type PluginRowDateBadge } from "./PluginRow"
+import { RowSkeleton, ThemeGridSkeleton } from "./Skeleton"
+import { StateMessage } from "./StateMessage"
 import { dateBadgeForSortMode, type SortMode, sortEntries } from "./sort"
-import { ThemePreviewCard } from "./ThemePreviewCard"
-import { updateStatusQueryKey } from "./update-status"
-import { CAFE_CONTROL_RADIUS, CAFE_MONO_FONT } from "./visual"
+import { ThemeCard } from "./ThemeCard"
+import { UPDATE_STATUS_QUERY_KEY } from "./update-status"
+import { MIN_TOUCH, mutedTextColor, radius, space } from "./visual"
+import { openExternal } from "./web"
 
 const DIRECTORY_QUERY_KEY = "paseo-cafe-directory"
+const FEATURED_LIMIT = 6
+const MAX_CONTENT_WIDTH = 1120
+const THEME_GRID_GAP = space.md
+/** Below this content width the desktop theme grid uses three columns, not four. */
+const WIDE_THEME_BREAKPOINT = 1100
+const SKELETON_ROWS = 8
+
+const NO_CATEGORIES: ReadonlySet<string> = new Set()
+const NO_PLUGINS: readonly DirectoryEntry[] = []
+const NO_INSTALLATIONS: readonly InstalledPlugin[] = []
+
+type Segment = "plugins" | "themes"
+
+const SEGMENT_INFO: Record<Segment, { label: string; noun: string }> = {
+  plugins: { label: "Plugins", noun: "plugin" },
+  themes: { label: "Themes", noun: "theme" },
+}
+const SEGMENT_ORDER: readonly Segment[] = ["plugins", "themes"]
+
+function countNoun(count: number, segment: Segment): string {
+  const { noun } = SEGMENT_INFO[segment]
+  return `${count} ${noun}${count === 1 ? "" : "s"}`
+}
 
 export function canQueueAutomaticUpdatePreference(status: string): boolean {
   return status !== "error" && status !== "invalid"
 }
 
-type ReleaseChannel = "stable" | "preview"
-
-function applyPreviewPreference(
-  current: readonly string[],
-  installationId: string,
-  channel: ReleaseChannel
-): string[] {
-  return channel === "preview"
-    ? Array.from(new Set([...current, installationId]))
-    : current.filter((id) => id !== installationId)
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
 }
 
 function toggle<T>(set: ReadonlySet<T>, value: T): Set<T> {
@@ -75,379 +95,207 @@ function toggle<T>(set: ReadonlySet<T>, value: T): Set<T> {
   return next
 }
 
-interface FilterRowProps<T extends string> {
+interface ChipProps {
   label: string
-  options: readonly T[]
-  selected: ReadonlySet<T>
+  role: "tab" | "radio" | "button"
+  selected: boolean
+  accessibilityLabel: string
   theme: PluginTheme
   largeTouchTarget: boolean
-  allCount?: number
-  getCount?: (value: T) => number | undefined
-  formatOption?: (value: T) => string
-  onToggle: (value: T) => void
-  onClear: () => void
+  disabled?: boolean
+  /** Share the row evenly with sibling chips instead of hugging the label. */
+  grow?: boolean
+  size?: "md" | "lg"
+  onPress: () => void
 }
 
-function FilterRow<T extends string>({
+/** Segment, category and option control: accent fill when selected, surface2 otherwise. */
+function Chip({
   label,
-  options,
+  role,
   selected,
+  accessibilityLabel,
   theme,
   largeTouchTarget,
-  allCount,
-  getCount,
-  formatOption,
-  onToggle,
-  onClear,
-}: FilterRowProps<T>) {
-  const styles = useMemo(
-    () => ({
-      row: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 6,
-        flexWrap: "wrap" as const,
-      },
-      label: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-        letterSpacing: 0.8,
-      },
-      chip: (active: boolean) => ({
-        minHeight: largeTouchTarget ? 44 : 32,
-        justifyContent: "center" as const,
-        borderWidth: 1,
-        borderColor: active ? theme.colors.accent : theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
-      }),
-      chipText: (active: boolean) => ({
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        fontWeight: "600" as const,
-        color: active
-          ? theme.colors.accentForeground
-          : theme.colors.foregroundMuted,
-      }),
-    }),
-    [theme, largeTouchTarget]
-  )
-
-  if (options.length === 0) return null
-
+  disabled = false,
+  grow = false,
+  size = "md",
+  onPress,
+}: ChipProps) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.label}>{label.toUpperCase()}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={filterAccessibilityLabel(
-          "clear",
-          label.toLowerCase(),
-          allCount
-        )}
-        accessibilityState={{ selected: selected.size === 0 }}
-        style={styles.chip(selected.size === 0)}
-        onPress={onClear}
+    <Pressable
+      accessibilityRole={role}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={
+        role === "radio"
+          ? { checked: selected, disabled }
+          : { selected, disabled }
+      }
+      aria-checked={role === "radio" ? selected : undefined}
+      aria-selected={role === "tab" ? selected : undefined}
+      aria-pressed={role === "button" ? selected : undefined}
+      aria-disabled={disabled}
+      disabled={disabled}
+      style={{
+        flex: grow ? 1 : undefined,
+        flexShrink: 0,
+        minHeight: largeTouchTarget ? MIN_TOUCH : size === "lg" ? 36 : 32,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: radius.md,
+        paddingHorizontal: space.md,
+        paddingVertical: space.xs,
+        backgroundColor: selected ? theme.colors.accent : theme.colors.surface2,
+        opacity: disabled ? 0.5 : 1,
+      }}
+      onPress={onPress}
+    >
+      <Text
+        numberOfLines={1}
+        style={{
+          color: selected
+            ? theme.colors.accentForeground
+            : mutedTextColor(theme, theme.colors.surface2),
+          fontSize: size === "lg" ? 14 : 12,
+          fontWeight: "600",
+        }}
       >
-        <Text style={styles.chipText(selected.size === 0)}>
-          All{allCount === undefined ? "" : ` ${allCount}`}
-        </Text>
-      </Pressable>
-      {options.map((option) => {
-        const active = selected.has(option)
-        const optionLabel = formatOption?.(option) ?? option
-        const count = getCount?.(option)
-        return (
-          <Pressable
-            key={option}
-            accessibilityRole="button"
-            accessibilityLabel={filterAccessibilityLabel(
-              "filter",
-              optionLabel,
-              count
-            )}
-            accessibilityState={{ selected: active }}
-            style={styles.chip(active)}
-            onPress={() => onToggle(option)}
-          >
-            <Text style={styles.chipText(active)}>
-              {optionLabel}
-              {getCount ? ` ${count ?? "—"}` : ""}
-            </Text>
-          </Pressable>
-        )
-      })}
-    </View>
+        {label}
+      </Text>
+    </Pressable>
   )
 }
 
-type InstallationStatusFilter = DirectoryBrowseSettings["status"]
-
-interface StatusFilterOption {
-  value: InstallationStatusFilter
+interface ChoiceOption<T extends string> {
+  value: T
   label: string
-  count?: number
+  /** Shown after the label, e.g. a count. */
+  detail?: string
+  accessibilityLabel: string
   disabled?: boolean
 }
 
-function StatusFilterRow({
+function OptionGroup<T extends string>({
+  label,
+  accessibilityLabel,
   options,
   selected,
   theme,
   largeTouchTarget,
   onSelect,
 }: {
-  options: readonly StatusFilterOption[]
-  selected: InstallationStatusFilter
+  label: string
+  accessibilityLabel: string
+  options: readonly ChoiceOption<T>[]
+  selected: T
   theme: PluginTheme
   largeTouchTarget: boolean
-  onSelect: (value: InstallationStatusFilter) => void
+  onSelect: (value: T) => void
 }) {
-  const styles = useMemo(
-    () => ({
-      row: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 6,
-        flexWrap: "wrap" as const,
-      },
-      label: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-        letterSpacing: 0.8,
-      },
-      chip: (active: boolean) => ({
-        minHeight: largeTouchTarget ? 44 : 32,
-        justifyContent: "center" as const,
-        borderWidth: 1,
-        borderColor: active ? theme.colors.accent : theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
-      }),
-      chipText: (active: boolean) => ({
-        color: active
-          ? theme.colors.accentForeground
-          : theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        fontWeight: "600" as const,
-      }),
-    }),
-    [theme, largeTouchTarget]
-  )
-
   return (
-    <View
-      accessibilityRole="radiogroup"
-      accessibilityLabel="Plugin installation status"
-      style={styles.row}
-    >
-      <Text style={styles.label}>SHOW</Text>
-      {options.map((option) => {
-        const active = selected === option.value
-        const countLabel =
-          option.count === undefined ? "unavailable" : `${option.count} plugins`
-        return (
-          <Pressable
+    <View style={{ gap: space.sm }}>
+      <Text
+        style={{
+          color: mutedTextColor(theme),
+          fontSize: 12,
+          fontWeight: "600",
+        }}
+      >
+        {label}
+      </Text>
+      <View
+        accessibilityRole="radiogroup"
+        accessibilityLabel={accessibilityLabel}
+        style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}
+      >
+        {options.map((option) => (
+          <Chip
             key={option.value}
-            accessibilityRole="radio"
-            accessibilityLabel={`${option.label}, ${countLabel}`}
-            accessibilityState={{ checked: active, disabled: option.disabled }}
-            aria-checked={active}
-            aria-disabled={option.disabled}
+            role="radio"
+            label={
+              option.detail === undefined
+                ? option.label
+                : `${option.label} ${option.detail}`
+            }
+            accessibilityLabel={option.accessibilityLabel}
+            selected={selected === option.value}
             disabled={option.disabled}
-            style={[
-              styles.chip(active),
-              option.disabled ? { opacity: 0.5 } : null,
-            ]}
+            theme={theme}
+            largeTouchTarget={largeTouchTarget}
             onPress={() => onSelect(option.value)}
-          >
-            <Text style={styles.chipText(active)}>
-              {option.label} {option.count ?? "—"}
-            </Text>
-          </Pressable>
-        )
-      })}
+          />
+        ))}
+      </View>
     </View>
   )
 }
-type DirectoryListResult = {
-  plugins: readonly DirectoryEntry[]
-  fetchedAt: string
-  npmSupported: boolean
-  installations?: readonly InstalledPlugin[]
-  installationError?: string
-}
 
-type UpdateStatusResult = {
-  installations: readonly InstalledPlugin[]
-}
-
-type InstallResult = {
-  ok: boolean
-  message: string
-}
-
-type UpdateResult = {
-  ok: boolean
-  message: string
-  updated?: boolean
-  selfUpdateToken?: string
-  selfUpdateRequestedAt?: string
-}
-
-interface SortOption {
-  value: SortMode
+const STATUS_OPTIONS: readonly {
+  value: InstallationStatusFilter
   label: string
-}
-
-const SORT_OPTIONS: readonly SortOption[] = [
-  { value: "updates-first", label: "Updates first" },
-  { value: "popular", label: "Popular" },
-  { value: "recent", label: DIRECTORY_RECENCY_LABEL },
-  { value: "recently-added", label: DIRECTORY_ADDED_AT_LABEL },
-  { value: "a-z", label: "A–Z" },
+}[] = [
+  { value: "all", label: "All" },
+  { value: "installed", label: "Installed" },
+  { value: "updates", label: "Updates" },
+  { value: "not-installed", label: "Not installed" },
 ]
 
-const FEATURED_LIMIT = 5
-
-function SortRow({
-  options,
-  selected,
-  theme,
-  largeTouchTarget,
-  onSelect,
-}: {
-  options: readonly SortOption[]
-  selected: SortMode
-  theme: PluginTheme
-  largeTouchTarget: boolean
-  onSelect: (value: SortMode) => void
-}) {
-  const styles = useMemo(
-    () => ({
-      row: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 6,
-        flexWrap: "wrap" as const,
-      },
-      label: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-        letterSpacing: 0.8,
-      },
-      chip: (active: boolean) => ({
-        minHeight: largeTouchTarget ? 44 : 32,
-        justifyContent: "center" as const,
-        borderWidth: 1,
-        borderColor: active ? theme.colors.accent : theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface0,
-      }),
-      chipText: (active: boolean) => ({
-        color: active
-          ? theme.colors.accentForeground
-          : theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-        fontWeight: "600" as const,
-      }),
-    }),
-    [theme, largeTouchTarget]
-  )
-
-  return (
-    <View
-      accessibilityRole="radiogroup"
-      accessibilityLabel="Plugin sort order"
-      style={styles.row}
-    >
-      <Text style={styles.label}>SORT</Text>
-      {options.map((option) => {
-        const active = selected === option.value
-        return (
-          <Pressable
-            key={option.value}
-            accessibilityRole="radio"
-            accessibilityLabel={`Sort by ${option.label}`}
-            accessibilityState={{ checked: active }}
-            aria-checked={active}
-            style={styles.chip(active)}
-            onPress={() => onSelect(option.value)}
-          >
-            <Text style={styles.chipText(active)}>{option.label}</Text>
-          </Pressable>
-        )
-      })}
-    </View>
-  )
+interface UpdateVariables {
+  entry: DirectoryEntry
+  installation: InstalledPlugin
 }
+
+const SORT_OPTIONS: readonly { value: SortMode; label: string }[] = [
+  { value: "updates-first", label: "Updates first" },
+  { value: "popular", label: "Popular" },
+  { value: "recent", label: "Recently updated" },
+  { value: "recently-added", label: "Recently added" },
+  { value: "a-z", label: "A to Z" },
+]
 
 export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const listDirectory = useRpc(directoryListRpc)
   const installPlugin = useRpc(directoryInstallRpc)
   const updatePlugin = useRpc(directoryUpdateRpc)
-  const applySelfUpdate = useRpc(directoryApplySelfUpdateRpc)
   const listUpdateStatus = useRpc(directoryUpdateStatusRpc)
   const settings = useSettings(directorySettings)
   const toast = useToast()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState<
-    ReadonlySet<DirectoryCategory>
-  >(new Set())
-  const [platformFilter, setPlatformFilter] = useState<ReadonlySet<string>>(
+  const [search, setSearch] = useState(DEFAULT_DIRECTORY_BROWSE_SETTINGS.query)
+  const [categoryFilter, setCategoryFilter] = useState<ReadonlySet<string>>(
     new Set()
   )
-  const [statusFilter, setStatusFilter] =
-    useState<InstallationStatusFilter>("all")
+  const [statusFilter, setStatusFilter] = useState<InstallationStatusFilter>(
+    DEFAULT_DIRECTORY_BROWSE_SETTINGS.status
+  )
+  const [sortMode, setSortMode] = useState<SortMode>(
+    DEFAULT_DIRECTORY_BROWSE_SETTINGS.sort
+  )
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [installFailure, setInstallFailure] = useState<{
     entryId: string
     message: string
   } | null>(null)
-  const [sortMode, setSortMode] = useState<SortMode>("updates-first")
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [updateFailure, setUpdateFailure] = useState<{
     entryId: string
     message: string
   } | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [segment, setSegment] = useState<Segment>("plugins")
+  const [screenWidth, setScreenWidth] = useState<number | null>(null)
+  const windowSize = useWindowDimensions()
   const [galleryEntry, setGalleryEntry] = useState<DirectoryEntry | null>(null)
   const [lastOpenedPluginId, setLastOpenedPluginId] = useState<string | null>(
-    null
+    DEFAULT_DIRECTORY_BROWSE_SETTINGS.lastOpenedPluginId
   )
   const [settingsHydrated, setSettingsHydrated] = useState(false)
   const hasHydratedSettings = useRef(false)
-  const pendingPreviewPreference = useRef<{
-    installationId: string
-    channel: ReleaseChannel
-    attempts: number
-  } | null>(null)
   const [pendingAutomaticPreference, setPendingAutomaticPreference] = useState<{
     installationId: string
     enabled: boolean
     attempts: number
   } | null>(null)
-
-  const reconcilingSelfUpdate = useRef<string | null>(null)
-  const unknownSelfUpdateNotice = useRef<string | null>(null)
-  const [failedSelfUpdateAttempt, setFailedSelfUpdateAttempt] = useState<
-    string | null
-  >(null)
-  const [pollSelfUpdate, setPollSelfUpdate] = useState(true)
 
   const settingsValues = settings.status === "ready" ? settings.values : null
   const settingsRevision =
@@ -461,22 +309,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
   const browseSettings = useMemo<DirectoryBrowseSettings>(
     () => ({
       query: search,
-      categories: DIRECTORY_CATEGORIES.filter((category) =>
-        categoryFilter.has(category)
-      ),
-      platforms: Array.from(platformFilter).sort(),
+      categories: Array.from(categoryFilter).sort(),
       status: statusFilter,
       sort: sortMode,
       lastOpenedPluginId,
     }),
-    [
-      search,
-      categoryFilter,
-      platformFilter,
-      statusFilter,
-      sortMode,
-      lastOpenedPluginId,
-    ]
+    [search, categoryFilter, statusFilter, sortMode, lastOpenedPluginId]
   )
 
   useEffect(() => {
@@ -485,7 +323,6 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     hasHydratedSettings.current = true
     setSearch(storedBrowse.query)
     setCategoryFilter(new Set(storedBrowse.categories))
-    setPlatformFilter(new Set(storedBrowse.platforms))
     setStatusFilter(storedBrowse.status)
     setSortMode(storedBrowse.sort)
     setLastOpenedPluginId(storedBrowse.lastOpenedPluginId)
@@ -526,45 +363,6 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     storedBrowse,
   ])
 
-  useEffect(() => {
-    const pending = pendingPreviewPreference.current
-    if (
-      !pending ||
-      !settingsValues ||
-      settingsRevision === null ||
-      settingsSaving
-    ) {
-      return
-    }
-    const previewOptIns = applyPreviewPreference(
-      settingsValues.previewOptIns,
-      pending.installationId,
-      pending.channel
-    )
-    void saveSettings(
-      { ...settingsValues, previewOptIns },
-      settingsRevision
-    ).then((saved) => {
-      if (pendingPreviewPreference.current !== pending) return
-      if (saved) {
-        pendingPreviewPreference.current = null
-      } else if (pending.attempts < 1) {
-        pendingPreviewPreference.current = {
-          ...pending,
-          attempts: pending.attempts + 1,
-        }
-        void reloadSettings()
-      } else {
-        pendingPreviewPreference.current = null
-      }
-    })
-  }, [
-    reloadSettings,
-    saveSettings,
-    settingsRevision,
-    settingsSaving,
-    settingsValues,
-  ])
   useEffect(() => {
     if (
       !pendingAutomaticPreference ||
@@ -611,86 +409,6 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     toast,
   ])
 
-  // Undefined until settings are readable: the handler then falls back to
-  // PASEO_CAFE_DIRECTORY_URL or the default catalog, so an unreadable or
-  // invalid settings document still shows a catalog instead of a blank surface.
-  const baseUrl =
-    settings.status === "ready" ? settings.values.directoryUrl : undefined
-  const previewOptIns = settingsValues?.previewOptIns ?? []
-  const settingsPending = settings.status === "loading"
-  const queryKey = [DIRECTORY_QUERY_KEY, baseUrl]
-  const statusQueryKey = updateStatusQueryKey(baseUrl, previewOptIns)
-
-  const directoryQuery = useQuery<DirectoryListResult>({
-    queryKey,
-    queryFn: async (): Promise<DirectoryListResult> =>
-      listDirectory({ baseUrl, force: false }) as Promise<DirectoryListResult>,
-    // Only the first read is gated, so the default catalog is never fetched
-    // and then immediately replaced by the configured one.
-    enabled: !settingsPending,
-    staleTime: 60_000,
-    refetchInterval:
-      settingsValues?.pendingSelfUpdate && pollSelfUpdate ? 2_000 : false,
-  })
-  const inventoryAvailable = directoryQuery.data?.installations !== undefined
-  const updateStatusQuery = useQuery<UpdateStatusResult>({
-    queryKey: statusQueryKey,
-    queryFn: async (): Promise<UpdateStatusResult> =>
-      listUpdateStatus({
-        baseUrl,
-        previewOptIns,
-      }) as Promise<UpdateStatusResult>,
-    enabled: inventoryAvailable,
-    staleTime: 60_000,
-  })
-
-  const savePreviewOptIn = async (
-    installationId: string,
-    channel: ReleaseChannel,
-    pendingSelfUpdate?: PendingSelfUpdate | null
-  ): Promise<boolean> => {
-    if (!settingsValues || settingsRevision === null) {
-      if (pendingSelfUpdate) {
-        await reloadSettings().catch(() => undefined)
-        return false
-      }
-      if (channel === "stable") return true
-      pendingPreviewPreference.current = {
-        installationId,
-        channel,
-        attempts: 0,
-      }
-      await reloadSettings().catch(() => undefined)
-      return false
-    }
-    const previewOptIns = applyPreviewPreference(
-      settingsValues.previewOptIns,
-      installationId,
-      channel
-    )
-    const saved = await saveSettings(
-      {
-        ...settingsValues,
-        previewOptIns,
-        pendingSelfUpdate:
-          pendingSelfUpdate === undefined
-            ? settingsValues.pendingSelfUpdate
-            : pendingSelfUpdate,
-      },
-      settingsRevision
-    )
-    if (!saved) {
-      if (!pendingSelfUpdate) {
-        pendingPreviewPreference.current = {
-          installationId,
-          channel,
-          attempts: 0,
-        }
-      }
-      await reloadSettings()
-    }
-    return saved
-  }
   const saveAutomaticUpdatePreference = (
     installationId: string,
     enabled: boolean
@@ -703,635 +421,506 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     if (!settingsValues) void reloadSettings()
   }
 
-  useEffect(() => {
-    const requestId = settingsValues?.pendingSelfUpdate?.requestedAt
-    if (!requestId) return
-    unknownSelfUpdateNotice.current = null
-    setPollSelfUpdate(true)
-  }, [settingsValues?.pendingSelfUpdate?.requestedAt])
+  // The official registry until settings are readable, so an unreadable or
+  // invalid settings document still shows a directory instead of a blank surface.
+  const registryUrl = settingsValues?.registryUrl ?? DEFAULT_REGISTRY_URL
+  const settingsPending = settings.status === "loading"
+  const directoryQueryKey = [DIRECTORY_QUERY_KEY, registryUrl] as const
 
-  useEffect(() => {
-    const pending = settingsValues?.pendingSelfUpdate
-    const installations = directoryQuery.data?.installations ?? []
-    const checkedAt =
-      Math.max(directoryQuery.dataUpdatedAt, directoryQuery.errorUpdatedAt) ||
-      Date.now()
-    if (
-      !pending ||
-      settingsRevision === null ||
-      settingsSaving ||
-      reconcilingSelfUpdate.current === pending.requestedAt
-    ) {
-      return
-    }
-    const recoveryState = resolveSelfUpdateRecoveryState(
-      pending,
-      installations,
-      failedSelfUpdateAttempt,
-      checkedAt
-    )
-    if (recoveryState === "pending") return
-    if (recoveryState === "unknown") {
-      if (unknownSelfUpdateNotice.current === pending.requestedAt) return
-      unknownSelfUpdateNotice.current = pending.requestedAt
-      setPollSelfUpdate(false)
-      const message = `Paseo Cafe has not reached ${pending.targetRevision} yet. The outcome is unconfirmed; reopen Cafe later or review the plugin logs.`
-      setUpdateFailure({ entryId: "paseo-cafe", message })
-      toast.error(message)
-      return
-    }
+  const directoryQuery = useQuery({
+    queryKey: directoryQueryKey,
+    queryFn: () => listDirectory({ registryUrl, force: false }),
+    // Only the first read is gated, so the official registry is never fetched
+    // and then immediately replaced by the configured one.
+    enabled: !settingsPending,
+    staleTime: 60_000,
+  })
+  const directory = directoryQuery.data
+  const inventoryAvailable = directory?.installations !== undefined
+  const updateStatusQuery = useQuery({
+    queryKey: UPDATE_STATUS_QUERY_KEY,
+    queryFn: () => listUpdateStatus({ force: true }),
+    enabled: inventoryAvailable,
+    staleTime: 60_000,
+  })
 
-    reconcilingSelfUpdate.current = pending.requestedAt
-    void saveSettings(
-      { ...settingsValues, pendingSelfUpdate: null },
-      settingsRevision
-    )
-      .then((saved) => {
-        if (!saved) {
-          void reloadSettings()
-          return
-        }
-        if (failedSelfUpdateAttempt === pending.requestedAt) {
-          setFailedSelfUpdateAttempt(null)
-        }
-        if (recoveryState === "succeeded") {
-          toast.show(`Paseo Cafe updated to ${pending.targetRevision}.`, {
-            variant: "success",
-          })
-          return
-        }
-        const message = `Paseo Cafe did not reach ${pending.targetRevision}. Review the plugin logs and retry.`
-        setUpdateFailure({ entryId: "paseo-cafe", message })
-        toast.error(message)
-      })
-      .finally(() => {
-        if (reconcilingSelfUpdate.current === pending.requestedAt) {
-          reconcilingSelfUpdate.current = null
-        }
-      })
-  }, [
-    directoryQuery.dataUpdatedAt,
-    directoryQuery.errorUpdatedAt,
-    failedSelfUpdateAttempt,
-    directoryQuery.data?.installations,
-    reloadSettings,
-    saveSettings,
-    settingsRevision,
-    settingsSaving,
-    settingsValues,
-    toast,
-  ])
+  const refreshInventory = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: directoryQueryKey,
+        exact: true,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: UPDATE_STATUS_QUERY_KEY,
+        exact: true,
+      }),
+    ])
+  }
 
-  const installMutation = useMutation<
-    InstallResult,
-    unknown,
-    { entry: DirectoryEntry; channel: "stable" | "preview" }
-  >({
-    mutationFn: ({ entry, channel }): Promise<InstallResult> => {
+  const installMutation = useMutation({
+    mutationFn: (entry: DirectoryEntry) =>
+      installPlugin({
+        registryUrl,
+        id: entry.id,
+        expected: entry.artifact,
+      }),
+    onMutate: (entry) => {
       setInstallingId(entry.id)
       setInstallFailure(null)
-      const release = channel === "preview" ? entry.npmPreview : entry.npm
-      const npmTarget = npmSupported && entry.package ? release : undefined
-      return installPlugin({
-        entryId: entry.id,
-        channel,
-        expectedRepo: entry.repo,
-        expectedPath: entry.path,
-        expectedPackage: npmTarget?.package,
-        expectedVersion: npmTarget?.version,
-        expectedIntegrity: npmTarget?.integrity,
-        expectedCommit: npmTarget ? undefined : entry.security?.commit,
-      }) as Promise<InstallResult>
     },
-    onSuccess: async (result, { entry, channel }) => {
+    onSuccess: async (result, entry) => {
       if (!result.ok) {
         setInstallFailure({ entryId: entry.id, message: result.message })
         toast.error(`Couldn't install ${entry.name}. See details below.`)
         return
       }
-      const preferenceSaved = await savePreviewOptIn(entry.id, channel)
-      if (!preferenceSaved) {
-        toast.error(
-          `Installed ${entry.name}; Cafe will retry saving the ${channel} channel preference.`
-        )
-      } else {
-        toast.show(`Installed ${entry.name}`, { variant: "success" })
-      }
-      await queryClient.invalidateQueries({ queryKey, exact: true })
-      await queryClient.invalidateQueries({
-        queryKey: statusQueryKey,
-        exact: true,
-      })
+      toast.show(`Installed ${entry.name}`, { variant: "success" })
+      await refreshInventory()
     },
-    onError: (error, { entry }) => {
+    onError: (error, entry) => {
       setInstallFailure({
         entryId: entry.id,
-        message: error instanceof Error ? error.message : "Install failed",
+        message: errorMessage(error, "Install failed"),
       })
       toast.error(`Couldn't install ${entry.name}. See details below.`)
     },
     onSettled: () => setInstallingId(null),
   })
 
-  const updateMutation = useMutation<
-    UpdateResult,
-    unknown,
-    {
-      entry: DirectoryEntry
-      installation: InstalledPlugin
-      channel: "stable" | "preview"
-    }
-  >({
-    mutationFn: ({ entry, installation, channel }): Promise<UpdateResult> => {
+  const updateMutation = useMutation({
+    mutationFn: ({ installation }: UpdateVariables) =>
+      updatePlugin({ installationId: installation.id }),
+    onMutate: ({ installation }) => {
       setUpdatingId(installation.id)
       setUpdateFailure(null)
-      const release = channel === "preview" ? entry.npmPreview : entry.npm
-      return updatePlugin({
-        entryId: entry.id,
-        installationId: installation.id,
-        channel,
-        expectedRepo: entry.repo,
-        expectedPath: entry.path,
-        expectedPackage:
-          installation.source === "npm" ? release?.package : undefined,
-        expectedVersion:
-          installation.source === "npm" ? release?.version : undefined,
-        expectedIntegrity:
-          installation.source === "npm" ? release?.integrity : undefined,
-        expectedCommit:
-          installation.source === "git" ? entry.security?.commit : undefined,
-      }) as Promise<UpdateResult>
     },
-    onSuccess: async (result, { entry, installation, channel }) => {
+    onSuccess: async (result, { entry }) => {
       if (!result.ok) {
         setUpdateFailure({ entryId: entry.id, message: result.message })
         toast.error(`Couldn't update ${entry.name}. See details below.`)
         return
       }
-      const release = channel === "preview" ? entry.npmPreview : entry.npm
-      const targetRevision =
-        installation.source === "npm"
-          ? release?.version
-          : entry.security?.commit
-      const pendingSelfUpdate =
-        result.selfUpdateToken &&
-        result.selfUpdateRequestedAt &&
-        targetRevision &&
-        installation.source !== "directory"
-          ? {
-              installationId: installation.id,
-              source: installation.source,
-              targetRevision,
-              requestedAt: result.selfUpdateRequestedAt,
-            }
-          : undefined
-      if (result.selfUpdateToken && !pendingSelfUpdate) {
-        const message = "The self-update target revision is unavailable."
-        setUpdateFailure({ entryId: entry.id, message })
-        toast.error(
-          `Couldn't start the ${entry.name} update. See details below.`
-        )
+      if (result.restarting) {
+        // This plugin replaced itself: the process restarts, so the refetch
+        // below may fail and retry until it is back. Not awaited for that reason.
+        toast.show(result.message, { variant: "info" })
+        void refreshInventory()
         return
       }
-      let preferenceSaved = false
-      try {
-        preferenceSaved = await savePreviewOptIn(
-          installation.id,
-          channel,
-          pendingSelfUpdate
-        )
-      } catch (error) {
-        if (result.selfUpdateToken) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Couldn't save the update channel preference."
-          setUpdateFailure({ entryId: entry.id, message })
-          toast.error(
-            `Couldn't save the ${channel} channel; the ${entry.name} update was not started.`
-          )
-          return
-        }
-      }
-      if (result.selfUpdateToken) {
-        if (!pendingSelfUpdate) return
-        if (!preferenceSaved) {
-          const message = `Couldn't save the ${channel} channel preference.`
-          setUpdateFailure({ entryId: entry.id, message })
-          toast.error(
-            `Couldn't save the ${channel} channel; the ${entry.name} update was not started.`
-          )
-          return
-        }
-        try {
-          const handoff = await startPreparedSelfUpdate(
-            applySelfUpdate,
-            result.selfUpdateToken
-          )
-          toast.show(
-            handoff === "accepted"
-              ? "Paseo Cafe update started. It will reload automatically."
-              : "Paseo Cafe update is already being reconciled.",
-            { variant: "success" }
-          )
-        } catch (error) {
-          setFailedSelfUpdateAttempt(pendingSelfUpdate.requestedAt)
-          setUpdateFailure({
-            entryId: entry.id,
-            message:
-              error instanceof Error ? error.message : "Self-update failed",
-          })
-          toast.error(
-            `Couldn't start the ${entry.name} update. See details below.`
-          )
-        }
-        return
-      }
-      if (!preferenceSaved) {
-        toast.error(
-          `Updated ${entry.name}; Cafe will retry saving the ${channel} channel preference.`
-        )
-      } else {
-        toast.show(result.message, { variant: "success" })
-      }
-      await queryClient.invalidateQueries({ queryKey, exact: true })
-      await queryClient.invalidateQueries({
-        queryKey: statusQueryKey,
-        exact: true,
+      toast.show(result.message, {
+        variant: result.updated === false ? "info" : "success",
       })
+      await refreshInventory()
     },
-    onError: (error, { entry }) => {
+    onError: (error, { entry, installation }) => {
+      if (installation.id === SELF_INSTALLATION_ID) {
+        // The restart can drop the connection before the result arrives, so
+        // the failure is unconfirmed rather than known.
+        toast.show(
+          `${entry.name} may be restarting. Reopen it in a moment to check the update.`,
+          { variant: "info" }
+        )
+        void refreshInventory()
+        return
+      }
       setUpdateFailure({
         entryId: entry.id,
-        message: error instanceof Error ? error.message : "Update failed",
+        message: errorMessage(error, "Update failed"),
       })
       toast.error(`Couldn't update ${entry.name}. See details below.`)
     },
     onSettled: () => setUpdatingId(null),
   })
 
-  const refreshMutation = useMutation<
-    { key: readonly [string, string | undefined]; result: DirectoryListResult },
-    unknown,
-    void
-  >({
-    mutationFn: async () => {
-      const key = [DIRECTORY_QUERY_KEY, baseUrl] as const
-      return {
-        key,
-        result: (await listDirectory({
-          baseUrl,
-          force: true,
-        })) as DirectoryListResult,
-      }
-    },
+  const refreshMutation = useMutation({
+    mutationFn: async () => ({
+      key: directoryQueryKey,
+      result: await listDirectory({ registryUrl, force: true }),
+    }),
     onSuccess: async ({ key, result }) => {
       queryClient.setQueryData(key, result)
       await queryClient.invalidateQueries({
-        queryKey: statusQueryKey,
+        queryKey: UPDATE_STATUS_QUERY_KEY,
         exact: true,
       })
-      toast.show("Paseo Cafe refreshed.", { variant: "success" })
+      toast.show("Plugin directory refreshed.", { variant: "success" })
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Refresh failed")
+      toast.error(errorMessage(error, "Refresh failed"))
     },
   })
-  const catalogPlugins = directoryQuery.data?.plugins ?? []
-  const plugins = useMemo(
-    () =>
-      catalogPlugins.map((entry) => ({
-        ...entry,
-        categories: normalizeDirectoryCategories(entry.categories),
-      })),
-    [catalogPlugins]
-  )
-  const detailEntry = lastOpenedPluginId
-    ? (plugins.find((entry) => entry.id === lastOpenedPluginId) ?? null)
-    : null
-  const installations = inventoryAvailable
-    ? (updateStatusQuery.data?.installations ??
-      directoryQuery.data?.installations ??
-      [])
-    : []
-  const npmSupported = directoryQuery.data?.npmSupported ?? false
-  const installationByEntryId = useMemo(
-    (): Map<string, InstalledPlugin[]> =>
-      new Map<string, InstalledPlugin[]>(
-        plugins.flatMap((entry: DirectoryEntry) => {
-          const matches = findInstallations(entry, installations)
-          return matches.length > 0 ? [[entry.id, matches] as const] : []
-        })
-      ),
-    [plugins, installations]
-  )
-  const detailInstallations = detailEntry
-    ? (installationByEntryId.get(detailEntry.id) ?? [])
-    : []
 
-  const allCategories = useMemo((): DirectoryCategory[] => {
-    const present = new Set(plugins.flatMap((entry) => entry.categories))
-    return DIRECTORY_CATEGORIES.filter((category) => present.has(category))
-  }, [plugins])
-  const allPlatforms = useMemo(
-    (): string[] =>
-      Array.from(
-        new Set(plugins.flatMap((entry: DirectoryEntry) => entry.platforms))
-      ).sort(),
-    [plugins]
-  )
-  const categoryCounts = useMemo(
-    (): Record<DirectoryCategory, number> =>
-      Object.fromEntries(
-        DIRECTORY_CATEGORIES.map((category) => [
-          category,
-          plugins.filter((entry) => entry.categories.includes(category)).length,
+  const plugins = directory?.plugins ?? NO_PLUGINS
+  const installations = directory?.installations ?? NO_INSTALLATIONS
+  const updates = useMemo(
+    (): ReadonlyMap<string, PluginUpdate> =>
+      new Map(
+        (updateStatusQuery.data?.updates ?? []).map((update) => [
+          update.id,
+          update,
         ])
-      ) as Record<DirectoryCategory, number>,
+      ),
+    [updateStatusQuery.data]
+  )
+  const categoryLabels = useMemo(
+    (): ReadonlyMap<string, string> =>
+      new Map(
+        (directory?.categories ?? []).map((category) => [
+          category.slug,
+          category.label,
+        ])
+      ),
+    [directory?.categories]
+  )
+  const installationsByEntryId = useMemo(
+    () => indexInstallations(plugins, installations, registryUrl),
+    [plugins, installations, registryUrl]
+  )
+  const { plugins: pluginEntries, themes: themeEntries } = useMemo(
+    () => splitThemes(plugins),
     [plugins]
   )
-  const platformCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const entry of plugins) {
-      for (const platform of new Set(entry.platforms)) {
-        counts.set(platform, (counts.get(platform) ?? 0) + 1)
-      }
-    }
-    return counts
-  }, [plugins])
+  // Themes have their own segment, so the category strip only offers what
+  // plugins use.
+  const categoryOptions = useMemo(
+    () => buildCategoryOptions(pluginEntries, directory?.categories ?? []),
+    [pluginEntries, directory?.categories]
+  )
 
-  const nonStatusFiltered = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return plugins.filter((entry) => {
-      if (query) {
-        const haystack = [
-          entry.id,
-          entry.name,
-          entry.description,
-          entry.repo,
-          entry.author,
-          entry.owner?.login,
-          entry.paseoVersionRequirement,
-          ...entry.categories.map(
-            (category) => DIRECTORY_CATEGORY_LABELS[category]
-          ),
-          ...entry.categories,
-          ...entry.platforms,
-          ...entry.caveats,
-          ...entry.themes.flatMap(({ id, name, appearance }) => [
-            id,
-            name,
-            appearance,
-          ]),
-        ]
-          .filter((value): value is string => Boolean(value))
-          .join(" ")
-          .toLowerCase()
-        if (!haystack.includes(query)) return false
-      }
-      if (
-        categoryFilter.size > 0 &&
-        !entry.categories.some((category) => categoryFilter.has(category))
-      )
-        return false
-      if (
-        platformFilter.size > 0 &&
-        !entry.platforms.some((platform) => platformFilter.has(platform))
-      )
-        return false
-      return true
+  // A saved category the registry no longer offers has no chip to deselect it,
+  // so drop it instead of silently filtering the list to nothing.
+  useEffect(() => {
+    if (!settingsHydrated || !directoryQuery.isSuccess) return
+    const offered = new Set(categoryOptions.map((option) => option.slug))
+    setCategoryFilter((current) => {
+      const kept = Array.from(current).filter((slug) => offered.has(slug))
+      return kept.length === current.size ? current : new Set(kept)
     })
-  }, [plugins, search, categoryFilter, platformFilter])
+  }, [categoryOptions, directoryQuery.isSuccess, settingsHydrated])
 
-  const installedCount = nonStatusFiltered.filter(
-    (entry) => (installationByEntryId.get(entry.id)?.length ?? 0) > 0
-  ).length
-  const updateCount = nonStatusFiltered.filter((entry) =>
-    installationByEntryId
-      .get(entry.id)
-      ?.some((installation) => installation.updateState === "available")
-  ).length
-  const statusOptions: readonly StatusFilterOption[] = [
-    { value: "all", label: "All", count: nonStatusFiltered.length },
-    {
-      value: "installed",
-      label: "Installed",
-      count: inventoryAvailable ? installedCount : undefined,
-      disabled: !inventoryAvailable,
-    },
-    {
-      value: "updates",
-      label: "Updates",
-      count: updateStatusQuery.isSuccess ? updateCount : undefined,
-      disabled: !updateStatusQuery.isSuccess,
-    },
-    {
-      value: "not-installed",
-      label: "Not installed",
-      count: inventoryAvailable
-        ? nonStatusFiltered.length - installedCount
-        : undefined,
-      disabled: !inventoryAvailable,
-    },
-  ]
-  const effectiveStatusFilter = inventoryAvailable ? statusFilter : "all"
-  const filtered = useMemo(
+  // A saved status filter whose data has not arrived (or cannot be had) falls
+  // back to showing everything rather than an empty list under a disabled chip.
+  const statusAvailable: Record<InstallationStatusFilter, boolean> = {
+    all: true,
+    installed: inventoryAvailable,
+    "not-installed": inventoryAvailable,
+    updates: updateStatusQuery.isSuccess,
+  }
+  const effectiveStatusFilter = statusAvailable[statusFilter]
+    ? statusFilter
+    : "all"
+
+  const themesActive = segment === "themes"
+  const otherSegment: Segment = themesActive ? "plugins" : "themes"
+
+  const pluginSearched = useMemo(
     () =>
-      nonStatusFiltered.filter((entry) => {
-        const matches = installationByEntryId.get(entry.id) ?? []
-        if (effectiveStatusFilter === "installed") return matches.length > 0
-        if (effectiveStatusFilter === "updates") {
-          return matches.some(
-            (installation) => installation.updateState === "available"
-          )
-        }
-        if (effectiveStatusFilter === "not-installed")
-          return matches.length === 0
-        return true
-      }),
-    [nonStatusFiltered, effectiveStatusFilter, installationByEntryId]
+      filterBySearchAndCategories(
+        pluginEntries,
+        search,
+        categoryFilter,
+        categoryLabels
+      ),
+    [pluginEntries, search, categoryFilter, categoryLabels]
   )
-  // browseSettings already carries exactly the state this depends on.
-  const defaultBrowseState = isDefaultDirectoryBrowseView(browseSettings)
-
+  // The Themes segment has no category strip, so categories never narrow it.
+  const themeSearched = useMemo(
+    () =>
+      filterBySearchAndCategories(
+        themeEntries,
+        search,
+        NO_CATEGORIES,
+        categoryLabels
+      ),
+    [themeEntries, search, categoryLabels]
+  )
+  const pluginFiltered = useMemo(
+    () =>
+      filterByStatus(
+        pluginSearched,
+        effectiveStatusFilter,
+        installationsByEntryId,
+        updates
+      ),
+    [pluginSearched, effectiveStatusFilter, installationsByEntryId, updates]
+  )
+  const themeFiltered = useMemo(
+    () =>
+      filterByStatus(
+        themeSearched,
+        effectiveStatusFilter,
+        installationsByEntryId,
+        updates
+      ),
+    [themeSearched, effectiveStatusFilter, installationsByEntryId, updates]
+  )
+  const searched = themesActive ? themeSearched : pluginSearched
+  const filtered = themesActive ? themeFiltered : pluginFiltered
+  const otherCount = themesActive ? pluginFiltered.length : themeFiltered.length
   const sorted = useMemo(
-    () => sortEntries(filtered, sortMode, installationByEntryId),
-    [filtered, sortMode, installationByEntryId]
+    () => sortEntries(filtered, sortMode, installationsByEntryId, updates),
+    [filtered, sortMode, installationsByEntryId, updates]
+  )
+  const statusCounts = useMemo(
+    () => countByStatus(searched, installationsByEntryId, updates),
+    [searched, installationsByEntryId, updates]
   )
 
-  const popularHighlights = useMemo(
+  // Category chips count what each would show under the current search and
+  // status filter, so they never promise more than the list can deliver.
+  const categoryFacetEntries = useMemo(
     () =>
-      defaultBrowseState
-        ? sortEntries(filtered, "popular", installationByEntryId).slice(
+      filterByStatus(
+        filterBySearchAndCategories(
+          pluginEntries,
+          search,
+          NO_CATEGORIES,
+          categoryLabels
+        ),
+        effectiveStatusFilter,
+        installationsByEntryId,
+        updates
+      ),
+    [
+      pluginEntries,
+      search,
+      categoryLabels,
+      effectiveStatusFilter,
+      installationsByEntryId,
+      updates,
+    ]
+  )
+  const categoryChips = useMemo(
+    () => recountCategories(categoryOptions, categoryFacetEntries),
+    [categoryOptions, categoryFacetEntries]
+  )
+
+  // Categories are visible chips, so the Filters button counts only what lives
+  // inside its sheet.
+  const activeFilterCount =
+    Number(sortMode !== DEFAULT_DIRECTORY_BROWSE_SETTINGS.sort) +
+    Number(effectiveStatusFilter !== DEFAULT_DIRECTORY_BROWSE_SETTINGS.status)
+  const categoriesInEffect = themesActive ? 0 : categoryFilter.size
+  const isNarrowed =
+    search.trim() !== "" || activeFilterCount > 0 || categoriesInEffect > 0
+  const clearFilters = () => {
+    setSearch("")
+    setCategoryFilter(new Set())
+    setStatusFilter(DEFAULT_DIRECTORY_BROWSE_SETTINGS.status)
+    setSortMode(DEFAULT_DIRECTORY_BROWSE_SETTINGS.sort)
+  }
+
+  const defaultBrowseState = isDefaultDirectoryBrowseView({
+    query: search,
+    categories: browseSettings.categories,
+    status: effectiveStatusFilter,
+    sort: sortMode,
+  })
+  const featuredEntries = useMemo(
+    () =>
+      defaultBrowseState && !themesActive
+        ? selectFeatured(filtered, directory?.featured ?? []).slice(
             0,
             FEATURED_LIMIT
           )
         : [],
-    [defaultBrowseState, filtered, installationByEntryId]
-  )
-  // Entries with no usable listing date are left out entirely: a catalog that
-  // doesn't publish valid addedAt values shows no section rather than an
-  // arbitrary five.
-  const recentHighlights = useMemo(
-    () =>
-      defaultBrowseState
-        ? sortEntries(
-            filtered.filter(isDirectoryRecencyKnown),
-            "recent",
-            installationByEntryId
-          ).slice(0, FEATURED_LIMIT)
-        : [],
-    [defaultBrowseState, filtered, installationByEntryId]
-  )
-  const themeHighlights = useMemo(
-    () =>
-      getDirectoryThemeHighlights(
-        plugins,
-        defaultBrowseState ? FEATURED_LIMIT : 0
-      ),
-    [defaultBrowseState, plugins]
+    [defaultBrowseState, themesActive, filtered, directory?.featured]
   )
 
-  function openPlugin(entry: DirectoryEntry) {
-    setLastOpenedPluginId(entry.id)
+  const detailEntry = lastOpenedPluginId
+    ? (plugins.find((entry) => entry.id === lastOpenedPluginId) ?? null)
+    : null
+  const detailInstallations = detailEntry
+    ? (installationsByEntryId.get(detailEntry.id) ?? NO_INSTALLATIONS)
+    : NO_INSTALLATIONS
+
+  const largeTouchTarget = layout.compact || layout.platform !== "web"
+  const availableWidth = screenWidth ?? windowSize.width
+  const columns = layout.compact
+    ? 2
+    : availableWidth < WIDE_THEME_BREAKPOINT
+      ? 3
+      : 4
+  const screenPadding = layout.compact ? space.lg : space.xl
+  const contentWidth = Math.min(
+    MAX_CONTENT_WIDTH,
+    availableWidth - screenPadding * 2
+  )
+  const tileWidth = Math.max(
+    96,
+    Math.floor((contentWidth - THEME_GRID_GAP * (columns - 1)) / columns)
+  )
+  const invalidNotice = invalidListingsNotice(directory?.invalidCount ?? 0)
+
+  const openLink = (url: string) => {
+    openExternal(url).catch(() => toast.error("Couldn't open the link."))
   }
 
-  const selectedSortLabel =
-    SORT_OPTIONS.find((option) => option.value === sortMode)?.label ?? sortMode
+  const statusOptions = STATUS_OPTIONS.map(
+    ({ value, label }): ChoiceOption<InstallationStatusFilter> => {
+      const available = statusAvailable[value]
+      return {
+        value,
+        label,
+        detail: available ? String(statusCounts[value]) : undefined,
+        accessibilityLabel: `${label}, ${
+          available ? countNoun(statusCounts[value], segment) : "unavailable"
+        }`,
+        disabled: !available,
+      }
+    }
+  )
+  const sortOptions = SORT_OPTIONS.map(
+    ({ value, label }): ChoiceOption<SortMode> => ({
+      value,
+      label,
+      accessibilityLabel: `Sort by ${label}`,
+    })
+  )
 
-  const styles = useMemo(
-    () => ({
+  const styles = useMemo(() => {
+    const touch = largeTouchTarget ? MIN_TOUCH : undefined
+    const muted = mutedTextColor(theme)
+    return {
       screen: {
         flex: 1,
-        padding: layout.compact ? 16 : 24,
+        padding: screenPadding,
         backgroundColor: theme.colors.surface0,
       },
       listContent: {
         width: "100%" as const,
-        maxWidth: 1120,
+        maxWidth: MAX_CONTENT_WIDTH,
         alignSelf: "center" as const,
-        gap: 16,
-        paddingBottom: 32,
+        gap: space.sm,
+        paddingBottom: space.xl,
       },
-      listHeader: { gap: layout.compact ? 16 : 24 },
-      masthead: { gap: 8, paddingVertical: layout.compact ? 4 : 8 },
-      // Mirrors the website header: mark in the foreground color next to a
-      // semibold, tightly tracked wordmark.
-      brandRow: {
+      gridContent: {
+        width: "100%" as const,
+        maxWidth: MAX_CONTENT_WIDTH,
+        alignSelf: "center" as const,
+        gap: THEME_GRID_GAP,
+        paddingBottom: space.xl,
+      },
+      gridRow: { gap: THEME_GRID_GAP },
+      listHeader: { gap: space.md, paddingBottom: space.sm },
+      titleRow: {
         flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
         alignItems: "center" as const,
-        gap: 8,
-        marginBottom: 4,
-      },
-      brandName: {
-        color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 14,
-        fontWeight: "600" as const,
-        letterSpacing: -0.3,
-      },
-      eyebrowRow: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 7,
-      },
-      eyebrowDot: {
-        width: 7,
-        height: 7,
-        borderRadius: 4,
-        backgroundColor: theme.colors.accent,
-      },
-      eyebrow: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 11,
-        fontWeight: "600" as const,
-        letterSpacing: 0.7,
+        justifyContent: "space-between" as const,
+        gap: space.sm,
       },
       title: {
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: layout.compact ? 26 : 34,
-        fontWeight: "700" as const,
-        letterSpacing: -1,
-      },
-      subtitle: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-        lineHeight: 20,
-        maxWidth: 680,
-      },
-      filterPanel: {
-        gap: 10,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        padding: 12,
-        backgroundColor: theme.colors.surface1,
-      },
-      searchInput: {
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        color: theme.colors.foreground,
-        backgroundColor: theme.colors.surface0,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 13,
-      },
-      filtersBlock: { gap: 8 },
-      refreshButton: {
-        alignSelf: "flex-start" as const,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: CAFE_CONTROL_RADIUS,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        backgroundColor: theme.colors.surface0,
-      },
-      refreshText: {
-        color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
+        fontSize: 20,
+        lineHeight: 28,
         fontWeight: "600" as const,
       },
-      feedbackText: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
+      headerActions: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: space.sm,
+      },
+      segments: { flexDirection: "row" as const, gap: space.sm },
+      searchRow: {
+        flexDirection: "row" as const,
+        alignItems: "stretch" as const,
+        gap: space.sm,
+      },
+      searchInput: {
+        flex: 1,
+        minHeight: touch ?? 36,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderRadius: radius.md,
+        paddingHorizontal: space.md,
+        paddingVertical: space.sm,
+        color: theme.colors.foreground,
+        backgroundColor: theme.colors.surface1,
+        fontSize: 14,
+      },
+      button: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        gap: space.sm,
+        minHeight: touch ?? 32,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderRadius: radius.md,
+        paddingHorizontal: space.md,
+        backgroundColor: theme.colors.surface1,
+      },
+      buttonText: {
+        color: theme.colors.foreground,
+        fontSize: 13,
+        fontWeight: "600" as const,
+      },
+      countBadge: {
+        minWidth: 18,
+        alignItems: "center" as const,
+        borderRadius: radius.sm,
+        paddingHorizontal: space.xs,
+        backgroundColor: theme.colors.accent,
+      },
+      countBadgeText: {
+        color: theme.colors.accentForeground,
+        fontSize: 11,
+        fontWeight: "600" as const,
+      },
+      textAction: {
+        justifyContent: "center" as const,
+        minHeight: touch ?? 32,
+        paddingHorizontal: space.xs,
+      },
+      textActionText: {
+        color: theme.colors.foreground,
+        fontSize: 13,
+        textDecorationLine: "underline" as const,
+      },
+      caption: { color: muted, fontSize: 12 },
+      chipWrap: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        gap: space.sm,
+      },
+      chipStrip: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: space.sm,
+        paddingRight: space.lg,
+      },
+      feedbackText: { color: muted, fontSize: 12, lineHeight: 18 },
+      banner: {
+        flexDirection: "row" as const,
+        flexWrap: "wrap" as const,
+        alignItems: "center" as const,
+        justifyContent: "space-between" as const,
+        gap: space.sm,
+        borderWidth: 1,
+        borderColor: theme.colors.statusWarning,
+        borderRadius: radius.md,
+        padding: space.md,
+        backgroundColor: theme.colors.surface1,
+      },
+      bannerText: {
+        flex: 1,
+        flexBasis: 200,
+        color: mutedTextColor(theme, theme.colors.surface1),
         fontSize: 12,
         lineHeight: 18,
       },
-      catalogSummary: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-      },
-      featuredBlock: { gap: 28 },
-      featuredSection: { gap: 10 },
-      sectionHeading: { gap: 2 },
-      featuredItems: { gap: 8 },
-      themeItems: {
-        flexDirection: "row" as const,
-        flexWrap: "wrap" as const,
-        gap: 12,
-      },
-      featuredHeader: {
+      featured: { gap: space.sm },
+      sectionTitle: {
         color: theme.colors.foreground,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 17,
+        fontSize: 14,
+        lineHeight: 20,
         fontWeight: "600" as const,
-        letterSpacing: -0.3,
       },
-      featuredDescription: {
-        color: theme.colors.foregroundMuted,
-        fontFamily: CAFE_MONO_FONT,
-        fontSize: 12,
-      },
-      resultsHeader: { gap: 2, marginTop: 8 },
-    }),
-    [theme, layout.compact]
-  )
+      stateStack: { gap: space.md },
+      sheet: { gap: space.lg },
+    }
+  }, [theme, screenPadding, largeTouchTarget])
 
   if (galleryEntry) {
     return (
@@ -1350,9 +939,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         entry={detailEntry}
         theme={theme}
         compact={layout.compact}
-        npmSupported={npmSupported}
+        registryUrl={registryUrl}
+        installSupported={directory?.installSupported ?? false}
         installations={detailInstallations}
         inventoryAvailable={inventoryAvailable}
+        updates={updates}
+        categoryLabels={categoryLabels}
         installing={installingId === detailEntry.id}
         updatingId={updatingId}
         installError={
@@ -1365,306 +957,444 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
             ? updateFailure.message
             : null
         }
-        onInstall={(channel) =>
-          installMutation.mutate({ entry: detailEntry, channel })
-        }
-        onUpdate={(installation, channel) =>
-          updateMutation.mutate({ entry: detailEntry, installation, channel })
+        onInstall={() => installMutation.mutate(detailEntry)}
+        onUpdate={(installation) =>
+          updateMutation.mutate({ entry: detailEntry, installation })
         }
         autoUpdateOptOuts={settingsValues?.autoUpdateOptOuts ?? []}
-        onAutoUpdateChange={saveAutomaticUpdatePreference}
         autoUpdateSaving={
           settings.status !== "ready" ||
           settingsSaving ||
           pendingAutomaticPreference !== null
         }
+        onAutoUpdateChange={saveAutomaticUpdatePreference}
         onOpenGallery={() => setGalleryEntry(detailEntry)}
-        onBack={() => {
-          setLastOpenedPluginId(null)
-        }}
+        onBack={() => setLastOpenedPluginId(null)}
       />
     )
   }
 
-  return (
-    <View style={styles.screen}>
-      <FlatList<DirectoryEntry>
-        data={sorted}
-        keyExtractor={(entry: DirectoryEntry) => entry.id}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <View style={styles.listHeader}>
-            <View style={styles.masthead}>
-              <View style={styles.brandRow}>
-                <BrandMark size={22} color={theme.colors.foreground} />
-                <Text style={styles.brandName}>paseo.cafe</Text>
-              </View>
-              <View style={styles.eyebrowRow}>
-                <View style={styles.eyebrowDot} />
-                <Text style={styles.eyebrow}>
-                  COMMUNITY-RUN UNOFFICIAL DIRECTORY
-                </Text>
-              </View>
-              <Text accessibilityRole="header" style={styles.title}>
-                A directory of paseo.sh plugins
-              </Text>
-              <Text style={styles.subtitle}>
-                Browse community-built Paseo plugins. Every listing comes
-                straight from its source repository.
-              </Text>
-            </View>
+  const renderRow = (
+    entry: DirectoryEntry,
+    dateBadge?: PluginRowDateBadge,
+    key?: string
+  ) => (
+    <PluginRow
+      key={key}
+      entry={entry}
+      theme={theme}
+      compact={layout.compact}
+      installations={installationsByEntryId.get(entry.id) ?? NO_INSTALLATIONS}
+      updates={updates}
+      dateBadge={dateBadge}
+      onPress={() => setLastOpenedPluginId(entry.id)}
+    />
+  )
 
-            <View style={styles.filterPanel}>
-              <TextInput
-                accessibilityLabel="Search Paseo plugins"
-                placeholder="Search name, repo, owner…"
-                value={search}
-                onChangeText={(value) => setSearch(value.slice(0, 200))}
-                style={styles.searchInput}
-                placeholderTextColor={theme.colors.foregroundMuted}
-              />
-              <SortRow
-                options={SORT_OPTIONS}
-                selected={sortMode}
-                theme={theme}
-                largeTouchTarget={layout.compact || layout.platform !== "web"}
-                onSelect={setSortMode}
-              />
-              <StatusFilterRow
-                options={statusOptions}
-                selected={effectiveStatusFilter}
-                theme={theme}
-                largeTouchTarget={layout.compact || layout.platform !== "web"}
-                onSelect={setStatusFilter}
-              />
-              <View style={styles.filtersBlock}>
-                <FilterRow
-                  label="Categories"
-                  allCount={plugins.length}
-                  getCount={(category) => categoryCounts[category]}
-                  options={allCategories}
-                  selected={categoryFilter}
-                  theme={theme}
-                  largeTouchTarget={layout.compact || layout.platform !== "web"}
-                  formatOption={(category) =>
-                    DIRECTORY_CATEGORY_LABELS[category]
-                  }
-                  onToggle={(category) =>
-                    setCategoryFilter((prev) => toggle(prev, category))
-                  }
-                  onClear={() => setCategoryFilter(new Set())}
-                />
-                <FilterRow
-                  label="Platforms"
-                  allCount={plugins.length}
-                  getCount={(platform) => platformCounts.get(platform)}
-                  options={allPlatforms}
-                  selected={platformFilter}
-                  theme={theme}
-                  largeTouchTarget={layout.compact || layout.platform !== "web"}
-                  formatOption={(platform) =>
-                    DIRECTORY_PLATFORM_LABELS[
-                      platform as keyof typeof DIRECTORY_PLATFORM_LABELS
-                    ] ?? platform
-                  }
-                  onToggle={(value) =>
-                    setPlatformFilter((prev) => toggle(prev, value))
-                  }
-                  onClear={() => setPlatformFilter(new Set())}
-                />
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Refresh Paseo Cafe catalog"
-                disabled={
-                  settingsPending ||
-                  refreshMutation.isPending ||
-                  directoryQuery.isFetching
-                }
-                style={[
-                  styles.refreshButton,
-                  settingsPending ||
-                  refreshMutation.isPending ||
-                  directoryQuery.isFetching
-                    ? { opacity: 0.5 }
-                    : null,
-                ]}
-                onPress={() => refreshMutation.mutate()}
-              >
-                <Text style={styles.refreshText}>
-                  {refreshMutation.isPending || directoryQuery.isFetching
-                    ? "Refreshing…"
-                    : "Refresh catalog"}
-                </Text>
-              </Pressable>
-            </View>
+  const refreshing = refreshMutation.isPending || directoryQuery.isFetching
+  const segmentCount = (value: Segment) =>
+    value === "themes" ? themeFiltered.length : pluginFiltered.length
 
-            {settingsPending ? (
-              <Text style={styles.feedbackText}>Loading Cafe settings…</Text>
-            ) : null}
-            {updateStatusQuery.isFetching ? (
-              <Text style={styles.feedbackText}>
-                Checking for plugin updates…
-              </Text>
-            ) : null}
-            {updateStatusQuery.isError ? (
-              <Text accessibilityRole="alert" style={styles.feedbackText}>
-                Update status is unavailable: {updateStatusQuery.error.message}
-              </Text>
-            ) : null}
-            {settings.status === "error" || settings.status === "invalid" ? (
-              <Text accessibilityRole="alert" style={styles.feedbackText}>
-                Cafe settings need attention, so the default catalog is in use:{" "}
-                {settings.error}
-              </Text>
-            ) : null}
-            {directoryQuery.data?.installationError ? (
-              <Text accessibilityRole="alert" style={styles.feedbackText}>
-                Couldn't check installed plugins:{" "}
-                {directoryQuery.data.installationError}
-              </Text>
-            ) : null}
-            {directoryQuery.isPending && !settingsPending ? (
-              <Text style={styles.feedbackText}>Loading plugins…</Text>
-            ) : null}
-            {directoryQuery.isError ? (
-              <Text accessibilityRole="alert" style={styles.feedbackText}>
-                Couldn't reach Paseo Cafe: {directoryQuery.error.message}
-              </Text>
-            ) : null}
-            {directoryQuery.data && directoryQuery.isSuccess ? (
-              <Text
-                accessibilityLiveRegion="polite"
-                style={styles.catalogSummary}
-              >
-                Catalog generated {directoryQuery.data.fetchedAt.slice(0, 10)} ·
-                Showing {sorted.length} of {nonStatusFiltered.length} matching
-                plugins.
-              </Text>
-            ) : null}
-            {directoryQuery.isSuccess && sorted.length === 0 ? (
-              <Text style={styles.feedbackText}>
-                No plugins match the current search and filters.
-              </Text>
-            ) : null}
-            {defaultBrowseState &&
-            (themeHighlights.length > 0 ||
-              popularHighlights.length > 0 ||
-              recentHighlights.length > 0) ? (
-              <View style={styles.featuredBlock}>
-                {themeHighlights.length > 0 ? (
-                  <View style={styles.featuredSection}>
-                    <View style={styles.sectionHeading}>
-                      <Text
-                        accessibilityRole="header"
-                        style={styles.featuredHeader}
-                      >
-                        Themes
-                      </Text>
-                      <Text style={styles.featuredDescription}>
-                        Exact plugin palettes previewed before installation.
-                      </Text>
-                    </View>
-                    <View style={styles.themeItems}>
-                      {themeHighlights.map(({ entry, preview }) => (
-                        <ThemePreviewCard
-                          key={`${entry.id}-${preview.id}`}
-                          entry={entry}
-                          preview={preview}
-                          theme={theme}
-                          compact={layout.compact}
-                          showPopularity
-                          onPress={() => openPlugin(entry)}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-                {popularHighlights.length > 0 ? (
-                  <View style={styles.featuredSection}>
-                    <View style={styles.sectionHeading}>
-                      <Text
-                        accessibilityRole="header"
-                        style={styles.featuredHeader}
-                      >
-                        Popular
-                      </Text>
-                      <Text style={styles.featuredDescription}>
-                        Most downloaded npm plugins, followed by starred Git
-                        plugins.
-                      </Text>
-                    </View>
-                    <View style={styles.featuredItems}>
-                      {popularHighlights.map((item) => (
-                        <PluginRow
-                          key={`popular-${item.id}`}
-                          entry={item}
-                          theme={theme}
-                          installations={
-                            installationByEntryId.get(item.id) ?? []
-                          }
-                          compact={layout.compact}
-                          onPress={() => openPlugin(item)}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-                {recentHighlights.length > 0 ? (
-                  <View style={styles.featuredSection}>
-                    <View style={styles.sectionHeading}>
-                      <Text
-                        accessibilityRole="header"
-                        style={styles.featuredHeader}
-                      >
-                        {DIRECTORY_RECENCY_LABEL}
-                      </Text>
-                      <Text style={styles.featuredDescription}>
-                        Latest npm releases, followed by newest Git listings.
-                      </Text>
-                    </View>
-                    <View style={styles.featuredItems}>
-                      {recentHighlights.map((item) => (
-                        <PluginRow
-                          key={`recent-${item.id}`}
-                          dateBadge="recency"
-                          entry={item}
-                          theme={theme}
-                          installations={
-                            installationByEntryId.get(item.id) ?? []
-                          }
-                          compact={layout.compact}
-                          onPress={() => openPlugin(item)}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-            {directoryQuery.isSuccess && sorted.length > 0 ? (
-              <View style={styles.resultsHeader}>
-                <Text accessibilityRole="header" style={styles.featuredHeader}>
-                  All plugins
-                </Text>
-                <Text style={styles.featuredDescription}>
-                  Sorted by {selectedSortLabel.toLowerCase()}.
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        }
-        renderItem={({ item }: { item: DirectoryEntry }) => (
-          <PluginRow
-            entry={item}
+  const categoryChipElements =
+    categoryChips.length > 0 ? (
+      <>
+        <Chip
+          role="button"
+          label={`All ${categoryFacetEntries.length}`}
+          accessibilityLabel={filterAccessibilityLabel(
+            "clear",
+            "category",
+            categoryFacetEntries.length
+          )}
+          selected={categoryFilter.size === 0}
+          theme={theme}
+          largeTouchTarget={largeTouchTarget}
+          onPress={() => setCategoryFilter(new Set())}
+        />
+        {categoryChips.map((option) => (
+          <Chip
+            key={option.slug}
+            role="button"
+            label={`${option.label} ${option.count}`}
+            accessibilityLabel={filterAccessibilityLabel(
+              "filter",
+              option.label,
+              option.count
+            )}
+            selected={categoryFilter.has(option.slug)}
             theme={theme}
-            installations={installationByEntryId.get(item.id) ?? []}
+            largeTouchTarget={largeTouchTarget}
+            onPress={() =>
+              setCategoryFilter((current) => toggle(current, option.slug))
+            }
+          />
+        ))}
+      </>
+    ) : null
+
+  const header = (
+    <View style={styles.listHeader}>
+      <View style={styles.titleRow}>
+        <Text role="heading" aria-level={1} style={styles.title}>
+          Plugin directory
+        </Text>
+        <View style={styles.headerActions}>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Submit a plugin"
+            style={styles.textAction}
+            onPress={() => openLink(SUBMIT_URL)}
+          >
+            <Text style={styles.textActionText}>Submit a plugin</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Refresh plugin directory"
+            disabled={settingsPending || refreshing}
+            style={[
+              styles.button,
+              settingsPending || refreshing ? { opacity: 0.5 } : null,
+            ]}
+            onPress={() => refreshMutation.mutate()}
+          >
+            <Text style={styles.buttonText}>
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View
+        accessibilityRole="tablist"
+        accessibilityLabel="Browse plugins or themes"
+        style={styles.segments}
+      >
+        {SEGMENT_ORDER.map((value) => (
+          <Chip
+            key={value}
+            role="tab"
+            size="lg"
+            grow={layout.compact}
+            label={
+              directory
+                ? `${SEGMENT_INFO[value].label} ${segmentCount(value)}`
+                : SEGMENT_INFO[value].label
+            }
+            accessibilityLabel={
+              directory
+                ? `${SEGMENT_INFO[value].label}, ${countNoun(segmentCount(value), value)}`
+                : SEGMENT_INFO[value].label
+            }
+            selected={segment === value}
+            theme={theme}
+            largeTouchTarget={largeTouchTarget}
+            onPress={() => setSegment(value)}
+          />
+        ))}
+      </View>
+
+      <View style={styles.searchRow}>
+        <TextInput
+          accessibilityLabel={`Search Paseo ${SEGMENT_INFO[segment].label.toLowerCase()}`}
+          placeholder={`Search ${SEGMENT_INFO[segment].label.toLowerCase()}…`}
+          value={search}
+          onChangeText={(value) => setSearch(value.slice(0, 200))}
+          style={styles.searchInput}
+          placeholderTextColor={mutedTextColor(theme, theme.colors.surface1)}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ""}`}
+          aria-expanded={filtersOpen}
+          style={styles.button}
+          onPress={() => setFiltersOpen(true)}
+        >
+          <Text style={styles.buttonText}>Filters</Text>
+          {activeFilterCount > 0 ? (
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{activeFilterCount}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
+
+      {directory ? (
+        <Text accessibilityLiveRegion="polite" style={styles.caption}>
+          {countNoun(sorted.length, segment)}
+        </Text>
+      ) : null}
+
+      {!themesActive && categoryChipElements ? (
+        layout.compact ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            accessibilityLabel="Plugin categories"
+            contentContainerStyle={styles.chipStrip}
+          >
+            {categoryChipElements}
+          </ScrollView>
+        ) : (
+          <View accessibilityLabel="Plugin categories" style={styles.chipWrap}>
+            {categoryChipElements}
+          </View>
+        )
+      ) : null}
+
+      {settingsPending ? (
+        <Text style={styles.feedbackText}>Loading Paseo Cafe settings…</Text>
+      ) : null}
+      {settings.status === "error" || settings.status === "invalid" ? (
+        <Text accessibilityRole="alert" style={styles.feedbackText}>
+          Paseo Cafe settings need attention, so the official registry is in
+          use: {settings.error}
+        </Text>
+      ) : null}
+      {registryUrl !== DEFAULT_REGISTRY_URL ? (
+        <Text style={styles.feedbackText}>
+          Using a custom registry: {registryUrl}
+        </Text>
+      ) : null}
+      {updateStatusQuery.isFetching ? (
+        <Text style={styles.feedbackText}>Checking for plugin updates…</Text>
+      ) : null}
+      {updateStatusQuery.isError ? (
+        <Text accessibilityRole="alert" style={styles.feedbackText}>
+          Update status is unavailable: {updateStatusQuery.error.message}
+        </Text>
+      ) : null}
+      {directory?.installationError ? (
+        <Text accessibilityRole="alert" style={styles.feedbackText}>
+          Couldn't check installed plugins: {directory.installationError}
+        </Text>
+      ) : null}
+      {invalidNotice ? (
+        <Text style={styles.feedbackText}>{invalidNotice}</Text>
+      ) : null}
+      {directoryQuery.isError && directory ? (
+        <View accessibilityRole="alert" style={styles.banner}>
+          <Text style={styles.bannerText}>
+            Couldn't refresh the plugin directory:{" "}
+            {directoryQuery.error.message}. Showing the last loaded list.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading the plugin directory"
+            disabled={directoryQuery.isFetching}
+            style={[
+              styles.button,
+              directoryQuery.isFetching ? { opacity: 0.5 } : null,
+            ]}
+            onPress={() => void directoryQuery.refetch()}
+          >
+            <Text style={styles.buttonText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {featuredEntries.length > 0 ? (
+        <View style={styles.featured}>
+          <Text role="heading" aria-level={2} style={styles.sectionTitle}>
+            Featured
+          </Text>
+          {featuredEntries.map((entry) =>
+            renderRow(entry, undefined, `featured-${entry.id}`)
+          )}
+          <Text
+            role="heading"
+            aria-level={2}
+            style={[styles.sectionTitle, { marginTop: space.sm }]}
+          >
+            All plugins
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  )
+
+  const otherLabel = SEGMENT_INFO[otherSegment].label
+  const segmentLabel = SEGMENT_INFO[segment].label
+  const segmentEntryCount = themesActive
+    ? themeEntries.length
+    : pluginEntries.length
+
+  let emptyState: ReactElement | null = null
+  if (settingsPending || directoryQuery.isPending) {
+    emptyState = (
+      <View style={styles.stateStack}>
+        <Text accessibilityLiveRegion="polite" style={styles.feedbackText}>
+          Loading {segmentLabel.toLowerCase()}…
+        </Text>
+        {themesActive ? (
+          <ThemeGridSkeleton
+            theme={theme}
+            columns={columns}
+            count={columns * 3}
+          />
+        ) : (
+          <RowSkeleton
+            theme={theme}
             compact={layout.compact}
-            dateBadge={dateBadgeForSortMode(sortMode)}
-            onPress={() => openPlugin(item)}
+            count={SKELETON_ROWS}
           />
         )}
+      </View>
+    )
+  } else if (directoryQuery.isError && !directory) {
+    emptyState = (
+      <StateMessage
+        theme={theme}
+        tone="error"
+        compact={largeTouchTarget}
+        title="Couldn't load the plugin directory"
+        body={`${directoryQuery.error.message}\nRegistry: ${registryUrl}`}
+        actionLabel="Retry"
+        onAction={() => void directoryQuery.refetch()}
       />
+    )
+  } else if (directory && plugins.length === 0) {
+    emptyState = (
+      <StateMessage
+        theme={theme}
+        compact={largeTouchTarget}
+        title="No plugins listed"
+        body="This registry doesn't list any plugins."
+      />
+    )
+  } else if (directory && otherCount > 0 && segmentEntryCount > 0) {
+    emptyState = (
+      <StateMessage
+        theme={theme}
+        compact={largeTouchTarget}
+        title={`No ${segmentLabel.toLowerCase()} match`}
+        body={`Nothing in ${segmentLabel} matches the current search and filters.`}
+        actionLabel={`${otherCount} ${otherCount === 1 ? "result" : "results"} in ${otherLabel}`}
+        onAction={() => setSegment(otherSegment)}
+      />
+    )
+  } else if (directory && segmentEntryCount === 0) {
+    emptyState = (
+      <StateMessage
+        theme={theme}
+        compact={largeTouchTarget}
+        title={`No ${segmentLabel.toLowerCase()} listed`}
+        body={`This registry doesn't list any ${segmentLabel.toLowerCase()}.`}
+      />
+    )
+  } else if (
+    directory &&
+    effectiveStatusFilter === "updates" &&
+    search.trim() === "" &&
+    categoriesInEffect === 0
+  ) {
+    emptyState = (
+      <StateMessage
+        theme={theme}
+        compact={largeTouchTarget}
+        title="All up to date"
+        body={`All installed ${segmentLabel.toLowerCase()} are up to date.`}
+      />
+    )
+  } else if (directory) {
+    emptyState = (
+      <StateMessage
+        theme={theme}
+        compact={largeTouchTarget}
+        title="No results"
+        body={`No ${segmentLabel.toLowerCase()} match the current search and filters.`}
+        actionLabel={isNarrowed ? "Clear filters" : undefined}
+        onAction={isNarrowed ? clearFilters : undefined}
+      />
+    )
+  }
+
+  const filtersSheet = (
+    <Modal title="Filters" open={filtersOpen} onOpenChange={setFiltersOpen}>
+      <Modal.Content>
+        <View style={styles.sheet}>
+          <OptionGroup
+            label="Show"
+            accessibilityLabel={`${segmentLabel} installation status`}
+            options={statusOptions}
+            selected={effectiveStatusFilter}
+            theme={theme}
+            largeTouchTarget={largeTouchTarget}
+            onSelect={setStatusFilter}
+          />
+          <OptionGroup
+            label="Sort by"
+            accessibilityLabel={`${segmentLabel} sort order`}
+            options={sortOptions}
+            selected={sortMode}
+            theme={theme}
+            largeTouchTarget={largeTouchTarget}
+            onSelect={setSortMode}
+          />
+          {activeFilterCount > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reset status and sort"
+              style={[styles.button, { alignSelf: "flex-start" }]}
+              onPress={() => {
+                setStatusFilter(DEFAULT_DIRECTORY_BROWSE_SETTINGS.status)
+                setSortMode(DEFAULT_DIRECTORY_BROWSE_SETTINGS.sort)
+              }}
+            >
+              <Text style={styles.buttonText}>Reset</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </Modal.Content>
+    </Modal>
+  )
+
+  return (
+    <View
+      style={styles.screen}
+      onLayout={(event) =>
+        setScreenWidth(Math.round(event.nativeEvent.layout.width))
+      }
+    >
+      {themesActive ? (
+        <FlatList<DirectoryEntry>
+          key={`themes-${columns}`}
+          data={sorted}
+          numColumns={columns}
+          columnWrapperStyle={styles.gridRow}
+          keyExtractor={(entry: DirectoryEntry) => entry.id}
+          contentContainerStyle={styles.gridContent}
+          initialNumToRender={Math.ceil(8 / columns)}
+          windowSize={5}
+          ListHeaderComponent={header}
+          ListEmptyComponent={emptyState}
+          renderItem={({ item }: { item: DirectoryEntry }) => (
+            <ThemeCard
+              entry={item}
+              theme={theme}
+              width={tileWidth}
+              installations={
+                installationsByEntryId.get(item.id) ?? NO_INSTALLATIONS
+              }
+              updates={updates}
+              onPress={() => setLastOpenedPluginId(item.id)}
+            />
+          )}
+        />
+      ) : (
+        <FlatList<DirectoryEntry>
+          key="plugins"
+          data={sorted}
+          keyExtractor={(entry: DirectoryEntry) => entry.id}
+          contentContainerStyle={styles.listContent}
+          windowSize={7}
+          ListHeaderComponent={header}
+          ListEmptyComponent={emptyState}
+          renderItem={({ item }: { item: DirectoryEntry }) =>
+            renderRow(item, dateBadgeForSortMode(sortMode))
+          }
+        />
+      )}
+      {filtersSheet}
     </View>
   )
 }

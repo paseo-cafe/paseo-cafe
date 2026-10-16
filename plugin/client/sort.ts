@@ -2,14 +2,10 @@ import type {
   DirectoryBrowseSettings,
   DirectoryEntry,
   InstalledPlugin,
-} from "../shared/directory"
-import {
-  compareDirectoryAddedAt,
-  compareDirectoryPopularity,
-  compareDirectoryRecency,
-  compareDirectorySource,
+  PluginUpdate,
 } from "../shared/directory"
 import type { PluginRowDateBadge } from "./PluginRow"
+import { hasAvailableUpdate } from "./update-status"
 
 /**
  * Ordering for the directory list, kept out of DirectorySurface.tsx so it can
@@ -18,48 +14,29 @@ import type { PluginRowDateBadge } from "./PluginRow"
 
 export type SortMode = DirectoryBrowseSettings["sort"]
 
-/** Trimmed and lowercased so ordering ignores casing and stray whitespace. */
-function normalizeText(value: string | undefined): string {
-  return value?.trim().toLowerCase() ?? ""
+/** Timestamp of a registry date; unparseable dates become -Infinity so they sort last. */
+function timestamp(value: string): number {
+  const time = Date.parse(value)
+  return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time
 }
 
-/**
- * Plain lexicographic comparison, with a missing value ordering as empty.
- * Deliberately not Intl.Collator: see the note in compareEntries about how
- * this differs from the website.
- */
-function compareText(a: string | undefined, b: string | undefined): number {
-  const left = normalizeText(a)
-  const right = normalizeText(b)
-  if (left < right) return -1
-  if (left > right) return 1
+/** Larger values first. Not `b - a`: that is NaN for two -Infinity values. */
+function compareDescending(a: number, b: number): number {
+  if (a > b) return -1
+  if (a < b) return 1
   return 0
 }
 
-/** Whether any installation of this entry is waiting on a newer version. */
-function entryHasUpdate(
-  entry: DirectoryEntry,
-  installationByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>
-): boolean {
-  return (
-    installationByEntryId
-      .get(entry.id)
-      ?.some((installation) => installation.updateState === "available") ??
-    false
-  )
-}
-
 /**
- * Last-resort ordering shared by every sort mode, so entries whose sort key
- * ties still land in a stable, repeatable order instead of shuffling between
- * renders. `repo` separates same-named plugins from different owners.
+ * Plain lexicographic comparison on trimmed, lowercased text. Deliberately not
+ * Intl.Collator, so the order is identical on every runtime.
  */
-function compareIdentity(a: DirectoryEntry, b: DirectoryEntry): number {
-  return (
-    compareText(a.name, b.name) ||
-    compareText(a.repo, b.repo) ||
-    compareText(a.id, b.id)
-  )
+function compareText(a: string, b: string): number {
+  const left = a.trim().toLowerCase()
+  const right = b.trim().toLowerCase()
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
 }
 
 /**
@@ -69,70 +46,58 @@ function compareIdentity(a: DirectoryEntry, b: DirectoryEntry): number {
 export function dateBadgeForSortMode(
   sortMode: SortMode
 ): PluginRowDateBadge | undefined {
-  if (sortMode === "recent") return "recency"
+  if (sortMode === "recent") return "updated"
   if (sortMode === "recently-added") return "added"
   return undefined
 }
 
-/**
- * Orders two entries for one sort mode. Every mode except "recently-added"
- * sits behind compareDirectorySource, which groups npm-backed entries ahead
- * of Git-only ones before any other key is considered.
- */
-function compareEntries(
+function compareByMode(
   a: DirectoryEntry,
   b: DirectoryEntry,
   sortMode: SortMode,
-  installationByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>
+  installationsByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>,
+  updates: ReadonlyMap<string, PluginUpdate>
 ): number {
-  // Ahead of the source partition below, and tie-broken by identity rather
-  // than popularity, to follow the website's "added" sort: ordering by
-  // listing date only means anything if a Git-only plugin listed today can
-  // outrank an older npm one.
-  //
-  // The primary key matches the website exactly. The tie-break does not: the
-  // website compares names with Intl.Collator (numeric, base sensitivity),
-  // this compares them raw, and only this side falls back to `repo`. Entries
-  // sharing an addedAt are common — a bulk registry commit lists many plugins
-  // at one timestamp — so a whole run of rows can rest on that difference.
-  if (sortMode === "recently-added") {
-    return compareDirectoryAddedAt(a, b) || compareIdentity(a, b)
+  switch (sortMode) {
+    case "updates-first":
+      return (
+        compareDescending(
+          Number(
+            hasAvailableUpdate(installationsByEntryId.get(a.id) ?? [], updates)
+          ),
+          Number(
+            hasAvailableUpdate(installationsByEntryId.get(b.id) ?? [], updates)
+          )
+        ) || compareDescending(a.installs ?? 0, b.installs ?? 0)
+      )
+    case "popular":
+      return compareDescending(a.installs ?? 0, b.installs ?? 0)
+    case "recent":
+      return compareDescending(timestamp(a.updatedAt), timestamp(b.updatedAt))
+    case "recently-added":
+      return compareDescending(
+        timestamp(a.publishedAt),
+        timestamp(b.publishedAt)
+      )
+    case "a-z":
+      return compareText(a.name, b.name)
   }
-
-  const source = compareDirectorySource(a, b)
-  if (source !== 0) return source
-
-  if (sortMode === "updates-first") {
-    return (
-      Number(entryHasUpdate(b, installationByEntryId)) -
-        Number(entryHasUpdate(a, installationByEntryId)) ||
-      compareDirectoryPopularity(a, b) ||
-      compareIdentity(a, b)
-    )
-  }
-
-  if (sortMode === "popular") {
-    return compareDirectoryPopularity(a, b) || compareIdentity(a, b)
-  }
-
-  if (sortMode === "recent") {
-    return (
-      compareDirectoryRecency(a, b) ||
-      compareDirectoryPopularity(a, b) ||
-      compareIdentity(a, b)
-    )
-  }
-
-  return compareIdentity(a, b)
 }
 
-/** Returns a sorted copy; the input array is left untouched. */
+/**
+ * Returns a sorted copy; the input array is left untouched. Every mode ends on
+ * the listing id, so entries whose sort key ties keep a stable, repeatable
+ * order instead of shuffling between renders.
+ */
 export function sortEntries(
   entries: readonly DirectoryEntry[],
   sortMode: SortMode,
-  installationByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>
+  installationsByEntryId: ReadonlyMap<string, readonly InstalledPlugin[]>,
+  updates: ReadonlyMap<string, PluginUpdate>
 ): DirectoryEntry[] {
-  return [...entries].sort((a, b) =>
-    compareEntries(a, b, sortMode, installationByEntryId)
+  return [...entries].sort(
+    (a, b) =>
+      compareByMode(a, b, sortMode, installationsByEntryId, updates) ||
+      compareText(a.id, b.id)
   )
 }

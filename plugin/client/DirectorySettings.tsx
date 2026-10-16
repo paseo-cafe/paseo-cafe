@@ -10,10 +10,16 @@ import {
 } from "@getpaseo/plugin/client/ui"
 import { useRef, useState } from "react"
 import {
-  DEFAULT_DIRECTORY_URL,
+  DEFAULT_REGISTRY_URL,
   directoryRunAutomaticUpdatesRpc,
   directorySettings,
+  isTrustedRegistryUrl,
+  registryBase,
 } from "../shared/directory"
+import { summarizeAutomaticUpdates } from "./update-status"
+
+const REGISTRY_INFO =
+  "Paseo Cafe browses the official Paseo plugin directory. To browse another registry, it must serve the Paseo registry protocol v1 documents (index.json and plugins/<owner>/<slug>.json) over HTTPS, or HTTP on localhost. The registry decides what the paseo CLI installs, so only use one you trust. Installing from a custom registry also needs an HTTPS URL without a path."
 
 export function DirectorySettings() {
   const settings = useSettings(directorySettings)
@@ -28,7 +34,7 @@ export function DirectorySettings() {
   if (settings.status === "error" || settings.status === "invalid") {
     return (
       <SettingsSection title="Paseo Cafe">
-        <SettingsRow label="Catalog URL" error={settings.error} />
+        <SettingsRow label="Registry URL" error={settings.error} />
         <SettingsAction
           label="Try again"
           actionLabel="Reload"
@@ -49,14 +55,19 @@ export function DirectorySettings() {
   // `settings.status === "ready"` narrowing into a closure defined below, but
   // these individual bindings keep their (already-narrowed) types fine.
   const { values, revision, saving, saveError, save: saveSettings } = settings
-  const currentUrl = draft ?? values.directoryUrl
-  const dirty = currentUrl !== values.directoryUrl
+  const currentUrl = draft ?? values.registryUrl
+  const urlValid = isTrustedRegistryUrl(currentUrl)
+  const dirty = registryBase(currentUrl) !== registryBase(values.registryUrl)
+  const usingOfficialRegistry =
+    registryBase(currentUrl) === DEFAULT_REGISTRY_URL &&
+    registryBase(values.registryUrl) === DEFAULT_REGISTRY_URL
 
   async function apply(url: string) {
-    const ok = await saveSettings({ ...values, directoryUrl: url }, revision)
+    const registryUrl = registryBase(url)
+    const ok = await saveSettings({ ...values, registryUrl }, revision)
     if (ok) {
       setDraft(null)
-      inputRef.current?.replaceText(url)
+      inputRef.current?.replaceText(registryUrl)
       toast.show("Paseo Cafe settings saved.", { variant: "success" })
     } else {
       toast.error("Failed to save Paseo Cafe settings.")
@@ -64,40 +75,21 @@ export function DirectorySettings() {
   }
 
   function reset() {
-    inputRef.current?.replaceText(DEFAULT_DIRECTORY_URL)
-    setDraft(DEFAULT_DIRECTORY_URL)
-    void apply(DEFAULT_DIRECTORY_URL)
+    inputRef.current?.replaceText(DEFAULT_REGISTRY_URL)
+    setDraft(DEFAULT_REGISTRY_URL)
+    void apply(DEFAULT_REGISTRY_URL)
   }
-  async function checkForUpdates() {
+
+  async function runUpdatesNow() {
     setCheckingUpdates(true)
     try {
-      const result = await runAutomaticUpdates({})
-      const updated = result.outcomes.filter(
-        (outcome) => outcome.status === "updated"
-      ).length
-      const failed = result.outcomes.filter(
-        (outcome) => outcome.status === "failed"
-      ).length
-      const skipped = result.outcomes.filter(
-        (outcome) => outcome.status === "skipped"
-      )
-
-      if (failed > 0 || skipped.length > 0) {
-        const firstProblem = skipped[0]?.message
-        toast.error(
-          `Updated ${updated} plugin${updated === 1 ? "" : "s"}; ${failed} failed; ${skipped.length} skipped.${firstProblem ? ` ${firstProblem}` : ""}`
-        )
-      } else {
-        toast.show(
-          updated > 0
-            ? `Updated ${updated} plugin${updated === 1 ? "" : "s"}.`
-            : "No automatic updates available.",
-          { variant: "success" }
-        )
-      }
+      const { outcomes } = await runAutomaticUpdates({})
+      const summary = summarizeAutomaticUpdates(outcomes)
+      if (summary.failed) toast.error(summary.message)
+      else toast.show(summary.message, { variant: "success" })
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Update check failed."
+        error instanceof Error ? error.message : "Automatic update run failed."
       )
     } finally {
       setCheckingUpdates(false)
@@ -105,38 +97,40 @@ export function DirectorySettings() {
   }
 
   return (
-    <SettingsSection
-      title="Paseo Cafe"
-      info="Point this at another deployment of paseo.cafe — a local `bun run dev`, a staging build, or a self-hosted fork — that serves the same /api/plugins shape. The catalog picks what the install button hands to the paseo CLI, so it must be HTTPS unless it is on localhost."
-    >
+    <SettingsSection title="Paseo Cafe" info={REGISTRY_INFO}>
       <SettingsCard>
         <SettingsInput
           ref={inputRef}
-          label="Catalog URL"
-          hint="HTTPS, or HTTP on localhost — e.g. http://localhost:3000/api/plugins"
-          error={saveError}
-          initialValue={values.directoryUrl}
-          placeholder={DEFAULT_DIRECTORY_URL}
+          label="Registry URL"
+          hint={`HTTPS, or HTTP on localhost. Official registry: ${DEFAULT_REGISTRY_URL}`}
+          error={
+            draft !== null && !urlValid
+              ? "Use an HTTPS URL, or HTTP on localhost."
+              : saveError
+          }
+          initialValue={values.registryUrl}
+          placeholder={DEFAULT_REGISTRY_URL}
           onChangeText={setDraft}
           disabled={saving}
         />
         <SettingsAction
           label="Apply"
           actionLabel={saving ? "Saving…" : "Save"}
-          disabled={saving || !dirty}
+          disabled={saving || !dirty || !urlValid}
           onPress={() => void apply(currentUrl)}
         />
         <SettingsAction
           label="Default"
-          actionLabel="Reset to paseo.cafe"
-          disabled={saving || currentUrl === DEFAULT_DIRECTORY_URL}
+          actionLabel="Reset to official registry"
+          disabled={saving || usingOfficialRegistry}
           onPress={reset}
         />
         <SettingsAction
-          label="Automatic updates"
-          actionLabel={checkingUpdates ? "Checking…" : "Check now"}
+          label="Run automatic updates now"
+          hint="Installed plugins update on their own every 6 hours unless automatic updates are off for them. Run the check now instead of waiting."
+          actionLabel={checkingUpdates ? "Running…" : "Run now"}
           disabled={checkingUpdates}
-          onPress={() => void checkForUpdates()}
+          onPress={() => void runUpdatesNow()}
         />
       </SettingsCard>
     </SettingsSection>
