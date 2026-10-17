@@ -1,5 +1,5 @@
 {
-  "repo": "panto-dominic/paseo-auto-kanban",
+  "repo": "dominic4us/paseo-auto-kanban",
   "package": "paseo-auto-kanban",
   "categories": ["orchestration", "productivity", "automation"],
   "platforms": [],
@@ -11,5 +11,5 @@
     "The phone apps are checked less than the web UI; please report layout problems with a screenshot.",
     "The workflow view (beta) reads workspace folders only when the Paseo server runs on Linux."
   ],
-  "submittedBy": "panto-dominic"
+  "submittedBy": "dominic4us"
 }
