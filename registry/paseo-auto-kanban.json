@@ -1,0 +1,15 @@
+{
+  "repo": "panto-dominic/paseo-auto-kanban",
+  "package": "paseo-auto-kanban",
+  "categories": ["orchestration", "productivity", "automation"],
+  "platforms": [],
+  "caveats": [
+    "Installing from npm needs Paseo 0.9.0 or newer; it is used daily on Paseo 0.11 (Linux server and Windows desktop), and 0.8.x is untested.",
+    "On by default, new top-level agents get a card (and a board for a new workspace); turn this off in Kanban settings → Automation.",
+    "Boards are local files on the Paseo server, so do not share one data folder between machines or containers.",
+    "No drag and drop: move cards with the stage menu or the card detail.",
+    "The phone apps are checked less than the web UI; please report layout problems with a screenshot.",
+    "The workflow view (beta) reads workspace folders only when the Paseo server runs on Linux."
+  ],
+  "submittedBy": "panto-dominic"
+}
