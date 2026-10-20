@@ -1,0 +1,13 @@
+{
+  "repo": "sojuhub/paseo-plugin-pele",
+  "package": "paseo-plugin-pele",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.11.4 or later and its web client; native mobile rendering is not enabled.",
+    "Pele has its own Mermaid syntax coverage and layout; it is not pixel-identical to Mermaid.",
+    "Mixed Gen-UI and diagram blocks may be claimed by another timeline transformer; use separate messages.",
+    "Surrounding Markdown uses a limited renderer; built-in file previews and all tool-output widgets are not replaced."
+  ],
+  "submittedBy": "sojuhub"
+}
