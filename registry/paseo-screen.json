@@ -1,0 +1,14 @@
+{
+  "repo": "kevguy/paseo-screen",
+  "package": "@kevlai22/paseo-screen",
+  "categories": ["productivity", "monitoring"],
+  "platforms": ["macos"],
+  "caveats": [
+    "The host must be a Mac on macOS 14 or later with the Xcode command line tools; any Paseo client can view it.",
+    "Someone at the host must grant Paseo Screen Recording and Accessibility once, then reopen Paseo.",
+    "Frames are polled JPEGs at roughly 5 to 15 fps depending on the network, so it is not smooth video.",
+    "Anyone paired with the host can see and control its screen while the plugin is enabled.",
+    "Clipboard sync is text only and works on desktop and web clients."
+  ],
+  "submittedBy": "kevguy"
+}
