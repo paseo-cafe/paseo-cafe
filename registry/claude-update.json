@@ -1,0 +1,15 @@
+{
+  "repo": "tomcrawf90/paseo-plugin-claude-update",
+  "package": "paseo-plugin-claude-update",
+  "categories": ["automation", "monitoring"],
+  "platforms": [],
+  "caveats": [
+    "Only reports updates until you turn on \"Auto-update Claude Code\"; then it runs claude update on a schedule.",
+    "Supports Claude Code's native installer only, not Homebrew, WinGet or npm-based installs.",
+    "Tested on macOS only; listing old processes and desktop notifications are macOS only.",
+    "Running agents keep their old Claude Code version until you restart them; nothing is restarted for you.",
+    "Follows Claude Code's own autoUpdatesChannel; set that to stable yourself to follow the stable channel.",
+    "Reads process environments on the host to match processes to agents; only the Paseo agent id is used."
+  ],
+  "submittedBy": "tomcrawf90"
+}
