@@ -1,0 +1,15 @@
+{
+  "repo": "961853266hyt/paseo-plugins",
+  "path": "plugins/better-btw",
+  "package": "paseo-better-btw",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires the Claude Code CLI (claude) installed and signed in on the daemon host.",
+    "Each side question sends the agent's conversation to Anthropic through Claude Code, whatever the agent's provider.",
+    "It cannot reuse the agent's prompt cache, so each side question pays for up to about 100,000 characters of context.",
+    "On phones the answer is one tap away in a composer pill, since plugins cannot open overlays.",
+    "Side threads live in daemon memory, so a daemon restart or plugin reload clears them."
+  ],
+  "submittedBy": "961853266hyt"
+}
