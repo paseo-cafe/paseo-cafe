@@ -1,0 +1,15 @@
+{
+  "repo": "maxwell-01/maxs-paseo-plugins",
+  "path": "crew-flows",
+  "package": "paseo-crew-flows",
+  "categories": ["orchestration", "monitoring"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.10.3 or newer",
+    "Built for the ticket-loop skill's manifest and run state folders; without them the Workflows, Agents and runs views are empty",
+    "The crew section needs the FirstMate plugin",
+    "Reads one daemon only; install it on each machine whose teams you want to see",
+    "It reads runs; it does not start, stop or change them"
+  ],
+  "submittedBy": "maxwell-01"
+}
