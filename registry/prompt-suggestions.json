@@ -1,0 +1,14 @@
+{
+  "repo": "961853266hyt/paseo-plugins",
+  "path": "plugins/prompt-suggestions",
+  "package": "paseo-prompt-suggestions",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires the Claude Code CLI (claude) installed and signed in on the daemon host.",
+    "Recent conversation text goes to Anthropic through Claude Code, for non-Claude agents too unless limited in settings.",
+    "Each prediction counts toward your Claude usage.",
+    "The web and desktop placeholder relies on Paseo's current composer markup and falls back to a card if that changes."
+  ],
+  "submittedBy": "961853266hyt"
+}
