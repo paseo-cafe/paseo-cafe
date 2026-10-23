@@ -218,6 +218,9 @@ describe("scanStaticFiles", () => {
       { "zh-cn": { name: "示例" } },
       { "zh-CN": { desc: "示例", name: 1 } },
       { "zh-CN": "示例" },
+      { en: { name: "Plugin" } },
+      { "zh-CN": { name: "" } },
+      { "zh-CN": { name: "   " } },
     ])
       expect(manifestRuleIds(translations, "^0.13.0")).toEqual(["translations"])
   })

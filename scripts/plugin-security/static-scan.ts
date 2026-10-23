@@ -376,14 +376,17 @@ function isCanonicalLocale(tag: string): boolean {
 
 function isListingTranslations(value: unknown): boolean {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  // The registry rejects `en` (English is the manifest's own name and
+  // description), unknown listing fields and empty strings.
   return Object.entries(value).every(([tag, listing]) => {
-    if (!isCanonicalLocale(tag)) return false
+    if (tag === "en" || !isCanonicalLocale(tag)) return false
     if (!listing || typeof listing !== "object" || Array.isArray(listing))
       return false
-    const { name, description } = listing as Record<string, unknown>
-    return (
-      (name === undefined || typeof name === "string") &&
-      (description === undefined || typeof description === "string")
+    return Object.entries(listing).every(
+      ([field, text]) =>
+        (field === "name" || field === "description") &&
+        typeof text === "string" &&
+        text.trim().length > 0
     )
   })
 }
