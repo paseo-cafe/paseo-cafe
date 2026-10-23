@@ -91,14 +91,17 @@ export const directoryEntrySchema = z.object({
   id: registryIdSchema,
   name: z.string().min(1).max(200),
   description: z.string().max(2_000).default(""),
-  // Never fails the listing: a malformed translation just shows English.
+  // Never fails the listing: each locale and each field is validated on its
+  // own, so a malformed one just shows English.
   translations: z
     .record(
-      z.string().max(35),
-      z.object({
-        name: z.string().min(1).max(200).optional(),
-        description: z.string().max(2_000).optional(),
-      })
+      z.string(),
+      z
+        .object({
+          name: z.string().min(1).max(200).optional().catch(undefined),
+          description: z.string().max(2_000).optional().catch(undefined),
+        })
+        .catch({})
     )
     .optional()
     .catch(undefined),
@@ -319,6 +322,9 @@ export const directoryListRpc = defineRpc({
   }),
 })
 
+/** The longest overview the detail RPC returns. */
+export const DETAIL_README_MAX = 200_000
+
 export const directoryDetailRpc = defineRpc({
   name: "directory.detail",
   input: z.object({
@@ -327,7 +333,7 @@ export const directoryDetailRpc = defineRpc({
     /** App language: the server returns the overview translated into it when the registry has one. */
     locale: z.string().max(35).optional(),
   }),
-  output: z.object({ readme: z.string().max(200_000) }),
+  output: z.object({ readme: z.string().max(DETAIL_README_MAX) }),
 })
 
 export const directoryUpdateStatusRpc = defineRpc({

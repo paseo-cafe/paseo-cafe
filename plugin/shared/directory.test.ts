@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Artifact, InstalledPlugin } from "./directory"
+import type { Artifact, DirectoryEntry, InstalledPlugin } from "./directory"
 import {
   countAvailableUpdates,
   DEFAULT_REGISTRY_URL,
@@ -199,7 +199,26 @@ describe("listing translations", () => {
       translations: { "zh-CN": { name: 5 } },
     })
     expect(parsed.success).toBe(true)
-    expect(parsed.data?.translations).toBeUndefined()
+    expect(localizeEntry(parsed.data as DirectoryEntry, "zh-CN")).toMatchObject(
+      { name: listing.name, description: listing.description }
+    )
+  })
+
+  it("keeps valid translation fields and locales beside malformed ones", () => {
+    const parsed = directoryEntrySchema.safeParse({
+      ...listing,
+      translations: {
+        "zh-CN": { name: 5, description: "做事情" },
+        ja: { name: "例" },
+        fr: "pas un objet",
+      },
+    })
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.translations?.["zh-CN"]).toEqual({
+      description: "做事情",
+    })
+    expect(parsed.data?.translations?.ja).toEqual({ name: "例" })
+    expect(parsed.data?.translations?.fr).toEqual({})
   })
 })
 

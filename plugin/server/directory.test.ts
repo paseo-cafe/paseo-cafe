@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 const executeFileAsync = promisify(executeFile)
 
 import type { Artifact, PluginUpdate } from "../shared/directory"
+import { DETAIL_README_MAX } from "../shared/directory"
 import {
   buildPaseoInvocation,
   execPaseo,
@@ -359,6 +360,30 @@ describe("getDirectoryDetail", () => {
         locale: "zh-CN",
       })
     ).resolves.toEqual({ readme: "English overview" })
+  })
+
+  it("falls back to English when the translated overview exceeds the RPC limit", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      Response.json({
+        ...entry(),
+        readme: "English overview",
+        overviewTranslations: {
+          "zh-CN": "长".repeat(DETAIL_README_MAX + 1),
+          ja: "日本語の概要",
+        },
+      })
+    ) as typeof fetch
+    const base = {
+      registryUrl: "https://registry.example.test",
+      id: "acme/example",
+    }
+
+    await expect(
+      getDirectoryDetail({ ...base, locale: "zh-CN" })
+    ).resolves.toEqual({ readme: "English overview" })
+    await expect(
+      getDirectoryDetail({ ...base, locale: "ja" })
+    ).resolves.toEqual({ readme: "日本語の概要" })
   })
 
   it("refuses a detail document for a different plugin", async () => {

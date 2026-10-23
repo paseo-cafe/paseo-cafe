@@ -16,6 +16,7 @@ import type {
 } from "../shared/directory"
 import {
   DEFAULT_REGISTRY_URL,
+  DETAIL_README_MAX,
   type DirectoryEntry,
   directoryCategorySchema,
   directoryEntrySchema,
@@ -481,10 +482,15 @@ export async function getDirectoryDetail(
   if (detail.id !== input.id) {
     throw new Error(`Registry returned ${detail.id} for ${input.id}`)
   }
+  // A translation over the RPC limit would fail the whole response: use English.
+  const translated = input.locale
+    ? detail.overviewTranslations?.[input.locale]
+    : undefined
   return {
     readme:
-      (input.locale && detail.overviewTranslations?.[input.locale]) ||
-      detail.readme,
+      translated && translated.length <= DETAIL_README_MAX
+        ? translated
+        : detail.readme,
   }
 }
 
