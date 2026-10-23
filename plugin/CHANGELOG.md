@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/paseo-cafe/paseo-cafe/compare/v1.0.1...v1.1.0) (2026-10-23)
+
+
+### Features
+
+* **plugin:** show registry listing translations in the app language ([#409](https://github.com/paseo-cafe/paseo-cafe/issues/409)) ([fb9b939](https://github.com/paseo-cafe/paseo-cafe/commit/fb9b93969835a3a0ce3c165d716ba42fff39bd67))
+
 ## [1.0.1](https://github.com/paseo-cafe/paseo-cafe/compare/v1.0.0...v1.0.1) (2026-10-13)
 
 
