@@ -362,6 +362,31 @@ function readScannedFile(
 const MANIFEST_DESCRIPTION_MINIMUM = "0.9.0-beta.1"
 // Paseo 0.11.0 added the optional manifest `name`, `icon` and `media`.
 const MANIFEST_PRESENTATION_MINIMUM = "0.11.0"
+// Paseo 0.13.0 added optional manifest `translations`: listing text per
+// language. The registry reads them when it publishes; the daemon ignores them.
+const MANIFEST_TRANSLATIONS_MINIMUM = "0.13.0-beta.1"
+
+function isCanonicalLocale(tag: string): boolean {
+  try {
+    return Intl.getCanonicalLocales(tag)[0] === tag
+  } catch {
+    return false
+  }
+}
+
+function isListingTranslations(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  return Object.entries(value).every(([tag, listing]) => {
+    if (!isCanonicalLocale(tag)) return false
+    if (!listing || typeof listing !== "object" || Array.isArray(listing))
+      return false
+    const { name, description } = listing as Record<string, unknown>
+    return (
+      (name === undefined || typeof name === "string") &&
+      (description === undefined || typeof description === "string")
+    )
+  })
+}
 
 function rangeMinimums(range: string): semver.SemVer[] {
   return new semver.Range(range).set.flatMap((comparators) => {
@@ -434,6 +459,7 @@ function validateManifest(
     // Paseo 0.9.0-beta.1 added the optional manifest `description`.
     let requiresDescriptionSupport = false
     let requiresPresentationSupport = false
+    let requiresTranslationsSupport = false
     if (req === undefined) {
       findings.push(
         finding(
@@ -481,6 +507,9 @@ function validateManifest(
       requiresPresentationSupport =
         range !== null &&
         rangeRequiresAtLeast(range, MANIFEST_PRESENTATION_MINIMUM)
+      requiresTranslationsSupport =
+        range !== null &&
+        rangeRequiresAtLeast(range, MANIFEST_TRANSLATIONS_MINIMUM)
       if (
         !range ||
         !rangeMinimums(range).some((version) => semver.gte(version, "0.8.0"))
@@ -563,6 +592,21 @@ function validateManifest(
           )
         )
     }
+    if (
+      requiresTranslationsSupport &&
+      parsed.translations !== undefined &&
+      !isListingTranslations(parsed.translations)
+    )
+      findings.push(
+        finding(
+          "manifest",
+          "translations",
+          "high",
+          true,
+          path,
+          "translations must map language tags such as zh-CN to objects with optional name and description strings"
+        )
+      )
     if (parsed.build !== undefined) {
       if (
         !Array.isArray(parsed.build) ||
@@ -593,7 +637,8 @@ function validateManifest(
         key === "build" ||
         (descriptionAllowed && key === "description") ||
         (requiresPresentationSupport &&
-          (key === "name" || key === "icon" || key === "media"))
+          (key === "name" || key === "icon" || key === "media")) ||
+        (requiresTranslationsSupport && key === "translations")
       if (!allowed)
         findings.push(
           finding(

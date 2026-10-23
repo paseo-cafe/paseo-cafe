@@ -185,6 +185,43 @@ describe("scanStaticFiles", () => {
       expect(manifestRuleIds({ media }, paseo)).toEqual(["media"])
   })
 
+  it("allows manifest translations only for Paseo 0.13.0-beta.1 or newer", () => {
+    const manifestRuleIds = (translations: unknown, paseo: string) => {
+      const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+      writeFileSync(
+        join(root, "paseo-plugin.json"),
+        JSON.stringify({
+          id: "plugin",
+          translations,
+          requirements: { paseo },
+        })
+      )
+      writeFileSync(
+        join(root, "index.server.ts"),
+        "export default () => () => {}"
+      )
+      return scanStaticFiles({ root, registryId: "plugin" })
+        .findings.filter(({ tool }) => tool === "manifest")
+        .map(({ ruleId }) => ruleId)
+    }
+    const listing = { "zh-CN": { name: "示例", description: "示例插件" } }
+
+    for (const paseo of [">=0.13.0-beta.1", "^0.13.0", ">=0.13.0 <0.14.0"])
+      expect(manifestRuleIds(listing, paseo)).toEqual([])
+
+    for (const paseo of [">=0.12.0", "^0.12.0 || ^0.13.0", ">=0.11.0"])
+      expect(manifestRuleIds(listing, paseo)).toEqual(["unknown:translations"])
+
+    for (const translations of [
+      "zh-CN",
+      ["zh-CN"],
+      { "zh-cn": { name: "示例" } },
+      { "zh-CN": { desc: "示例", name: 1 } },
+      { "zh-CN": "示例" },
+    ])
+      expect(manifestRuleIds(translations, "^0.13.0")).toEqual(["translations"])
+  })
+
   it("rejects invalid descriptions when the key is supported", () => {
     const descriptionRuleIds = (
       description: unknown,

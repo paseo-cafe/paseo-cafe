@@ -422,7 +422,7 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
   "manifest/unknown": {
     issue:
       "The manifest contains a key the current plugin format does not recognize. Paseo rejects unknown top-level keys.",
-    fix: "Remove the key. Supported top-level keys are `id`, `requirements`, and `build`, plus `description` when `requirements.paseo` requires Paseo 0.9.0-beta.1 or newer, and `name`, `icon`, and `media` when it requires Paseo 0.11.0 or newer.",
+    fix: "Remove the key. Supported top-level keys are `id`, `requirements`, and `build`, plus `description` when `requirements.paseo` requires Paseo 0.9.0-beta.1 or newer, `name`, `icon`, and `media` when it requires Paseo 0.11.0 or newer, and `translations` when it requires Paseo 0.13.0-beta.1 or newer.",
   },
   "manifest/name": {
     issue: "The manifest name is not a non-empty string.",
@@ -432,6 +432,11 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
     issue:
       "The manifest icon is not a relative path to a PNG inside the plugin package.",
     fix: "Point `icon` at a `.png` file inside the plugin package with a relative, forward-slash path, or remove it.",
+  },
+  "manifest/translations": {
+    issue:
+      "The manifest translations are not a map from language tags to listing text.",
+    fix: "Make `translations` an object keyed by language tags such as `zh-CN`, each holding optional `name` and `description` strings, or remove it.",
   },
   "manifest/media": {
     issue:
