@@ -19,6 +19,7 @@ import type {
 } from "../shared/directory"
 import {
   DEFAULT_DIRECTORY_BROWSE_SETTINGS,
+  DEFAULT_LOCALE,
   DEFAULT_REGISTRY_URL,
   directoryBrowseSettingsEqual,
   directoryInstallRpc,
@@ -27,6 +28,7 @@ import {
   directoryUpdateRpc,
   directoryUpdateStatusRpc,
   isDefaultDirectoryBrowseView,
+  localizeEntry,
   SELF_INSTALLATION_ID,
   SUBMIT_URL,
   setAutomaticUpdatePreference,
@@ -253,7 +255,11 @@ const SORT_OPTIONS: readonly { value: SortMode; label: string }[] = [
   { value: "a-z", label: "A to Z" },
 ]
 
-export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
+export function DirectorySurface({
+  theme,
+  layout,
+  locale = DEFAULT_LOCALE,
+}: PluginSurfaceProps & { locale?: string }) {
   const listDirectory = useRpc(directoryListRpc)
   const installPlugin = useRpc(directoryInstallRpc)
   const updatePlugin = useRpc(directoryUpdateRpc)
@@ -550,7 +556,12 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
     },
   })
 
-  const plugins = directory?.plugins ?? NO_PLUGINS
+  const plugins = useMemo(
+    () =>
+      directory?.plugins.map((entry) => localizeEntry(entry, locale)) ??
+      NO_PLUGINS,
+    [directory, locale]
+  )
   const installations = directory?.installations ?? NO_INSTALLATIONS
   const updates = useMemo(
     (): ReadonlyMap<string, PluginUpdate> =>
@@ -940,6 +951,7 @@ export function DirectorySurface({ theme, layout }: PluginSurfaceProps) {
         theme={theme}
         compact={layout.compact}
         registryUrl={registryUrl}
+        locale={locale}
         installSupported={directory?.installSupported ?? false}
         installations={detailInstallations}
         inventoryAvailable={inventoryAvailable}

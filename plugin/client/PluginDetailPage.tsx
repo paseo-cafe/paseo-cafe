@@ -51,6 +51,8 @@ export interface PluginDetailPageProps {
   theme: PluginTheme
   compact: boolean
   registryUrl: string
+  /** App language of the overview. */
+  locale: string
   /** False when the daemon's `paseo` CLI is too old to install `owner/slug` ids. */
   installSupported: boolean
   /** Installations of this entry only. */
@@ -505,6 +507,7 @@ export function PluginDetailPage({
   theme,
   compact,
   registryUrl,
+  locale,
   installSupported,
   installations,
   inventoryAvailable,
@@ -533,8 +536,8 @@ export function PluginDetailPage({
   const styles = useMemo(() => createStyles(theme, compact), [theme, compact])
   const readDetail = useRpc(directoryDetailRpc)
   const readme = useQuery({
-    queryKey: ["paseo-cafe-readme", registryUrl, entry.id],
-    queryFn: () => readDetail({ registryUrl, id: entry.id }),
+    queryKey: ["paseo-cafe-readme", registryUrl, entry.id, locale],
+    queryFn: () => readDetail({ registryUrl, id: entry.id, locale }),
     staleTime: 5 * 60_000,
     retry: 1,
   })

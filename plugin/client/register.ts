@@ -1,4 +1,9 @@
-import type { PluginClientContext } from "@getpaseo/plugin/client"
+import type {
+  PluginClientContext,
+  PluginSurfaceProps,
+} from "@getpaseo/plugin/client"
+import { createElement } from "react"
+import { DEFAULT_LOCALE } from "../shared/directory"
 import { DirectorySurface } from "./DirectorySurface"
 import { DIRECTORY_SCREEN_ID, DirectorySidebarItem } from "./SidebarItem"
 
@@ -13,7 +18,13 @@ export function registerDirectory(client: PluginClientContext): void {
   client.addScreen({
     id: DIRECTORY_SCREEN_ID,
     title: TITLE,
-    Component: DirectorySurface,
+    // The app language, read on every render. `i18n` is absent on hosts
+    // before Paseo 0.13, which show the English listing.
+    Component: (props: PluginSurfaceProps) =>
+      createElement(DirectorySurface, {
+        ...props,
+        locale: client.i18n?.locale ?? DEFAULT_LOCALE,
+      }),
   })
   client.addSidebarHeaderItem({
     id: DIRECTORY_SCREEN_ID,

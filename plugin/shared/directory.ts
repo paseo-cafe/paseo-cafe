@@ -91,6 +91,17 @@ export const directoryEntrySchema = z.object({
   id: registryIdSchema,
   name: z.string().min(1).max(200),
   description: z.string().max(2_000).default(""),
+  // Never fails the listing: a malformed translation just shows English.
+  translations: z
+    .record(
+      z.string().max(35),
+      z.object({
+        name: z.string().min(1).max(200).optional(),
+        description: z.string().max(2_000).optional(),
+      })
+    )
+    .optional()
+    .catch(undefined),
   license: z.string().max(100).optional(),
   categories: z.array(z.string().max(64)).max(32).default([]),
   author: z.object({
@@ -111,6 +122,27 @@ export const directoryEntrySchema = z.object({
   installs: z.number().int().nonnegative().optional(),
 })
 export type DirectoryEntry = z.infer<typeof directoryEntrySchema>
+
+/** The app language a listing is shown in when the host reports none (hosts before Paseo 0.13). */
+export const DEFAULT_LOCALE = "en"
+
+/**
+ * The listing in an app language. Each field falls back to the English one on
+ * its own, like the registry's website. Returns the entry itself when there is
+ * nothing to translate.
+ */
+export function localizeEntry(
+  entry: DirectoryEntry,
+  locale: string
+): DirectoryEntry {
+  const translation = entry.translations?.[locale]
+  if (!translation) return entry
+  return {
+    ...entry,
+    name: translation.name ?? entry.name,
+    description: translation.description ?? entry.description,
+  }
+}
 
 export const directoryCategorySchema = z.object({
   slug: z.string().max(64),
@@ -292,6 +324,8 @@ export const directoryDetailRpc = defineRpc({
   input: z.object({
     registryUrl: registryUrlSchema.optional(),
     id: registryIdSchema,
+    /** App language: the server returns the overview translated into it when the registry has one. */
+    locale: z.string().max(35).optional(),
   }),
   output: z.object({ readme: z.string().max(200_000) }),
 })

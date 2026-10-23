@@ -16,6 +16,7 @@ import {
   getUpdateCommand,
   isDefaultDirectoryBrowseView,
   isTrustedRegistryUrl,
+  localizeEntry,
   migrateDirectorySettings,
   sameArtifact,
   setAutomaticUpdatePreference,
@@ -152,6 +153,53 @@ describe("listing validation", () => {
         directoryEntrySchema.safeParse({ ...listing, ...bad }).success
       ).toBe(false)
     }
+  })
+})
+
+describe("listing translations", () => {
+  const listing = directoryEntrySchema.parse({
+    id: "acme/example",
+    name: "Example",
+    description: "Does things",
+    categories: [],
+    author: { github: "acme" },
+    repository: { url: "https://github.com/acme/example" },
+    artifact: npm,
+    publishedAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-02T00:00:00.000Z",
+    translations: {
+      "zh-CN": { name: "示例", description: "做事情" },
+      ja: { name: "例" },
+    },
+  })
+
+  it("keeps the translations the registry serves", () => {
+    expect(listing.translations?.["zh-CN"]?.name).toBe("示例")
+  })
+
+  it("shows each field in the app language and falls back to English per field", () => {
+    expect(localizeEntry(listing, "zh-CN")).toMatchObject({
+      name: "示例",
+      description: "做事情",
+    })
+    expect(localizeEntry(listing, "ja")).toMatchObject({
+      name: "例",
+      description: "Does things",
+    })
+  })
+
+  it("returns the listing itself when the language has no translation", () => {
+    expect(localizeEntry(listing, "en")).toBe(listing)
+    expect(localizeEntry(listing, "fr")).toBe(listing)
+  })
+
+  it("never invalidates a listing over a malformed translation", () => {
+    const parsed = directoryEntrySchema.safeParse({
+      ...listing,
+      translations: { "zh-CN": { name: 5 } },
+    })
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.translations).toBeUndefined()
   })
 })
 
