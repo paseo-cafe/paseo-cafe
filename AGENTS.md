@@ -110,6 +110,13 @@ bun run check                                  # website: biome + tsc
 (cd plugin && npm run typecheck && npm test)   # plugin: tsc + vitest
 ```
 
+## Supporting a new Paseo release
+
+When Paseo ships a version the plugins must support (companion plugin here, and the plugins in
+`omercnet/paseo-plugins`), follow `.agents/skills/paseo-version-support/SKILL.md`: check for a
+rollout already in flight, review every Paseo commit since the supported version, open one broad
+"support Paseo X.Y" PR per repo, then stacked per-plugin PRs.
+
 ## Prefer a plugin-submission issue over a hand-written registry PR
 
 When asked to add a plugin to the registry, require its public npm package and
