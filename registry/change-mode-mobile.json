@@ -1,0 +1,12 @@
+{
+  "repo": "Drenalol/paseo-change-mode-mobile",
+  "package": "paseo-change-mode-mobile",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo >= 0.12 and the paseo CLI on the daemon machine (bundled by the desktop app; auto-detected, path override in settings)",
+    "Switching a mode runs `paseo agent mode` on the daemon, without a shell and with identifier-validated arguments",
+    "Pill is mobile-only by default; a setting shows it on web and desktop too"
+  ],
+  "submittedBy": "Drenalol"
+}
