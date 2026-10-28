@@ -1,0 +1,13 @@
+{
+  "repo": "dutchakdev/paseo-plugin-secure-input",
+  "package": "paseo-plugin-secure-input",
+  "categories": ["productivity"],
+  "platforms": ["macos", "linux"],
+  "caveats": [
+    "Requires Paseo 0.14.0-beta.1 or newer on both the daemon and the app.",
+    "Agents get its tools only while Paseo injects its own tools into agents (daemon.mcp.injectIntoAgents).",
+    "The card, the form and the settings screen are in Ukrainian only.",
+    "A delivered value sits for minutes in a file the daemon's OS user can read; the agent not reading it is discipline, not a lock."
+  ],
+  "submittedBy": "dutchakdev"
+}
