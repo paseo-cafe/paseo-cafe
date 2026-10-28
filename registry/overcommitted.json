@@ -1,0 +1,12 @@
+{
+  "repo": "papag00se/paseo-overcommitted",
+  "package": "@papagoose/overcommitted",
+  "categories": ["automation", "git", "productivity"],
+  "platforms": ["linux"],
+  "caveats": [
+    "Requires Linux and Paseo 0.11.2 through 0.11.x.",
+    "Automatically stages, commits, and pushes eligible repositories unless paused or configured otherwise.",
+    "Activity detection is observational and unknown activity does not prevent commits or pushes."
+  ],
+  "submittedBy": "papag00se"
+}
