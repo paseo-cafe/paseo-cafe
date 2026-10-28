@@ -1,0 +1,11 @@
+{
+  "repo": "papag00se/paseo-juke-plugin",
+  "package": "@papagoose/juke",
+  "categories": ["automation", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.11.2 through 0.11.x.",
+    "Assessments send conversation evidence to the selected model provider and consume model quota."
+  ],
+  "submittedBy": "papag00se"
+}
