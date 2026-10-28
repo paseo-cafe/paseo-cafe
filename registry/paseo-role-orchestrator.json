@@ -1,0 +1,12 @@
+{
+  "repo": "papag00se/paseo-role-orchestrator",
+  "package": "@papagoose/role-orchestrator",
+  "categories": ["orchestration", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.11.2 through 0.11.x.",
+    "Agent and judge prompts and selected conversation context are sent to the configured model providers.",
+    "Provider-native agent creation is outside role delegation rules."
+  ],
+  "submittedBy": "papag00se"
+}
