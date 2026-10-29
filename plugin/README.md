@@ -50,9 +50,9 @@ Run now** runs the policy immediately.
 paseo plugin add paseo-cafe/cafe
 ```
 
-Requires Paseo 0.11.0-beta.4 or later: the daemon needs to resolve `owner/slug` directory ids. The
-manifest declares `requirements.paseo` as `>=0.11.0-beta.4`. The prerelease comparator is required
-because npm semver rules do not match `0.11.0-beta.4` with a plain `>=0.11.0` range.
+Requires Paseo 0.11.0 or later: the daemon needs to resolve `owner/slug` directory ids and accept
+the manifest `icon` (earlier versions reject unknown manifest keys). The manifest declares
+`requirements.paseo` as `>=0.11.0`.
 
 By default the directory is read from `https://plugins.paseo.sh/index.json`. **Settings → Plugins →
 Paseo Cafe** can point at another registry that serves the

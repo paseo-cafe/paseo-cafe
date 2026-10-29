@@ -10,7 +10,7 @@ Installing and updating run the `paseo` command line on the daemon host. Before 
 
 ## Setup
 
-Cafe needs Paseo 0.11.0-beta.4 or later and the `paseo` command on the daemon's path. In Settings, under Plugins and then Paseo Cafe, you can point it at another registry that follows the Paseo registry protocol. A custom registry must use HTTPS, or HTTP on localhost. The directory entry for a plugin decides what gets installed, so only use a registry you trust. For a registry the daemon cannot install from directly, such as one served under a path prefix, Cafe shows the command to run yourself instead of an install button.
+Cafe needs Paseo 0.11.0 or later and the `paseo` command on the daemon's path. In Settings, under Plugins and then Paseo Cafe, you can point it at another registry that follows the Paseo registry protocol. A custom registry must use HTTPS, or HTTP on localhost. The directory entry for a plugin decides what gets installed, so only use a registry you trust. For a registry the daemon cannot install from directly, such as one served under a path prefix, Cafe shows the command to run yourself instead of an install button.
 
 ## Capabilities and limits
 
