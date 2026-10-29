@@ -14,6 +14,9 @@
  * SDK whitelists no SVG module), but React Native's <Image> can tint a
  * monochrome PNG with the host theme's foreground color, which gives the
  * plugin the same theme-following mark the website header has.
+ *
+ * And plugin/images/icon.png: the full brown tile at PLUGIN_ICON_SIZE, the
+ * icon the plugin manifest declares for Paseo's plugin list.
  */
 import { writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -26,12 +29,15 @@ import {
 
 // Scripts are always invoked via `bun run` from the repo root (see package.json).
 const PUBLIC_DIR = join(process.cwd(), "public")
-const PLUGIN_SHARED_DIR = join(process.cwd(), "plugin", "shared")
+const PLUGIN_DIR = join(process.cwd(), "plugin")
+const PLUGIN_SHARED_DIR = join(PLUGIN_DIR, "shared")
 
 const ICO_SIZES = [16, 32, 48] as const
 const APPLE_TOUCH_SIZE = 180
 /** Rendered size of the plugin PNG. Displayed at ~22pt, so this covers 3x screens. */
 const PLUGIN_MARK_SIZE = 96
+/** Rendered size of the manifest icon, which Paseo shows in its plugin list. */
+const PLUGIN_ICON_SIZE = 512
 
 function tile(small: boolean): string {
   return brandMarkSvg({
@@ -85,6 +91,10 @@ writeFileSync(join(PUBLIC_DIR, "favicon.ico"), packIco(frames))
 writeFileSync(
   join(PUBLIC_DIR, "apple-touch-icon.png"),
   render(full, APPLE_TOUCH_SIZE)
+)
+writeFileSync(
+  join(PLUGIN_DIR, "images", "icon.png"),
+  render(full, PLUGIN_ICON_SIZE)
 )
 
 const pluginPng = render(brandMarkSvg({ ink: "#ffffff" }), PLUGIN_MARK_SIZE)
