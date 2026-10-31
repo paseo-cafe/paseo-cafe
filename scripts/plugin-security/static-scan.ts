@@ -51,6 +51,7 @@ const CLIENT_ONLY_SDK: Record<string, true> = {
 const SERVER_ONLY_SDK: Record<string, true> = {
   "@getpaseo/plugin/server": true,
   "@getpaseo/plugin/server/provider": true,
+  "@getpaseo/plugin/server/usage": true,
   "@getpaseo/plugin/server/acp": true,
 }
 const SUPPORTED_SDK: Record<string, true> = {
