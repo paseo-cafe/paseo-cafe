@@ -2,13 +2,14 @@
   "repo": "kevguy/paseo-screen",
   "package": "@kevlai22/paseo-screen",
   "categories": ["productivity", "monitoring"],
-  "platforms": ["macos"],
+  "platforms": ["macos", "linux", "windows"],
   "caveats": [
-    "The host must be a Mac on macOS 14 or later with the Xcode command line tools; any Paseo client can view it.",
-    "Someone at the host must grant Paseo Screen Recording and Accessibility once, then reopen Paseo.",
-    "Frames are polled JPEGs at roughly 5 to 15 fps depending on the network, so it is not smooth video.",
-    "Anyone paired with the host can see and control its screen while the plugin is enabled.",
-    "Clipboard sync is text only and works on desktop and web clients."
+    "Hosts: macOS 14+, Linux on X11 or Wayland (tested on GNOME), or Windows 10/11 (experimental); any Paseo client can view.",
+    "Enable plugins on the host; the helper builds on first use (Xcode tools on macOS, a C compiler and dev packages on Linux).",
+    "To allow control, grant Paseo Screen Recording and Accessibility on macOS and reopen it; on Wayland, approve the sharing dialog.",
+    "A locked host can be unlocked by typing your password, except GNOME on Wayland, which stops sharing until unlocked at the machine.",
+    "Windows can't show or control the lock, sign-in or UAC screens, and apps running as administrator ignore remote input.",
+    "Any paired client can see and control the host; Pause remote control stops input. Keep the host from sleeping, or it goes offline."
   ],
   "submittedBy": "kevguy"
 }
