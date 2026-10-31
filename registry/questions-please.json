@@ -1,0 +1,10 @@
+{
+  "repo": "djbclark/paseo-plugin-questions-please",
+  "package": "paseo-plugin-questions-please",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "The keyboard shortcut needs a hardware keyboard and a browser or the desktop app; the sidebar row works everywhere"
+  ],
+  "submittedBy": "djbclark"
+}
