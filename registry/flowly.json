@@ -1,0 +1,8 @@
+{
+  "repo": "JasprW/flowly",
+  "package": "paseo-flowly",
+  "categories": ["productivity", "orchestration", "automation"],
+  "platforms": ["macos", "linux", "windows"],
+  "caveats": [],
+  "submittedBy": "JasprW"
+}
