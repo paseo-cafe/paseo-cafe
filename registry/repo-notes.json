@@ -1,0 +1,16 @@
+{
+  "repo": "maxwell-01/maxs-paseo-plugins",
+  "path": "repo-notes",
+  "package": "paseo-repo-notes",
+  "categories": ["productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.9.2 or newer on every daemon that shares notes",
+    "Notes sync between daemons only while the Paseo app is open",
+    "An agent keeps the notes it was created with; only new agents see an edit",
+    "Notes go into the prompts of agents on every daemon, so install it only on daemons you trust",
+    "Deleting a notes file does not delete it on other daemons; empty the file instead",
+    "A folder with no origin remote gets no notes"
+  ],
+  "submittedBy": "maxwell-01"
+}
