@@ -1,0 +1,8 @@
+{
+  "repo": "kiawin/paseo-openrouter-usage",
+  "package": "@kiawin/paseo-openrouter-usage",
+  "categories": ["monitoring", "provider"],
+  "platforms": [],
+  "caveats": ["Account credits require an OpenRouter management key."],
+  "submittedBy": "kiawin"
+}
