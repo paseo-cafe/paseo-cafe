@@ -4,8 +4,8 @@
   "categories": ["productivity"],
   "platforms": [],
   "caveats": [
-    "Supports flowcharts and sequence diagrams; unsupported diagram types fall back to source.",
-    "Messages containing diagrams use the plugin’s limited Markdown renderer for surrounding prose."
+    "Draws flowcharts and sequence diagrams; anything it cannot draw in full is left to Paseo's own Mermaid renderer.",
+    "On Paseo 0.11 and 0.12, text around a drawn diagram uses the plugin's limited Markdown renderer; from 0.13, Paseo's."
   ],
   "submittedBy": "dutchakdev"
 }
