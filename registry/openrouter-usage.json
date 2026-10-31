@@ -3,6 +3,6 @@
   "package": "@kiawin/paseo-openrouter-usage",
   "categories": ["monitoring", "provider"],
   "platforms": [],
-  "caveats": ["Account credits need an OpenRouter management key."],
+  "caveats": ["Account credits require an OpenRouter management key."],
   "submittedBy": "kiawin"
 }
