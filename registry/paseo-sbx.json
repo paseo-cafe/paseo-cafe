@@ -1,0 +1,12 @@
+{
+  "repo": "drungrin/paseo-sbx",
+  "package": "@drungrin/paseo-sbx",
+  "categories": ["provider", "docker", "developer-tools"],
+  "platforms": ["linux"],
+  "caveats": [
+    "Linux only; needs Docker Sandboxes (sbx) installed and signed in",
+    "Runs Claude and Codex; their CLIs come from sbx templates you prepare",
+    "Process isolation, not a security boundary"
+  ],
+  "submittedBy": "drungrin"
+}
