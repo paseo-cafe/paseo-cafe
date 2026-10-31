@@ -1,0 +1,13 @@
+{
+  "repo": "ttquoccuong/paseo-trail",
+  "package": "paseo-trail",
+  "categories": ["git", "github", "productivity"],
+  "platforms": [],
+  "caveats": [
+    "Requires Paseo 0.13 or later.",
+    "Windows is not tested.",
+    "Status and merge actions need a GitLab or GitHub token.",
+    "GitHub support covers github.com only."
+  ],
+  "submittedBy": "ttquoccuong"
+}
