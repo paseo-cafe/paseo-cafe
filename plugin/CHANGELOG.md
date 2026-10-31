@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/paseo-cafe/paseo-cafe/compare/v1.1.0...v1.1.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **plugin:** support Paseo 0.14 and add manifest icon ([#434](https://github.com/paseo-cafe/paseo-cafe/issues/434)) ([c6d68fc](https://github.com/paseo-cafe/paseo-cafe/commit/c6d68fceace32a55debaba4b60dd2e13e176065e))
+
 ## [1.1.0](https://github.com/paseo-cafe/paseo-cafe/compare/v1.0.1...v1.1.0) (2026-10-23)
 
 
