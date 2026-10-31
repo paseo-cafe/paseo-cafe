@@ -431,6 +431,27 @@ describe("scanStaticFiles", () => {
       ].sort()
     )
   })
+  it("accepts the usage SDK entry from server code only", () => {
+    const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
+    writeFileSync(
+      join(root, "paseo-plugin.json"),
+      JSON.stringify({ id: "plugin", requirements: { paseo: ">=0.11.0" } })
+    )
+    writeFileSync(
+      join(root, "index.server.ts"),
+      'import { hashAccountKey } from "@getpaseo/plugin/server/usage"\nexport default hashAccountKey'
+    )
+    writeFileSync(
+      join(root, "index.client.ts"),
+      'import "@getpaseo/plugin/server/usage"'
+    )
+
+    const result = scanStaticFiles({ root, registryId: "plugin" })
+
+    expect(
+      result.findings.map(({ ruleId, path }) => `${ruleId}:${path}`)
+    ).toEqual(["runtime-module-import:index.client.ts"])
+  })
   it("checks absolute and triple-slash imports without rejecting valid barrels", () => {
     const root = mkdtempSync(join(tmpdir(), "plugin-security-"))
     mkdirSync(join(root, "client", "node_modules", "dependency"), {
