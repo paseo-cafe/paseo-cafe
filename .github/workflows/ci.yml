@@ -141,7 +141,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        paseo_version: [0.11.0-beta.4, 0.12.0, 0.13.0]
+        paseo_version: [0.11.0, 0.12.0, 0.13.0, 0.14.0]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

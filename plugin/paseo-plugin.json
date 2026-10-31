@@ -1,6 +1,7 @@
 {
   "id": "paseo-cafe",
+  "icon": "images/icon.png",
   "requirements": {
-    "paseo": ">=0.11.0-beta.4"
+    "paseo": ">=0.11.0"
   }
 }
