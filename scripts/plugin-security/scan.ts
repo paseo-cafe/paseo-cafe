@@ -475,7 +475,7 @@ const RULE_GUIDANCE: Record<string, RuleGuidance> = {
   "boundary/unsupported-sdk-import": {
     issue:
       "The import uses a private, retired, or unknown Paseo plugin SDK entry.",
-    fix: "Use only the 0.8 SDK root, `/client`, `/client/ui`, `/client/react-native`, `/server`, `/server/provider`, or `/server/acp` entry appropriate to the module runtime.",
+    fix: "Use only the 0.8 SDK root, `/client`, `/client/ui`, `/client/react-native`, `/server`, `/server/provider`, `/server/acp`, or `/server/usage` entry appropriate to the module runtime.",
   },
 }
 
