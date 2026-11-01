@@ -7,6 +7,10 @@
  * of React, the Paseo SDK, Zod, DOM globals, and Node APIs.
  */
 
+/** The official Paseo plugin registry's submission form. */
+export const SUBMIT_URL =
+  "https://github.com/getpaseo/plugins/issues/new?template=submit-plugin.yml"
+
 export const CATALOG_VERSION_MAX_LENGTH = 100
 
 /**

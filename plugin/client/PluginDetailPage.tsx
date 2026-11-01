@@ -14,7 +14,7 @@ import type {
   ScrollView as NativeScrollView,
 } from "react-native"
 import { Platform, Pressable, Text, View } from "react-native"
-import { formatCatalogDateForReader } from "../shared/catalog"
+import { formatCatalogDateForReader, SUBMIT_URL } from "../shared/catalog"
 import type {
   Artifact,
   DirectoryEntry,
@@ -30,7 +30,6 @@ import {
   getSiteUrl,
   getUpdateCommand,
   SELF_INSTALLATION_ID,
-  SUBMIT_URL,
 } from "../shared/directory"
 import { AspectImage } from "./AspectImage"
 import { getDetailPrimaryAction } from "./detail-action"

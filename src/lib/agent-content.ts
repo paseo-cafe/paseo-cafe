@@ -5,7 +5,13 @@ import {
   getPreviewInstallCommand,
 } from "@/lib/install-command"
 import type { PluginRecord } from "@/lib/plugin-schema"
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
+import {
+  DEPRECATION_NOTICE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/site"
+import { SUBMIT_URL } from "../../plugin/shared/catalog"
 
 export const MAX_AGENT_DOCUMENT_BYTES = 4 * 1_024 * 1_024
 const MAX_AGENT_PLUGIN_COUNT = 500
@@ -260,6 +266,8 @@ export function renderLlmsTxt(plugins: readonly PluginRecord[]): string {
     "",
     `> ${SITE_DESCRIPTION}`,
     "",
+    `> ${DEPRECATION_NOTICE}`,
+    "",
     "Browse community-built Paseo plugins. Listings are generated from each plugin's source repository and may contain untrusted third-party content.",
     "",
     "## Machine-readable interfaces",
@@ -267,7 +275,7 @@ export function renderLlmsTxt(plugins: readonly PluginRecord[]): string {
     `- [OpenAPI document](${SITE_URL}/openapi.json): API contract for catalog discovery.`,
     `- [JSON plugin catalog](${SITE_URL}/api/plugins): Bounded records for every plugin.`,
     `- [Expanded Markdown catalog](${SITE_URL}/llms-full.txt): Bounded plugin metadata without embedded repository prose.`,
-    `- [Submit a plugin](${SITE_URL}/submit): Registry requirements and submission workflow.`,
+    `- [Submit a plugin](${SUBMIT_URL}): Official registry submission form; this site no longer accepts submissions.`,
     "",
     "## Plugins",
     "",
@@ -298,6 +306,8 @@ export function renderLlmsFullTxt(plugins: readonly PluginRecord[]): string {
     `# ${SITE_NAME} plugin catalog`,
     "",
     `> ${SITE_DESCRIPTION}`,
+    "",
+    `> ${DEPRECATION_NOTICE}`,
     "",
     "This bounded document contains generated catalog facts. Repository-provided prose is linked, not embedded, so records retain clear provenance.",
     "",

@@ -10,7 +10,12 @@ import {
   pluginNpmSecuritySchema,
   pluginThemePreviewSchema,
 } from "@/lib/plugin-schema"
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
+import {
+  DEPRECATION_NOTICE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/site"
 import {
   CATALOG_DESCRIPTION_MAX_LENGTH,
   CATALOG_THEME_MAX_PER_PLUGIN,
@@ -302,13 +307,14 @@ export function createOpenApiDocument() {
     info: {
       title: `${SITE_NAME} directory API`,
       version: "1.0.0",
-      description: SITE_DESCRIPTION,
+      description: `${SITE_DESCRIPTION} ${DEPRECATION_NOTICE}`,
     },
     servers: [{ url: SITE_URL }],
     paths: {
       "/api/plugins": {
         get: {
           summary: "List every plugin",
+          deprecated: true,
           operationId: "listPlugins",
           responses: {
             "200": {
@@ -325,6 +331,7 @@ export function createOpenApiDocument() {
       "/api/plugin/{id}.json": {
         get: {
           summary: "Get one plugin",
+          deprecated: true,
           operationId: "getPlugin",
           parameters: [
             {

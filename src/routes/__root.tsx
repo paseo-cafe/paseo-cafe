@@ -6,6 +6,7 @@ import {
   Scripts,
 } from "@tanstack/react-router"
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools"
+import { DeprecationBanner } from "@/components/deprecation-banner"
 import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -83,6 +84,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="flex min-h-svh flex-col">
         <ThemeProvider storageKey="theme">
+          <DeprecationBanner />
           <SiteHeader />
           <div className="flex-1">{children}</div>
           <SiteFooter />

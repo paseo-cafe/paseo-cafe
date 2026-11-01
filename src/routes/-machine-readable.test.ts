@@ -73,7 +73,7 @@ describe("machine-readable routes", () => {
     const response = await getHandler(OpenApiRoute)({} as never)
     const document = (await response.json()) as Record<string, unknown>
     const paths = document.paths as
-      | Record<string, { get?: unknown }>
+      | Record<string, { get?: { deprecated?: boolean } }>
       | undefined
     const components = document.components as
       | { schemas?: Record<string, unknown> }
@@ -82,6 +82,8 @@ describe("machine-readable routes", () => {
     expect(document.openapi).toBe("3.1.0")
     expect(paths?.["/api/plugins"]?.get).toBeDefined()
     expect(paths?.["/api/plugin/{id}.json"]?.get).toBeDefined()
+    expect(paths?.["/api/plugins"]?.get?.deprecated).toBe(true)
+    expect(paths?.["/api/plugin/{id}.json"]?.get?.deprecated).toBe(true)
     expect(components?.schemas?.Plugin).toBeDefined()
 
     const references = [

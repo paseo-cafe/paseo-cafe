@@ -10,6 +10,12 @@ export const SITE_DESCRIPTION =
   "An independent, community-run directory of paseo.sh plugins, generated straight from each plugin's own GitHub repo."
 export const SITE_REPO = "paseo-cafe/paseo-cafe"
 
+/** paseo.cafe is deprecated in favor of the official Paseo plugin registry. */
+export const OFFICIAL_DIRECTORY_URL = "https://paseo.sh/plugins"
+export const OFFICIAL_REGISTRY_INDEX_URL = "https://plugins.paseo.sh/index.json"
+export const DEPRECATION_SUNSET = "2026-12-01"
+export const DEPRECATION_NOTICE = `Deprecated: this catalog is frozen and stops on ${DEPRECATION_SUNSET}. Use the official Paseo plugin registry instead: ${OFFICIAL_DIRECTORY_URL} (directory) and ${OFFICIAL_REGISTRY_INDEX_URL} (registry protocol v1 index).`
+
 /** The one deployment search engines should index. */
 export const CANONICAL_SITE_URL = "https://paseo.cafe"
 /**
