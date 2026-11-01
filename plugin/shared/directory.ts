@@ -9,8 +9,6 @@ import { z } from "zod"
 /** Official Paseo plugin registry (protocol v1): `<base>/index.json` and `<base>/plugins/<owner>/<slug>.json`. */
 export const DEFAULT_REGISTRY_URL = "https://plugins.paseo.sh"
 export const SITE_URL = "https://paseo.sh"
-export const SUBMIT_URL =
-  "https://github.com/getpaseo/plugins/issues/new?template=submit-plugin.yml"
 export const REGISTRY_ISSUES_URL =
   "https://github.com/getpaseo/plugins/issues/new"
 

@@ -11,6 +11,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react"
 import { Pressable, Text, useWindowDimensions, View } from "react-native"
+import { SUBMIT_URL } from "../shared/catalog"
 import type {
   DirectoryBrowseSettings,
   DirectoryEntry,
@@ -30,7 +31,6 @@ import {
   isDefaultDirectoryBrowseView,
   localizeEntry,
   SELF_INSTALLATION_ID,
-  SUBMIT_URL,
   setAutomaticUpdatePreference,
 } from "../shared/directory"
 import { filterAccessibilityLabel } from "./accessibility"

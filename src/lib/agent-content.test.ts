@@ -9,7 +9,7 @@ import {
 // Built from SITE_URL rather than the canonical domain: a fork's deployment
 // serves these documents from its own Pages URL (see src/lib/site.ts), and
 // the assertion is that the links point at *this* site, not at paseo.cafe.
-import { SITE_URL } from "./site"
+import { DEPRECATION_NOTICE, SITE_URL } from "./site"
 
 const plugin: PluginRecord = {
   id: "example-plugin",
@@ -57,6 +57,8 @@ describe("agent-readable catalog content", () => {
     expect(text).toContain(
       `[Example \\[Plugin\\]](${SITE_URL}/plugins/example-plugin.md): An example plugin.`
     )
+    expect(text).toContain(DEPRECATION_NOTICE)
+    expect(renderLlmsFullTxt([plugin])).toContain(DEPRECATION_NOTICE)
   })
 
   it("renders a self-contained plugin document with provenance and trust guidance", () => {
