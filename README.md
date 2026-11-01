@@ -3,6 +3,13 @@
 A directory of community-built [Paseo](https://paseo.sh) plugins. Every listing is generated
 from the plugin's own repo — authors don't fill out a form, they just point us at their code.
 
+> **Deprecated.** paseo.cafe has been superseded by the official Paseo plugin registry
+> (https://paseo.sh/plugins, data at https://plugins.paseo.sh, protocol at
+> https://github.com/getpaseo/plugins/blob/main/PROTOCOL.md). New submissions are not accepted here;
+> use the [official form](https://github.com/getpaseo/plugins/issues/new?template=submit-plugin.yml).
+> The catalog is frozen and the JSON API at `/api/plugins` stops on 2026-12-01. The companion plugin
+> in `plugin/` keeps working and already reads the official registry.
+
 ## How it works
 
 ```
@@ -64,53 +71,10 @@ serving from the root. See `VITE_SITE_URL`/`VITE_BASE_PATH` in `src/lib/site.ts`
 
 ## Submitting a plugin
 
-The full walkthrough (with a prefilled "create this file on GitHub" button) lives on the site
-itself at `/submit`. The short version — add one file, `registry/<your-plugin-id>.json`:
-
-```jsonc
-{
-  "repo": "yourname/your-repo", // GitHub "owner/repo", not a full URL
-  "path": "optional/subpath", // omit if your repo *is* the plugin
-  "package": "@yourname/paseo-plugin", // optional; npmjs only, no version or tag
-  "categories": ["productivity"], // free-form, refined over time
-  "platforms": ["macos"], // only if platform-restricted — omit if it runs anywhere
-  "caveats": ["Requires an OpenAI API key"], // short one-liners worth flagging, up to 6
-  "submittedBy": "yourname"
-}
-```
-
-Requirements, checked automatically by CI:
-
-- The registry filename is a lowercase kebab-case plugin ID.
-- `path`, when present, is at most 500 characters and uses the shared safe repository-path
-  validation applied by both the site and companion plugin.
-- Your repo (at `path`, if given) contains a valid `paseo-plugin.json` with the same `id`.
-- `package`, when present, is a public npmjs package name with no version, tag, URL, or registry.
-- Paseo 0.9 installs declared packages from npm; Paseo 0.8 retains the GitHub source.
-- Install commands always use the scanner-derived exact npm version or Git commit; mutable tags and
-  branches are never handed to an install or update action.
-
-The plugin name comes from the registry filename after it is validated against the manifest ID.
-Description, version, license, screenshots, and the best-effort limitations excerpt are read
-automatically. npm-backed plugins show and rank by last-30-day downloads and exact-version publish
-date; Git-only plugins retain their existing star and catalog-listing ordering. When `package` is
-present, its current published version is the catalog version and must match the Git source. A
-`README.md`, `LICENSE`, and an `images/` folder in the repository all make a listing better; none
-are required to get in.
-
-Paseo Cafe uses the published npm version when `package` is declared and otherwise uses the Git
-plugin directory's `package.json.version`. Start at a real semantic version such as `0.1.0`, not
-the `0.0.0` placeholder, and increment it whenever you publish a plugin update. Missing or invalid
-versions remain browsable and installable but report their version as unavailable. The scanner
-flags `0.0.0`, because updates cannot be detected until the maintainer starts incrementing it.
-
-To offer an unreleased build, publish it under npm's `next` dist-tag. Cafe shows it as an opt-in
-Preview when it points to a semantic version different from `latest` and its exact tarball passes
-the same security scan as the stable release. Stable remains the default, and generated commands
-pin the resolved version rather than installing the mutable tag.
-
-
-Open a PR adding your `registry/<id>.json`. Once Registry validation and CI pass, it's ready to merge.
+Submissions here are closed. Submit to the
+[official Paseo plugin registry](https://github.com/getpaseo/plugins/issues/new?template=submit-plugin.yml);
+Git-only plugins are accepted and npm is optional. Existing `registry/<id>.json` entries can still be
+edited or removed by PR until the catalog sunsets.
 
 ## Local development
 

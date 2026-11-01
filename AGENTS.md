@@ -1,5 +1,11 @@
 # Agent Instructions
 
+> **paseo.cafe is deprecated** in favor of the official registry (https://paseo.sh/plugins,
+> data at https://plugins.paseo.sh). The catalog and `/api/plugins` stop on 2026-12-01 and
+> registry submissions are closed. Do not add catalog or website features; the companion
+> plugin in `plugin/` stays and already reads the official registry. Tracking: bead
+> `paseo-cafe-0tt`.
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
@@ -89,15 +95,9 @@ the other by hand**:
    that would make it fail to typecheck under the website's DOM-ful config.
 
 4. **Plugin release identity.** The catalog and companion plugin use each
-   plugin's `package.json.version` as its update identity. Every new registry
-   submission must declare a public npm package whose published manifest has
-   the same plugin ID and a real semantic version rather than `0.0.0`; every
-   released plugin change must increment that version. Existing Git-only
-   registry entries may remain while their authors migrate, so periodic
-   full-registry scans must continue to accept them, while pull-request
-   admission must reject new entries without a package. Keep this contract
-   visible in submitter-facing guidance and templates; the registry scanner
-   must flag placeholder versions.
+   plugin's `package.json.version` as its update identity; every released
+   plugin change must increment that version, and the registry scanner must
+   flag placeholder versions.
 
    Release Please owns the companion plugin's version bumps. Feature and fix PRs must not edit
    `plugin/package.json`, `plugin/package-lock.json`, `.release-please-manifest.json`, or
@@ -117,20 +117,12 @@ When Paseo ships a version the plugins must support (companion plugin here, and 
 rollout already in flight, review every Paseo commit since the supported version, open one broad
 "support Paseo X.Y" PR per repo, then stacked per-plugin PRs.
 
-## Prefer a plugin-submission issue over a hand-written registry PR
+## Registry submissions are closed
 
-When asked to add a plugin to the registry, require its public npm package and
-open a GitHub issue from the **Add a plugin** template
-(`.github/ISSUE_TEMPLATE/plugin-submission.yml`) instead of hand-writing
-`registry/<id>.json` and opening a PR directly. The `plugin-submission.yml`
-workflow parses that issue, generates and validates the registry entry with the
-same `registryEntrySchema` the manual path uses, and opens a PR that closes the
-issue — the existing registry admission workflow (`plugin-security.yml`) still
-reviews that PR like any other.
-
-Only hand-edit `registry/*.json` directly for changes the issue template
-doesn't cover (e.g. editing curator fields on an existing entry, or deleting
-one). New submissions should go through the issue.
+Do not hand-write `registry/<id>.json` for new plugins. Send authors to the
+official form: https://github.com/getpaseo/plugins/issues/new?template=submit-plugin.yml.
+Only edit or delete existing `registry/*.json` entries; `plugin-security.yml`
+still reviews those PRs.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:970c3bf2 -->
 ## Beads Issue Tracker
