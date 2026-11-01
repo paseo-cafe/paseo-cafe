@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Submit a plugin
+    url: https://github.com/getpaseo/plugins/issues/new?template=submit-plugin.yml
+    about: paseo.cafe no longer accepts plugin submissions. Use the official Paseo plugin registry.
