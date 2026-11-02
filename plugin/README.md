@@ -3,6 +3,10 @@
 Browse the official [Paseo plugin directory](https://paseo.sh/plugins) from inside Paseo, and
 install plugins without leaving the app.
 
+The paseo.cafe website and its registry are deprecated in favor of the official registry; this
+plugin already reads https://plugins.paseo.sh and is unaffected. See
+[paseo-cafe/paseo-cafe#448](https://github.com/paseo-cafe/paseo-cafe/issues/448).
+
 The plugin adds a **Paseo Cafe** sidebar surface that lists every plugin in the directory with its
 description, author, categories, install count, screenshots, and README. Featured plugins and the
 most recently updated ones lead the default view; search, category, installation-state, and sort
