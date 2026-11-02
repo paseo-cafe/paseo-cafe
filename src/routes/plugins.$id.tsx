@@ -12,7 +12,7 @@ import { formatDateTime } from "@/lib/format-date"
 import { serializePluginJsonLd } from "@/lib/json-ld"
 import { getPlugin } from "@/lib/plugins-data"
 import { seo } from "@/lib/seo"
-import { SITE_URL } from "@/lib/site"
+import { officialListingUrl, SITE_URL } from "@/lib/site"
 import { inlineMarkdownToPlainText } from "../../plugin/shared/inline-markdown"
 
 export const Route = createFileRoute("/plugins/$id")({
@@ -33,6 +33,7 @@ export const Route = createFileRoute("/plugins/$id")({
       path: `/plugins/${loaderData.id}`,
       image: `/og/${loaderData.id}.png`,
       type: "article",
+      redirect: officialListingUrl(loaderData.id),
     })
     return {
       ...metadata,

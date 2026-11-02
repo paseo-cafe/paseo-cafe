@@ -12,6 +12,7 @@ export const Route = createFileRoute("/submit")({
       description:
         "paseo.cafe no longer accepts plugin submissions. Submit to the official Paseo plugin registry.",
       path: "/submit",
+      redirect: SUBMIT_URL,
     }),
   component: SubmitPage,
 })

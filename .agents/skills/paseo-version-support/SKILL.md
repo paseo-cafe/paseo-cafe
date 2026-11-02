@@ -12,7 +12,7 @@ Repeatable process for rolling every plugin we own onto a new Paseo release. It 
 - the 13 plugins in `omercnet/paseo-plugins` (local clone `~/paseo-plugins`; workspaces listed in its root `package.json`),
 - the companion plugin in this repo, `plugin/` (Paseo Cafe).
 
-Third-party plugins in `registry/*.json` are not ours. For them the only work is keeping the admission scanner and catalog correct (step 3).
+Third-party plugins in `registry/*.json` are not ours, and the cafe catalog is frozen (paseo.cafe is deprecated), so they need no work.
 
 ## Hard rules
 
@@ -49,7 +49,6 @@ Current support is whatever these say; they must agree, and any disagreement is 
 | `~/paseo-plugins/package.json` | `catalog["@getpaseo/*"]` (cli, client, plugin, protocol, server) |
 | `~/paseo-plugins/*/paseo-plugin.json` | each plugin's `requirements.paseo` |
 | plugin READMEs | prose that quotes a range or "Paseo 0.N" |
-| `scripts/plugin-security/static-scan.ts` | manifest keys the admission scan allows per Paseo version |
 
 New version:
 
@@ -87,8 +86,8 @@ Classify each commit as: plugin SDK break, plugin SDK addition, deprecation, dae
 
 Facts that have mattered before:
 
-- The daemon checks `requirements.paseo` against the version and against its stable core, so `^0.N.0` admits `0.N.0-beta.k` (`packages/protocol/src/plugin-requirements.ts`). Other tooling (npm semver, the cafe scanner's `rangeRequiresAtLeast`) does not, so a prerelease-aware comparator may still be needed there.
-- Manifest keys: the daemon schema is non-strict for top-level keys (unknown keys are stripped) but strict for `requirements`. The cafe scanner is stricter on purpose (see step 3).
+- The daemon checks `requirements.paseo` against the version and against its stable core, so `^0.N.0` admits `0.N.0-beta.k` (`packages/protocol/src/plugin-requirements.ts`). npm semver does not, so a prerelease-aware comparator may still be needed in other tooling.
+- Manifest keys: the daemon schema is non-strict for top-level keys (unknown keys are stripped) but strict for `requirements`.
 - A removed SDK export fails at bundle or run time, not always at typecheck. grep plugin source for every removed name.
 
 ## 3. Broad PR in each repo
@@ -102,9 +101,8 @@ Precedents: `f4091c6` (0.12), `d0f6bb0` (0.11), `28e01f9` (scanner, 0.11), `6228
 1. `plugin/package.json` devDependency `@getpaseo/plugin` to the new version; `cd plugin && npm install`; check the lockfile diff only adds the SDK and its new transitive deps.
 2. `.github/workflows/ci.yml`: Plugin job matrix `paseo_version` keeps the oldest supported version and adds the new one (and the newest stable if different).
 3. `plugin/paseo-plugin.json` range: leave it open-ended (`>=0.11.0-beta.4`) unless the plugin gains a 0.N-only API; if it must change, update `plugin/README.md` which quotes it.
-4. Admission scanner (`scripts/plugin-security/static-scan.ts`, rule text in `scan.ts`, tests in `static-scan.test.ts`): if the new daemon added optional top-level manifest keys, allow them when `requirements.paseo` requires the version that introduced them (`rangeRequiresAtLeast`), validate their shape like Paseo does, keep older ranges reporting them as unknown, and add the rule's `issue`/`fix` text. 0.9 added `description`, 0.11 `name`/`icon`/`media`, 0.13 `translations`. Also re-check how the scan treats new SDK specifiers (`plugin-sdk-specifiers.ts` in Paseo) and new reachable file types.
-5. Check the catalog model and website for fields that mirror the registry protocol (`PublishedPluginSchema` additions) before assuming nothing changed.
-6. Validate: `(cd plugin && npm run typecheck && npm test)`, `bunx vitest run scripts/plugin-security`, `bunx biome check --error-on-warnings .`, `bunx tsc --noEmit`.
+4. Check the catalog model and website for fields that mirror the registry protocol (`PublishedPluginSchema` additions) before assuming nothing changed.
+5. Validate: `(cd plugin && npm run typecheck && npm test)`, `bunx biome check --error-on-warnings .`, `bunx tsc --noEmit`.
 
 ### omercnet/paseo-plugins
 
@@ -152,4 +150,4 @@ Per repo and per plugin: current version, new version, which Paseo changes matte
 
 ## Maintaining this skill
 
-After each run, add the new version's category of break to "Facts that have mattered before" and the scanner key list in step 3, and fix any step that was wrong. Keep the plugin count and paths in the intro accurate.
+After each run, add the new version's category of break to "Facts that have mattered before", and fix any step that was wrong. Keep the plugin count and paths in the intro accurate.
