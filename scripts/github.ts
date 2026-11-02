@@ -1,6 +1,6 @@
 /**
- * Small, dependency-free GitHub REST API + raw-content helpers shared by
- * scripts/validate-registry.ts and scripts/scan.ts. Uses GITHUB_TOKEN when
+ * Small, dependency-free GitHub REST API + raw-content helpers used by
+ * scripts/scan.ts. Uses GITHUB_TOKEN when
  * present (set automatically inside GitHub Actions) to avoid the very low
  * unauthenticated rate limit; falls back to anonymous requests for local dev.
  */
