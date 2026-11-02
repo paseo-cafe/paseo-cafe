@@ -1,3 +1,4 @@
+import migration from "../../data/registry-migration.json"
 import {
   OFFICIAL_GITHUB_ORG as CATALOG_OFFICIAL_GITHUB_ORG,
   isOfficialCatalogPlugin,
@@ -15,6 +16,21 @@ export const OFFICIAL_DIRECTORY_URL = "https://paseo.sh/plugins"
 export const OFFICIAL_REGISTRY_INDEX_URL = "https://plugins.paseo.sh/index.json"
 export const DEPRECATION_SUNSET = "2026-12-01"
 export const DEPRECATION_NOTICE = `Deprecated: this catalog is frozen and stops on ${DEPRECATION_SUNSET}. Use the official Paseo plugin registry instead: ${OFFICIAL_DIRECTORY_URL} (directory) and ${OFFICIAL_REGISTRY_INDEX_URL} (registry protocol v1 index).`
+
+const officialIds: Record<string, string | null> = migration
+
+/** The official registry id (`owner/slug`) a cafe plugin moved to, if it is listed there. */
+export function officialPluginId(id: string): string | undefined {
+  return officialIds[id] ?? undefined
+}
+
+/** Where a cafe listing now lives: its official listing, else the official directory. */
+export function officialListingUrl(id: string): string {
+  const officialId = officialPluginId(id)
+  return officialId
+    ? `${OFFICIAL_DIRECTORY_URL}/${officialId}`
+    : OFFICIAL_DIRECTORY_URL
+}
 
 /** The one deployment search engines should index. */
 export const CANONICAL_SITE_URL = "https://paseo.cafe"

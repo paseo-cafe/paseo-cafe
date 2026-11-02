@@ -12,44 +12,23 @@ from the plugin's own repo — authors don't fill out a form, they just point us
 
 ## How it works
 
-```
-registry/<id>.json      →  scripts/validate-registry.ts (CI, on PR)
-                         →  scripts/scan-plan.ts         (pinned incremental plan)
-                         →  targeted security + enrichment scans
-                         →  ignored data/plugins/*.json + public assets
-                         →  Nitro prerender              (.output/public)
-```
+The catalog is frozen. `data/plugins.json` is the last deployed scan (2026-10-23) and is committed;
+nothing scans `registry/*.json` any more, so editing those files changes nothing. The build imports
+`data/plugins.json` via `src/lib/plugins-data.ts`, prerenders every public page, and emits the
+catalog's machine interfaces: `/llms.txt`, `/llms-full.txt`, per-plugin Markdown at
+`/plugins/<id>.md`, OpenAPI at `/openapi.json`, the full JSON catalog at `/api/plugins`, and focused
+JSON records at `/api/plugin/<id>.json`.
 
-1. **`registry/*.json`** is the only thing a human writes — a GitHub source plus an optional public
-   npmjs package (see [Submitting a plugin](#submitting-a-plugin)).
-2. **`scripts/validate-registry.ts`** runs on every PR that touches registry inputs. It checks the
-   entry is well-formed, the repo/path exists, `paseo-plugin.json.id` matches the registry filename,
-   and any declared npm package publishes the same ID and version.
-   CI detects affected paths, runs the app and/or companion-plugin checks, then reports one
-   aggregate `All checks passed` result. App checks cover formatting, lint, types, tests, and the
-   production build; plugin checks cover formatting, lint, types, and tests. See
-   `.github/workflows/ci.yml` and `.github/workflows/validate.yml`.
-3. **`scripts/scan-plan.ts`** resolves each repository head and npm dist-tag once, compares those
-   pinned identities with the last successfully deployed scan state, and selects only new plugin
-   releases. Git repositories use each plugin path's normalized `package.json.version` as the
-   change detector, so unrelated monorepo commits do not move the published plugin commit. npm
-   releases use their exact package, version, and SHA-512 integrity. `scripts/scan.ts` enriches only
-   promoted candidates and retains the complete prior record when a candidate fails. A lightweight
-   npm-only check runs every 15 minutes; Git release checks continue every six hours. Unchanged
-   scheduled runs stop after planning. Missing or invalid prior state safely causes a full scan.
-4. The build imports the generated `data/plugins.json` via `src/lib/plugins-data.ts`, prerenders
-   every public page, and emits the catalog's machine interfaces: `/llms.txt`, `/llms-full.txt`,
-   per-plugin Markdown at `/plugins/<id>.md`, OpenAPI at `/openapi.json`, the full JSON catalog at
-   `/api/plugins`, and focused JSON records at `/api/plugin/<id>.json`.
-5. **`.github/workflows/deploy-pages.yml`** restores scan state produced only after a successful
-   Pages deployment, builds and verifies the static site when the plan changes, publishes it, and
-   then records the matching state for the next run. The deployed site has no application server
-   or runtime GitHub API access.
+Listing pages (`/plugins/<id>`), `/submit`, and `/user/<login>` redirect to paseo.sh.
+`data/registry-migration.json` maps each cafe id to its official `owner/slug`; ids without one go to
+https://paseo.sh/plugins. `/api/plugins` stays a plain 200 response until sunset, because older
+companion plugins fetch it with redirects disabled.
+
+`.github/workflows/deploy-pages.yml` rebuilds and publishes the site after CI passes on `main`.
 
 ## Agent and API access
 
-All machine-readable outputs are generated from the same scanned plugin records as the website, so
-new and updated registry entries require no additional documentation work. Start with
+All machine-readable outputs are generated from the same frozen plugin records as the website. Start with
 [`/llms.txt`](https://paseo.cafe/llms.txt) for the compact index or
 [`/openapi.json`](https://paseo.cafe/openapi.json) for the JSON API contract.
 `/llms-full.txt` contains bounded, catalog-generated facts for bulk ingestion. Repository-provided
@@ -63,8 +42,8 @@ the HTTP `Accept` header. Each HTML plugin page advertises an explicit `text/mar
 ## Running your own copy
 
 Fork it, turn on GitHub Pages (Settings → Pages → Source: **GitHub Actions**), then run the
-**Enrich and deploy to GitHub Pages** workflow. Nothing needs editing: the workflow asks
-`actions/configure-pages` where the deployment lives and passes that to the scan and the build, so
+**Deploy to GitHub Pages** workflow. Nothing needs editing: the workflow asks
+`actions/configure-pages` where the deployment lives and passes that to the build, so
 a fork publishes correct links, canonical URLs and a sitemap for its own
 `https://<owner>.github.io/<repo>/` — while the canonical site, which has a custom domain, keeps
 serving from the root. See `VITE_SITE_URL`/`VITE_BASE_PATH` in `src/lib/site.ts`.
@@ -73,19 +52,16 @@ serving from the root. See `VITE_SITE_URL`/`VITE_BASE_PATH` in `src/lib/site.ts`
 
 Submissions here are closed. Submit to the
 [official Paseo plugin registry](https://github.com/getpaseo/plugins/issues/new?template=submit-plugin.yml);
-Git-only plugins are accepted and npm is optional. Existing `registry/<id>.json` entries can still be
-edited or removed by PR until the catalog sunsets.
+Git-only plugins are accepted and npm is optional.
 
 ## Local development
 
 ```bash
 bun install
-bun run registry:validate   # check registry/*.json against live GitHub repos
-bun run dev                 # regenerate the listing, then serve http://localhost:3000
+bun run dev                 # serve http://localhost:3000
 ```
 
-`bun run build` ensures the generated listing exists before producing the static site in
-`.output/public`. Run `bun run registry:scan` explicitly to refresh it. Other useful scripts:
+`bun run build` produces the static site in `.output/public`. Other useful scripts:
 `bun run typecheck`, `bun run lint`, `bun run test`.
 
 ## Stack

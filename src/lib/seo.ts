@@ -8,6 +8,8 @@ export interface SeoOptions {
   /** Root-relative path to an OG image, e.g. "/og/subagent-activity.png". Defaults to the site-wide OG image. */
   image?: string
   type?: "website" | "article"
+  /** Absolute URL that replaces this page: browsers are sent there and it becomes the canonical URL. */
+  redirect?: string
 }
 
 /**
@@ -22,6 +24,7 @@ export function seo({
   path,
   image = "/og/default.png",
   type = "website",
+  redirect,
 }: SeoOptions) {
   const url = `${SITE_URL}${path}`
   const imageUrl = `${SITE_URL}${image}`
@@ -44,7 +47,10 @@ export function seo({
       { name: "twitter:title", content: fullTitle },
       { name: "twitter:description", content: description },
       { name: "twitter:image", content: imageUrl },
+      ...(redirect
+        ? [{ httpEquiv: "refresh", content: `0; url=${redirect}` }]
+        : []),
     ],
-    links: [{ rel: "canonical", href: url }],
+    links: [{ rel: "canonical", href: redirect ?? url }],
   }
 }
