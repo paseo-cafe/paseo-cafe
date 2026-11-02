@@ -94,10 +94,9 @@ the other by hand**:
    do) is expected and fine — keep any such shared module free of anything
    that would make it fail to typecheck under the website's DOM-ful config.
 
-4. **Plugin release identity.** The catalog and companion plugin use each
-   plugin's `package.json.version` as its update identity; every released
-   plugin change must increment that version, and the registry scanner must
-   flag placeholder versions.
+4. **Plugin release identity.** The companion plugin uses its
+   `package.json.version` as its update identity; every released plugin
+   change must increment that version.
 
    Release Please owns the companion plugin's version bumps. Feature and fix PRs must not edit
    `plugin/package.json`, `plugin/package-lock.json`, `.release-please-manifest.json`, or
@@ -117,12 +116,11 @@ When Paseo ships a version the plugins must support (companion plugin here, and 
 rollout already in flight, review every Paseo commit since the supported version, open one broad
 "support Paseo X.Y" PR per repo, then stacked per-plugin PRs.
 
-## Registry submissions are closed
+## The registry is frozen
 
-Do not hand-write `registry/<id>.json` for new plugins. Send authors to the
+Do not add or edit `registry/*.json`: nothing scans it any more, and the catalog
+is the committed `data/plugins.json` snapshot. Send plugin authors to the
 official form: https://github.com/getpaseo/plugins/issues/new?template=submit-plugin.yml.
-Only edit or delete existing `registry/*.json` entries; `plugin-security.yml`
-still reviews those PRs.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:970c3bf2 -->
 ## Beads Issue Tracker

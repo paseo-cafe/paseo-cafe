@@ -79,10 +79,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          # Full history: scripts/scan.ts derives each plugin's addedAt from
-          # the commit that first added its registry entry, and a shallow
-          # clone has no such history to read.
-          fetch-depth: 0
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -91,16 +87,6 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      # Pull requests execute contributor-controlled code. Build a deterministic
-      # local catalog and never expose credentials to this trust domain.
-      - name: Generate offline registry fixtures
-        run: bun run registry:scan:offline
-
-      - name: Validate registry data locally
-        run: bun run registry:validate
-        env:
-          SKIP_GITHUB_VALIDATION: "true"
 
       - name: Check with Biome
         run: bun run check:app

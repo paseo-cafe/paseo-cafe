@@ -794,6 +794,20 @@ async function writeOgImage(
   }
 }
 
+function writePluginOgImage(record: PluginRecord) {
+  return writeOgImage(record.id, {
+    title: record.name,
+    // satori paints flat text: the plain form, and nothing at all when
+    // the description had no visible text (an image-only one, say).
+    description: inlineMarkdownToPlainText(record.descriptionNodes),
+    badges: [
+      ...record.platforms.map((p) => PLATFORM_LABELS[p]),
+      ...record.categories,
+      ...(record.license ? [record.license] : []),
+    ],
+  })
+}
+
 /**
  * The static stand-in for the old /plugins listing URL, kept working for
  * bookmarks and inbound links. Generated rather than committed because both
@@ -1319,6 +1333,13 @@ async function main() {
       .parse(JSON.parse(readFileSync(INDEX_PATH, "utf8")))
     writeSitemap(records)
     writePluginsRedirect()
+    // The catalog is frozen in data/plugins.json; OG images are rendered from it, not committed.
+    mkdirSync(OG_DIR, { recursive: true })
+    await writeOgImage("default", {
+      title: SITE_NAME,
+      description: SITE_DESCRIPTION,
+    })
+    for (const record of records) await writePluginOgImage(record)
     return
   }
 
@@ -1381,17 +1402,7 @@ async function main() {
       join(OUTPUT_DIR, `${record.id}.json`),
       `${JSON.stringify(record, null, 2)}\n`
     )
-    await writeOgImage(record.id, {
-      title: record.name,
-      // satori paints flat text: the plain form, and nothing at all when
-      // the description had no visible text (an image-only one, say).
-      description: inlineMarkdownToPlainText(record.descriptionNodes),
-      badges: [
-        ...record.platforms.map((p) => PLATFORM_LABELS[p]),
-        ...record.categories,
-        ...(record.license ? [record.license] : []),
-      ],
-    })
+    await writePluginOgImage(record)
   }
 
   // The aggregate index covers everything scanned in this run plus anything

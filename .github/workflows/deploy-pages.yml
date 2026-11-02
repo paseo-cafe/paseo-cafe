@@ -1,20 +1,13 @@
-name: Enrich and deploy to GitHub Pages
+name: Deploy to GitHub Pages
 
+# The catalog is frozen in data/plugins.json (paseo.cafe is deprecated), so
+# deploys only rebuild the site from the repository: no registry scans.
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
-  schedule:
-    # npm releases are cheap to poll; Git fallback repositories refresh separately.
-    - cron: "7/15 * * * *"
-    - cron: "3 * * * *"
   workflow_dispatch:
-    inputs:
-      state_run_id:
-        description: "Candidate-state run ID for a plan-only branch test"
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -25,31 +18,24 @@ concurrency:
 
 jobs:
   build:
-    name: Enrich and build static site
+    name: Build static site
     if: >-
-      (github.event_name != 'workflow_run' ||
-       (github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.head_branch == github.event.repository.default_branch)) &&
-      (github.event_name != 'schedule' ||
-       github.repository == 'paseo-cafe/paseo-cafe')
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == github.event.repository.default_branch)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     permissions:
-      actions: read
       contents: read
       pages: read
-    outputs:
-      deploy: ${{ steps.decision.outputs.deploy }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
-          # Full history is still required for the registry addedAt dates.
-          fetch-depth: 0
 
       - name: Resolve this deployment's URL and base path
         id: pages
@@ -63,104 +49,25 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Find last deployed registry state
-        if: inputs.state_run_id == ''
-        id: prior
-        run: bun run scripts/find-scan-state.ts
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-      - name: Restore last deployed registry state
-        continue-on-error: true
-        if: inputs.state_run_id == '' && steps.prior.outputs.found == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: registry-scan-state-v1
-          path: data
-          github-token: ${{ github.token }}
-          run-id: ${{ steps.prior.outputs.run_id }}
-
-      - name: Restore candidate state for plan-only testing
-        if: github.event_name == 'workflow_dispatch' && inputs.state_run_id != ''
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: registry-scan-candidate-${{ inputs.state_run_id }}
-          path: data
-          github-token: ${{ github.token }}
-          run-id: ${{ inputs.state_run_id }}
-
-      - name: Build pinned registry plan
-        id: plan
-        run: >-
-          bun run registry:plan
-          --mode "$SCAN_MODE"
-          --output "$RUNNER_TEMP/registry-scan-plan.json"
-        env:
-          SCAN_MODE: ${{ github.event_name == 'schedule' && github.event.schedule == '7/15 * * * *' && 'npm' || 'full' }}
-          GITHUB_TOKEN: ${{ github.token }}
-          CATALOG_IMPLEMENTATION_DIGEST: ${{ hashFiles('scripts/scan.ts', 'scripts/scan-plan.ts', 'scripts/npm-registry.ts', 'scripts/github.ts', 'scripts/og-image.tsx', 'scripts/theme-previews.ts', 'src/lib/**/*.ts', 'plugin/shared/**/*.ts', 'package.json', 'bun.lock') }}
-          SECURITY_IMPLEMENTATION_DIGEST: ${{ hashFiles('scripts/plugin-security/**/*.ts', 'scripts/npm-registry.ts', 'src/lib/plugin-schema.ts', 'src/lib/registry-schema.ts', 'plugin/shared/catalog.ts', 'package.json', 'bun.lock') }}
-
-      - name: Scan changed plugin releases
-        if: steps.plan.outputs.scan_count != '0'
-        timeout-minutes: 25
-        run: >-
-          bun run security:scan
-          --plan "$RUNNER_TEMP/registry-scan-plan.json"
-          --json "$RUNNER_TEMP/plugin-security-candidates.json"
-
-      # The plan pins immutable commits and npm integrity hashes. Do not
-      # re-resolve mutable HEAD or dist-tags here; later polls scan newer targets.
-
-      - name: Decide whether to deploy
-        id: decision
-        run: echo "deploy=$DEPLOY" >> "$GITHUB_OUTPUT"
-        env:
-          DEPLOY: ${{ inputs.state_run_id == '' && (github.event_name != 'schedule' || steps.plan.outputs.assemble == 'true') }}
-
-      - name: Assemble registry from active and candidate releases
-        if: steps.decision.outputs.deploy == 'true'
-        id: catalog
-        run: >-
-          bun run registry:scan
-          --plan "$RUNNER_TEMP/registry-scan-plan.json"
-          --candidates "$RUNNER_TEMP/plugin-security-candidates.json"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
-          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
-
       - name: Build generated site
-        if: steps.decision.outputs.deploy == 'true'
         run: bun run build:generated
         env:
           VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Merge prerendered pages into the artifact root
-        if: steps.decision.outputs.deploy == 'true' && steps.pages.outputs.base_path != ''
+        if: steps.pages.outputs.base_path != ''
         run: bun run scripts/merge-pages-artifact.ts
         env:
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Verify final GitHub Pages artifact
-        if: steps.decision.outputs.deploy == 'true'
         run: bun run scripts/verify-pages-entrypoint.ts --artifact-root
         env:
           VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
-      - name: Upload candidate registry state
-        if: steps.decision.outputs.deploy == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: registry-scan-candidate-${{ github.run_id }}
-          path: data/registry-scan-state.json
-          if-no-files-found: error
-          retention-days: 1
-
       - name: Upload GitHub Pages artifact
-        if: steps.decision.outputs.deploy == 'true'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: .output/public
@@ -168,11 +75,9 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    if: needs.build.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      actions: read
       pages: write
       id-token: write
     environment:
@@ -182,19 +87,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
-
-      - name: Download deployed registry state
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: registry-scan-candidate-${{ github.run_id }}
-          path: data
-
-      # This artifact exists only after Pages accepted the matching catalog.
-      # Future runs therefore never trust state from a failed deployment.
-      - name: Publish deployed registry state
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: registry-scan-state-v1
-          path: data/registry-scan-state.json
-          if-no-files-found: error
-          retention-days: 90
