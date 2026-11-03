@@ -89,6 +89,7 @@ Facts that have mattered before:
 - The daemon checks `requirements.paseo` against the version and against its stable core, so `^0.N.0` admits `0.N.0-beta.k` (`packages/protocol/src/plugin-requirements.ts`). npm semver does not, so a prerelease-aware comparator may still be needed in other tooling.
 - Manifest keys: the daemon schema is non-strict for top-level keys (unknown keys are stripped) but strict for `requirements`.
 - A removed SDK export fails at bundle or run time, not always at typecheck. grep plugin source for every removed name.
+- 0.15 (104 commits since 0.14.0) changed only `@getpaseo/plugin/server` lifecycle: `server.addHook` plus renamed hooks (`agent.turn_ended` -> `agent.turn.after` and so on) and `worktree.create.before|after`. `on`/`before` are deprecated, removal after 2027-04-30. A plugin that registers no lifecycle hooks (the cafe plugin) needs only the SDK bump and a CI matrix entry. `paseo-plugins` may already have adopted the beta, so its stable bump can be a catalog-only PR owned by another session; check step 0 first.
 
 ## 3. Broad PR in each repo
 
