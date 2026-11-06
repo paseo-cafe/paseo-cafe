@@ -4,8 +4,9 @@
   "categories": ["productivity"],
   "platforms": [],
   "caveats": [
-    "Draws flowcharts and sequence diagrams; anything it cannot draw in full is left to Paseo's own Mermaid renderer.",
-    "On Paseo 0.11 and 0.12, text around a drawn diagram uses the plugin's limited Markdown renderer; from 0.13, Paseo's."
+    "Draws flowcharts and sequence diagrams inline; on Paseo 0.13+ other diagrams render with Mermaid inside the plugin.",
+    "On Paseo 0.11 and 0.12, text around a drawn diagram uses the plugin's limited Markdown renderer; from 0.13, Paseo's.",
+    "With Better Paseo, turn off its \"Plugin markdown for replies\" setting, or replies show diagrams as code."
   ],
   "submittedBy": "dutchakdev"
 }
