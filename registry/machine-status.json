@@ -6,7 +6,9 @@
   "caveats": [
     "Requires a macOS daemon; Linux and Windows metric collection are unsupported.",
     "Docker controls require an installed container engine.",
-    "Process visibility is limited by the daemon user's permissions."
+    "Process visibility is limited by the daemon user's permissions.",
+    "Agent tools machine_status and machine_explain_process need a Paseo 0.14 or newer daemon.",
+    "Reads other processes' environments (ps -E) only to find PASEO_AGENT_ID; nothing else is kept."
   ],
   "submittedBy": "dutchakdev"
 }
